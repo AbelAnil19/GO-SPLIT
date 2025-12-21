@@ -1,12 +1,15 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { doPasswordReset } from '../firebase/auth';
+import { useToast } from '../context/ToastContext';
 
 const ForgotPassword = () => {
     const [email, setEmail] = useState('');
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
+
+    const { addToast } = useToast();
 
     const handleReset = async (e) => {
         e.preventDefault();
@@ -16,10 +19,13 @@ const ForgotPassword = () => {
 
         try {
             await doPasswordReset(email);
-            setMessage('Password reset email sent! Check your inbox.');
+            const msg = 'Password reset email sent! Check your inbox.';
+            setMessage(msg);
+            addToast(msg, 'success');
             setIsSending(false);
         } catch (err) {
             setError(err.message);
+            addToast(err.message, 'error');
             setIsSending(false);
         }
     };

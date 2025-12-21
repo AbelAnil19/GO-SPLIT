@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { doCreateUserWithEmailAndPassword, doSignInWithGoogle } from '../firebase/auth';
+import { doCreateUserWithEmailAndPassword, doSignInWithGoogle, doUpdateProfile } from '../firebase/auth';
+import { useToast } from '../context/ToastContext';
 
 const RegisterPage = () => {
     const [name, setName] = useState('');
@@ -9,25 +10,73 @@ const RegisterPage = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
     const [isRegistering, setIsRegistering] = useState(false);
+    const { addToast } = useToast();
     const navigate = useNavigate();
+
+    const validateEmail = (email) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
+    const validatePassword = (password) => {
+        return password.length >= 6;
+    };
 
     const handleRegister = async (e) => {
         e.preventDefault();
         setError('');
 
+        // Validation
+        if (!name || !email || !password || !confirmPassword) {
+            setError('Please fill in all fields');
+            addToast('Please fill in all fields', 'error');
+            return;
+        }
+
+        if (name.trim().length < 2) {
+            setError('Name must be at least 2 characters');
+            addToast('Name must be at least 2 characters', 'error');
+            return;
+        }
+
+        if (!validateEmail(email)) {
+            setError('Please enter a valid email address');
+            addToast('Please enter a valid email address', 'error');
+            return;
+        }
+
+        if (!validatePassword(password)) {
+            setError('Password must be at least 6 characters');
+            addToast('Password must be at least 6 characters', 'error');
+            return;
+        }
+
         if (password !== confirmPassword) {
             setError("Passwords do not match");
+            addToast("Passwords do not match", 'error');
             return;
         }
 
         if (!isRegistering) {
             setIsRegistering(true);
             try {
-                await doCreateUserWithEmailAndPassword(email, password);
-                navigate('/home');
-                // Optionally update profile with name here
+                const userCredential = await doCreateUserWithEmailAndPassword(email, password);
+                const user = userCredential.user;
+
+                // Update profile with name and generated avatar
+                const photoURL = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
+                await doUpdateProfile(user, name, photoURL);
+
+                addToast('Account created successfully!', 'success');
+                navigate('/dashboard');
             } catch (err) {
-                setError(err.message);
+                const errorMessage = err.message.includes('email-already-in-use')
+                    ? 'This email is already registered'
+                    : err.message.includes('weak-password')
+                        ? 'Password is too weak'
+                        : err.message;
+                setError(errorMessage);
+                addToast(errorMessage, 'error');
                 setIsRegistering(false);
             }
         }
@@ -40,9 +89,11 @@ const RegisterPage = () => {
             setError('');
             try {
                 await doSignInWithGoogle();
-                navigate('/home');
+                addToast('Successfully signed up with Google!', 'success');
+                navigate('/dashboard');
             } catch (err) {
                 setError(err.message);
+                addToast(err.message, 'error');
                 setIsRegistering(false);
             }
         }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../firebase/authContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { doSignOut } from '../firebase/auth';
 
 const HomePage = () => {
@@ -14,7 +14,12 @@ const HomePage = () => {
 
     return (
         <div className="flex items-center justify-center min-h-[calc(100vh-100px)] text-white">
-            <div className="glass-card p-10 rounded-3xl shadow-2xl w-full max-w-2xl text-center backdrop-blur-md bg-white/10 border border-white/20">
+            <div className="glass-card p-10 rounded-3xl shadow-2xl w-full max-w-2xl text-center backdrop-blur-md bg-white/10 border border-white/20 relative">
+                <Link to="/" className="absolute top-4 right-6 text-gray-400 hover:text-white transition-colors">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </Link>
                 <div className="relative inline-block mb-6">
                     {currentUser.photoURL ? (
                         <img

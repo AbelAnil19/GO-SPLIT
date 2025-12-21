@@ -6,6 +6,7 @@ import {
     GoogleAuthProvider,
     sendPasswordResetEmail,
     signOut,
+    updateProfile,
 } from "firebase/auth";
 
 export const doCreateUserWithEmailAndPassword = async (email, password) => {
@@ -27,4 +28,8 @@ export const doSignOut = async () => {
 
 export const doPasswordReset = async (email) => {
     return sendPasswordResetEmail(auth, email);
+};
+
+export const doUpdateProfile = async (user, displayName, photoURL) => {
+    return updateProfile(user, { displayName, photoURL });
 };

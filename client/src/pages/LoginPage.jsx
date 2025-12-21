@@ -1,12 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { doSignInWithEmailAndPassword, doSignInWithGoogle } from '../firebase/auth';
+import { useToast } from '../context/ToastContext';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isSigningIn, setIsSigningIn] = useState(false);
+    const { addToast } = useToast();
     const navigate = useNavigate();
 
     const handleGoogleSignIn = async (e) => {
@@ -16,24 +18,58 @@ const LoginPage = () => {
             setError('');
             try {
                 await doSignInWithGoogle();
-                navigate('/home');
+                addToast('Successfully signed in with Google!', 'success');
+                navigate('/dashboard');
             } catch (err) {
                 setError(err.message);
+                addToast(err.message, 'error');
                 setIsSigningIn(false);
             }
         }
     };
 
+    const validateEmail = (email) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
     const handleEmailSignIn = async (e) => {
         e.preventDefault();
         if (!isSigningIn) {
-            setIsSigningIn(true);
             setError('');
+
+            // Validation
+            if (!email || !password) {
+                setError('Please fill in all fields');
+                addToast('Please fill in all fields', 'error');
+                return;
+            }
+
+            if (!validateEmail(email)) {
+                setError('Please enter a valid email address');
+                addToast('Please enter a valid email address', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                setError('Password must be at least 6 characters');
+                addToast('Password must be at least 6 characters', 'error');
+                return;
+            }
+
+            setIsSigningIn(true);
             try {
                 await doSignInWithEmailAndPassword(email, password);
-                navigate('/home');
+                addToast('Welcome back!', 'success');
+                navigate('/dashboard');
             } catch (err) {
-                setError(err.message);
+                const errorMessage = err.message.includes('user-not-found')
+                    ? 'No account found with this email'
+                    : err.message.includes('wrong-password')
+                        ? 'Incorrect password'
+                        : err.message;
+                setError(errorMessage);
+                addToast(errorMessage, 'error');
                 setIsSigningIn(false);
             }
         }
