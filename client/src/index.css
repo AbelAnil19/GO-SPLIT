@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@variant dark (&:is(.dark *));
+
 @theme {
     --animate-glow: glow 2s ease-in-out infinite alternate;
 }

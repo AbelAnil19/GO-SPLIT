@@ -30,9 +30,9 @@ const Sidebar = () => {
     ];
 
     return (
-        <aside className="w-64 h-full hidden lg:flex flex-col bg-black/40 backdrop-blur-xl border-r border-white/10">
-            <div className="h-20 flex items-center px-8 border-b border-white/10">
-                <Link to="/" className="flex items-center gap-2 font-bold text-2xl text-white">
+        <aside className="w-64 h-full hidden lg:flex flex-col bg-white dark:bg-black/40 backdrop-blur-xl border-r border-gray-200 dark:border-white/10 transition-colors duration-300">
+            <div className="h-20 flex items-center px-8 border-b border-gray-200 dark:border-white/10">
+                <Link to="/" className="flex items-center gap-2 font-bold text-2xl text-[#0d191b] dark:text-white">
                     <span className="material-symbols-outlined text-3xl text-amber-400">account_balance_wallet</span>
                     <span>GoSplit</span>
                 </Link>
@@ -45,7 +45,7 @@ const Sidebar = () => {
                         to={item.path}
                         className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${isActive(item.path)
                             ? 'bg-amber-400/20 text-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.1)]'
-                            : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                            : 'text-[#5c6f73] dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 hover:text-[#13c8ec] dark:hover:text-amber-400'
                             }`}
                     >
                         <span className={`material-symbols-outlined transition-colors duration-300 ${isActive(item.path) ? 'fill-1' : ''}`}>
@@ -56,7 +56,7 @@ const Sidebar = () => {
                 ))}
             </nav>
 
-            <div className="p-4 border-t border-white/10">
+            <div className="p-4 border-t border-gray-200 dark:border-white/10">
                 <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-all font-medium text-sm group"

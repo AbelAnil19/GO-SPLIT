@@ -17,11 +17,11 @@ const HistoryPage = () => {
             {/* Page Heading & Actions */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div className="flex flex-col gap-2">
-                    <h1 className="text-4xl font-black tracking-tight text-white">Activity History</h1>
-                    <p className="text-gray-400 text-base">View your past expenses, settlements, and group updates.</p>
+                    <h1 className="text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">Activity History</h1>
+                    <p className="text-[#5c6f73] dark:text-gray-400 text-base">View your past expenses, settlements, and group updates.</p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-white/5 border border-white/10 text-sm font-bold hover:bg-white/10 transition-colors text-white backdrop-blur-md">
+                    <button className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 text-sm font-bold hover:bg-white/10 transition-colors text-[#0d191b] dark:text-white backdrop-blur-md">
                         <span className="material-symbols-outlined text-[20px]">filter_list</span>
                         <span className="hidden sm:inline">Filter</span>
                     </button>
@@ -42,7 +42,7 @@ const HistoryPage = () => {
                         <span className="material-symbols-outlined">search</span>
                     </div>
                     <input
-                        className="block w-full rounded-xl border-none bg-white/5 py-3 pl-10 pr-4 text-sm shadow-sm ring-1 ring-inset ring-white/10 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-amber-400 sm:leading-6 text-white backdrop-blur-md"
+                        className="block w-full rounded-xl border-none bg-white/5 py-3 pl-10 pr-4 text-sm shadow-sm ring-1 ring-inset ring-white/10 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-amber-400 sm:leading-6 text-[#0d191b] dark:text-white backdrop-blur-md"
                         placeholder="Search by description, person, or group"
                         type="text"
                         value={searchQuery}
@@ -85,10 +85,10 @@ const HistoryPage = () => {
             <div className="flex flex-col gap-8 mt-4">
                 {/* Today */}
                 <div className="flex flex-col gap-4">
-                    <h3 className="text-lg font-bold px-1 text-white">Today</h3>
+                    <h3 className="text-lg font-bold px-1 text-[#0d191b] dark:text-white">Today</h3>
 
                     {/* Activity Card 1: Expense */}
-                    <div className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl bg-white/5 border border-transparent hover:border-amber-400/30 shadow-sm hover:shadow-md transition-all cursor-pointer backdrop-blur-md">
+                    <div className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent hover:border-amber-400/30 shadow-sm hover:shadow-md transition-all cursor-pointer backdrop-blur-md">
                         <div className="flex items-center gap-4 flex-1">
                             <div className="relative shrink-0">
                                 <div className="size-12 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-400">
@@ -99,7 +99,7 @@ const HistoryPage = () => {
                                 </div>
                             </div>
                             <div className="flex flex-col">
-                                <p className="text-base font-bold text-white">Sushi Dinner</p>
+                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Sushi Dinner</p>
                                 <div className="flex items-center gap-2 text-sm text-gray-400">
                                     <span>Alice paid $84.00</span>
                                     <span className="size-1 bg-gray-600 rounded-full"></span>
@@ -114,7 +114,7 @@ const HistoryPage = () => {
                     </div>
 
                     {/* Activity Card 2: Settlement */}
-                    <div className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl bg-white/5 border border-transparent hover:border-amber-400/30 shadow-sm hover:shadow-md transition-all cursor-pointer backdrop-blur-md">
+                    <div className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent hover:border-amber-400/30 shadow-sm hover:shadow-md transition-all cursor-pointer backdrop-blur-md">
                         <div className="flex items-center gap-4 flex-1">
                             <div className="relative shrink-0">
                                 <div className="size-12 rounded-full bg-green-500/10 flex items-center justify-center text-green-400">
@@ -125,7 +125,7 @@ const HistoryPage = () => {
                                 </div>
                             </div>
                             <div className="flex flex-col">
-                                <p className="text-base font-bold text-white">Payment to John</p>
+                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Payment to John</p>
                                 <div className="flex items-center gap-2 text-sm text-gray-400">
                                     <span>You paid John</span>
                                 </div>
@@ -138,7 +138,7 @@ const HistoryPage = () => {
                     </div>
 
                     {/* Activity Card 3: Group Update */}
-                    <div className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl bg-white/5 border border-transparent hover:border-amber-400/30 shadow-sm hover:shadow-md transition-all cursor-pointer backdrop-blur-md">
+                    <div className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent hover:border-amber-400/30 shadow-sm hover:shadow-md transition-all cursor-pointer backdrop-blur-md">
                         <div className="flex items-center gap-4 flex-1">
                             <div className="relative shrink-0">
                                 <div className="size-12 rounded-full bg-gray-700 flex items-center justify-center text-gray-400">
@@ -146,7 +146,7 @@ const HistoryPage = () => {
                                 </div>
                             </div>
                             <div className="flex flex-col">
-                                <p className="text-base font-bold text-white">Group "Trip to Bali" Created</p>
+                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Group "Trip to Bali" Created</p>
                                 <div className="flex items-center gap-2 text-sm text-gray-400">
                                     <span>Added by You</span>
                                 </div>

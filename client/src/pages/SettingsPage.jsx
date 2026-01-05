@@ -31,13 +31,13 @@ const SettingsPage = () => {
         <div className="flex flex-col gap-8 pb-20 max-w-7xl mx-auto">
             {/* Page Heading */}
             <div className="flex flex-col gap-3">
-                <h1 className="text-white text-4xl font-black tracking-tight">Settings</h1>
-                <p className="text-gray-400 text-base font-normal">Manage your profile details, currency preferences, and security settings.</p>
+                <h1 className="text-[#0d191b] dark:text-white text-4xl font-black tracking-tight">Settings</h1>
+                <p className="text-[#5c6f73] dark:text-gray-400 text-base font-normal">Manage your profile details, currency preferences, and security settings.</p>
             </div>
 
             <div className="flex flex-col gap-6">
                 {/* Profile Header Card */}
-                <section className="bg-white/5 rounded-2xl p-6 shadow-sm border border-white/10 backdrop-blur-md">
+                <section className="bg-white dark:bg-white/5 rounded-2xl p-6 shadow-sm border border-gray-300 dark:border-white/10 backdrop-blur-md">
                     <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start justify-between">
                         <div className="flex flex-col sm:flex-row gap-5 items-center">
                             <div className="relative group cursor-pointer">
@@ -52,12 +52,12 @@ const SettingsPage = () => {
                                     </div>
                                 )}
                                 <div className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <span className="material-symbols-outlined text-white">edit</span>
+                                    <span className="material-symbols-outlined text-[#0d191b] dark:text-white">edit</span>
                                 </div>
                             </div>
                             <div className="text-center sm:text-left">
-                                <h2 className="text-white text-2xl font-bold">{currentUser?.displayName || 'User'}</h2>
-                                <p className="text-gray-400 text-sm mb-2">{currentUser?.email}</p>
+                                <h2 className="text-[#0d191b] dark:text-white text-2xl font-bold">{currentUser?.displayName || 'User'}</h2>
+                                <p className="text-[#5c6f73] dark:text-gray-400 text-sm mb-2">{currentUser?.email}</p>
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-400/10 text-amber-400">
                                     Free Plan
                                 </span>
@@ -65,7 +65,7 @@ const SettingsPage = () => {
                         </div>
                         <button
                             onClick={() => addToast('Photo upload coming soon!', 'info')}
-                            className="bg-white/10 hover:bg-white/20 text-white text-sm font-bold py-2.5 px-5 rounded-lg transition-colors flex items-center gap-2"
+                            className="bg-white/10 hover:bg-white/20 text-[#0d191b] dark:text-white text-sm font-bold py-2.5 px-5 rounded-lg transition-colors flex items-center gap-2"
                         >
                             <span className="material-symbols-outlined text-[18px]">upload</span>
                             Change Photo
@@ -74,16 +74,16 @@ const SettingsPage = () => {
                 </section>
 
                 {/* Personal Information */}
-                <section className="bg-white/5 rounded-2xl shadow-sm border border-white/10 overflow-hidden backdrop-blur-md">
-                    <div className="px-6 py-5 border-b border-white/10">
-                        <h3 className="text-lg font-bold text-white">Personal Information</h3>
+                <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
+                    <div className="px-6 py-5 border-b border-gray-300 dark:border-white/10">
+                        <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">Personal Information</h3>
                     </div>
                     <div className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-gray-300">First Name</label>
                                 <input
-                                    className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
+                                    className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
                                     type="text"
                                     value={firstName}
                                     onChange={(e) => setFirstName(e.target.value)}
@@ -92,7 +92,7 @@ const SettingsPage = () => {
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-gray-300">Last Name</label>
                                 <input
-                                    className="w-full rounded-lg border border-white/10 bg-white/5 text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
+                                    className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
                                     type="text"
                                     value={lastName}
                                     onChange={(e) => setLastName(e.target.value)}
@@ -101,9 +101,9 @@ const SettingsPage = () => {
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-gray-300">Email Address</label>
                                 <div className="relative">
-                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">mail</span>
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 text-[20px]">mail</span>
                                     <input
-                                        className="w-full rounded-lg border border-white/10 bg-white/5 text-white pl-10 pr-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
+                                        className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white pl-10 pr-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
                                         type="email"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
@@ -113,9 +113,9 @@ const SettingsPage = () => {
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-gray-300">Phone Number</label>
                                 <div className="relative">
-                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">phone</span>
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 text-[20px]">phone</span>
                                     <input
-                                        className="w-full rounded-lg border border-white/10 bg-white/5 text-white pl-10 pr-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
+                                        className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white pl-10 pr-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
                                         placeholder="+1 (555) 000-0000"
                                         type="tel"
                                         value={phone}
@@ -128,9 +128,9 @@ const SettingsPage = () => {
                 </section>
 
                 {/* Regional Preferences */}
-                <section className="bg-white/5 rounded-2xl shadow-sm border border-white/10 overflow-hidden backdrop-blur-md">
-                    <div className="px-6 py-5 border-b border-white/10">
-                        <h3 className="text-lg font-bold text-white">Regional Preferences</h3>
+                <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
+                    <div className="px-6 py-5 border-b border-gray-300 dark:border-white/10">
+                        <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">Regional Preferences</h3>
                     </div>
                     <div className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -138,7 +138,7 @@ const SettingsPage = () => {
                                 <label className="text-sm font-medium text-gray-300">Default Currency</label>
                                 <div className="relative">
                                     <select
-                                        className="w-full appearance-none rounded-lg border border-white/10 bg-white/5 text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer"
+                                        className="w-full appearance-none rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer"
                                         value={currency}
                                         onChange={(e) => setCurrency(e.target.value)}
                                     >
@@ -147,7 +147,7 @@ const SettingsPage = () => {
                                         <option value="GBP">GBP (£) - British Pound</option>
                                         <option value="JPY">JPY (¥) - Japanese Yen</option>
                                     </select>
-                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
+                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 pointer-events-none">expand_more</span>
                                 </div>
                                 <p className="text-xs text-gray-500">This will be the default currency for new expenses.</p>
                             </div>
@@ -155,7 +155,7 @@ const SettingsPage = () => {
                                 <label className="text-sm font-medium text-gray-300">Language</label>
                                 <div className="relative">
                                     <select
-                                        className="w-full appearance-none rounded-lg border border-white/10 bg-white/5 text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer"
+                                        className="w-full appearance-none rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer"
                                         value={language}
                                         onChange={(e) => setLanguage(e.target.value)}
                                     >
@@ -164,7 +164,7 @@ const SettingsPage = () => {
                                         <option value="fr">French</option>
                                         <option value="de">German</option>
                                     </select>
-                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
+                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 pointer-events-none">expand_more</span>
                                 </div>
                             </div>
                         </div>
@@ -172,16 +172,16 @@ const SettingsPage = () => {
                 </section>
 
                 {/* Notifications */}
-                <section className="bg-white/5 rounded-2xl shadow-sm border border-white/10 overflow-hidden backdrop-blur-md">
-                    <div className="px-6 py-5 border-b border-white/10">
-                        <h3 className="text-lg font-bold text-white">Notifications</h3>
+                <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
+                    <div className="px-6 py-5 border-b border-gray-300 dark:border-white/10">
+                        <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">Notifications</h3>
                     </div>
                     <div className="p-6 flex flex-col gap-6">
                         {/* Toggle 1 */}
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col gap-0.5">
-                                <p className="text-sm font-bold text-white">Expense Added</p>
-                                <p className="text-sm text-gray-400">Get notified when someone adds an expense to a group.</p>
+                                <p className="text-sm font-bold text-[#0d191b] dark:text-white">Expense Added</p>
+                                <p className="text-sm text-[#5c6f73] dark:text-gray-400">Get notified when someone adds an expense to a group.</p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input
@@ -197,7 +197,7 @@ const SettingsPage = () => {
                         {/* Toggle 2 */}
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col gap-0.5">
-                                <p className="text-sm font-bold text-white">Settlement Reminders</p>
+                                <p className="text-sm font-bold text-[#0d191b] dark:text-white">Settlement Reminders</p>
                                 <p className="text-sm text-gray-400">Receive weekly summaries of outstanding balances.</p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">

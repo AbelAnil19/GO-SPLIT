@@ -1,7 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { doCreateUserWithEmailAndPassword, doSignInWithGoogle, doUpdateProfile } from '../firebase/auth';
+import { doCreateUserWithEmailAndPassword, doSignInWithGoogle, doUpdateProfile, checkEmailExists, sendEmailVerification } from '../firebase/auth';
 import { useToast } from '../context/ToastContext';
+import { createUserDocument } from '../firebase/firestore';
 
 const RegisterPage = () => {
     const [name, setName] = useState('');
@@ -57,6 +58,14 @@ const RegisterPage = () => {
             return;
         }
 
+        // Check if email already exists in Firebase Auth
+        const emailExists = await checkEmailExists(email);
+        if (emailExists) {
+            setError('This email is already registered. Please login instead.');
+            addToast('This email is already registered. Please login instead.', 'error');
+            return;
+        }
+
         if (!isRegistering) {
             setIsRegistering(true);
             try {
@@ -67,8 +76,18 @@ const RegisterPage = () => {
                 const photoURL = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
                 await doUpdateProfile(user, name, photoURL);
 
-                addToast('Account created successfully!', 'success');
-                navigate('/dashboard');
+                // Create user document in Firestore
+                await createUserDocument(user.uid, {
+                    displayName: name,
+                    email: user.email,
+                    photoURL: photoURL
+                });
+
+                // Send email verification
+                await sendEmailVerification(user);
+
+                addToast('Account created! Please check your email to verify.', 'success');
+                navigate('/verify-email');
             } catch (err) {
                 const errorMessage = err.message.includes('email-already-in-use')
                     ? 'This email is already registered'
@@ -88,7 +107,16 @@ const RegisterPage = () => {
             setIsRegistering(true);
             setError('');
             try {
-                await doSignInWithGoogle();
+                const result = await doSignInWithGoogle();
+                const user = result.user;
+
+                // Create or update user document in Firestore
+                await createUserDocument(user.uid, {
+                    displayName: user.displayName,
+                    email: user.email,
+                    photoURL: user.photoURL
+                });
+
                 addToast('Successfully signed up with Google!', 'success');
                 navigate('/dashboard');
             } catch (err) {

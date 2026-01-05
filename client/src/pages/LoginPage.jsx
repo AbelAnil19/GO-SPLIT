@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { doSignInWithEmailAndPassword, doSignInWithGoogle } from '../firebase/auth';
 import { useToast } from '../context/ToastContext';
+import { createUserDocument } from '../firebase/firestore';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
@@ -17,12 +18,27 @@ const LoginPage = () => {
             setIsSigningIn(true);
             setError('');
             try {
-                await doSignInWithGoogle();
+                const result = await doSignInWithGoogle();
+                const user = result.user;
+
+                // Create or update user document in Firestore
+                await createUserDocument(user.uid, {
+                    displayName: user.displayName,
+                    email: user.email,
+                    photoURL: user.photoURL
+                });
+
                 addToast('Successfully signed in with Google!', 'success');
                 navigate('/dashboard');
             } catch (err) {
-                setError(err.message);
-                addToast(err.message, 'error');
+                // Handle account exists with different credential
+                if (err.code === 'auth/account-exists-with-different-credential') {
+                    setError(`This email is already registered with email/password. Please login with your password instead, then you can link your Google account in Settings.`);
+                    addToast('Account exists. Please use email/password login.', 'error');
+                } else {
+                    setError(err.message);
+                    addToast(err.message, 'error');
+                }
                 setIsSigningIn(false);
             }
         }

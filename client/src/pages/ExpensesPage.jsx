@@ -15,12 +15,12 @@ const ExpensesPage = () => {
     return (
         <div className="flex flex-col gap-8 pb-20 max-w-7xl mx-auto">
             {/* Page Heading & Balance */}
-            <div className="bg-white/5 p-6 rounded-xl shadow-sm border border-white/10 backdrop-blur-md">
+            <div className="bg-white dark:bg-white/5 p-6 rounded-xl shadow-sm border border-gray-300 dark:border-white/10 backdrop-blur-md">
                 <div className="flex flex-wrap justify-between items-end gap-4">
                     <div className="flex flex-col gap-2">
-                        <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">Expenses</h1>
+                        <h1 className="text-3xl md:text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">Expenses</h1>
                         <div className="flex items-center gap-2">
-                            <span className="text-gray-400 font-medium">Total balance:</span>
+                            <span className="text-[#5c6f73] dark:text-gray-400 font-medium">Total balance:</span>
                             <span className="text-amber-400 font-bold text-lg bg-amber-400/10 px-2 py-0.5 rounded">+$120.50</span>
                             <span className="text-gray-400 text-sm">(You are owed)</span>
                         </div>
@@ -41,7 +41,7 @@ const ExpensesPage = () => {
                 <div className="relative flex-1 min-w-[240px]">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined">search</span>
                     <input
-                        className="w-full h-12 pl-12 pr-4 bg-white/5 border border-white/10 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all placeholder:text-gray-400 text-sm font-medium text-white backdrop-blur-md"
+                        className="w-full h-12 pl-12 pr-4 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all placeholder:text-gray-400 text-sm font-medium text-[#0d191b] dark:text-white backdrop-blur-md"
                         placeholder="Search expenses..."
                         type="text"
                         value={searchQuery}
@@ -50,16 +50,16 @@ const ExpensesPage = () => {
                 </div>
                 {/* Filter Chips */}
                 <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-                    <button className="flex items-center gap-2 h-12 px-4 bg-white/5 border border-white/10 rounded-lg hover:border-amber-400/50 whitespace-nowrap transition-colors group backdrop-blur-md">
-                        <span className="text-sm font-medium group-hover:text-amber-400 transition-colors text-white">All Groups</span>
+                    <button className="flex items-center gap-2 h-12 px-4 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg hover:border-amber-400/50 whitespace-nowrap transition-colors group backdrop-blur-md">
+                        <span className="text-sm font-medium group-hover:text-amber-400 transition-colors text-[#0d191b] dark:text-white">All Groups</span>
                         <span className="material-symbols-outlined text-[18px] text-gray-400">expand_more</span>
                     </button>
                     <button className="flex items-center gap-2 h-12 px-4 bg-amber-400/10 border border-amber-400/20 rounded-lg whitespace-nowrap transition-colors backdrop-blur-md">
                         <span className="text-sm font-bold text-amber-400">This Month</span>
                         <span className="material-symbols-outlined text-[18px] text-amber-400">expand_more</span>
                     </button>
-                    <button className="flex items-center gap-2 h-12 px-4 bg-white/5 border border-white/10 rounded-lg hover:border-amber-400/50 whitespace-nowrap transition-colors group backdrop-blur-md">
-                        <span className="text-sm font-medium group-hover:text-amber-400 transition-colors text-white">Status: All</span>
+                    <button className="flex items-center gap-2 h-12 px-4 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg hover:border-amber-400/50 whitespace-nowrap transition-colors group backdrop-blur-md">
+                        <span className="text-sm font-medium group-hover:text-amber-400 transition-colors text-[#0d191b] dark:text-white">Status: All</span>
                         <span className="material-symbols-outlined text-[18px] text-gray-400">expand_more</span>
                     </button>
                 </div>
@@ -72,13 +72,13 @@ const ExpensesPage = () => {
                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider pl-1">Yesterday, Oct 24</h3>
 
                     {/* Expense Item 1 */}
-                    <div className="group flex flex-col sm:flex-row gap-4 bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer backdrop-blur-md">
+                    <div className="group flex flex-col sm:flex-row gap-4 bg-white dark:bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer backdrop-blur-md">
                         <div className="flex items-start gap-4 flex-1">
                             <div className="shrink-0 size-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
                                 <span className="material-symbols-outlined">shopping_cart</span>
                             </div>
                             <div className="flex flex-col justify-center gap-0.5">
-                                <p className="text-base font-bold text-white">Groceries - Whole Foods</p>
+                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Groceries - Whole Foods</p>
                                 <p className="text-sm text-gray-400">You paid $85.00</p>
                             </div>
                         </div>
@@ -89,13 +89,13 @@ const ExpensesPage = () => {
                     </div>
 
                     {/* Expense Item 2 */}
-                    <div className="group flex flex-col sm:flex-row gap-4 bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer backdrop-blur-md">
+                    <div className="group flex flex-col sm:flex-row gap-4 bg-white dark:bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer backdrop-blur-md">
                         <div className="flex items-start gap-4 flex-1">
                             <div className="shrink-0 size-12 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-400">
                                 <span className="material-symbols-outlined">local_taxi</span>
                             </div>
                             <div className="flex flex-col justify-center gap-0.5">
-                                <p className="text-base font-bold text-white">Uber to Airport</p>
+                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Uber to Airport</p>
                                 <p className="text-sm text-gray-400">Mark paid $30.00</p>
                             </div>
                         </div>
@@ -111,13 +111,13 @@ const ExpensesPage = () => {
                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider pl-1">Oct 20</h3>
 
                     {/* Expense Item 3 */}
-                    <div className="group flex flex-col sm:flex-row gap-4 bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer backdrop-blur-md">
+                    <div className="group flex flex-col sm:flex-row gap-4 bg-white dark:bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer backdrop-blur-md">
                         <div className="flex items-start gap-4 flex-1">
                             <div className="shrink-0 size-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
                                 <span className="material-symbols-outlined">restaurant</span>
                             </div>
                             <div className="flex flex-col justify-center gap-0.5">
-                                <p className="text-base font-bold text-white">Dinner at Mario's</p>
+                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Dinner at Mario's</p>
                                 <p className="text-sm text-gray-400">You paid $120.00</p>
                             </div>
                         </div>
@@ -128,13 +128,13 @@ const ExpensesPage = () => {
                     </div>
 
                     {/* Expense Item 4 (Settled) */}
-                    <div className="group flex flex-col sm:flex-row gap-4 bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer opacity-75 hover:opacity-100 backdrop-blur-md">
+                    <div className="group flex flex-col sm:flex-row gap-4 bg-white dark:bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer opacity-75 hover:opacity-100 backdrop-blur-md">
                         <div className="flex items-start gap-4 flex-1">
                             <div className="shrink-0 size-12 rounded-full bg-gray-800 flex items-center justify-center text-gray-500">
                                 <span className="material-symbols-outlined">receipt_long</span>
                             </div>
                             <div className="flex flex-col justify-center gap-0.5">
-                                <p className="text-base font-bold text-white line-through decoration-gray-400">Monthly Internet</p>
+                                <p className="text-base font-bold text-[#0d191b] dark:text-white line-through decoration-gray-400">Monthly Internet</p>
                                 <p className="text-sm text-gray-400">Alice paid $50.00</p>
                             </div>
                         </div>
