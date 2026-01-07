@@ -28,7 +28,8 @@ const AddMemberModal = ({ isOpen, onClose, groupId, groupName, currentMembers = 
                 groupId,
                 groupName,
                 currentUser.displayName,
-                email
+                email,
+                currentUser.uid // Pass inviterId for permissions
             );
             addToast(`Invitation sent to ${email}!`, 'success');
             setEmail('');

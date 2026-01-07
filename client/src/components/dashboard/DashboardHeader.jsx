@@ -1,8 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../firebase/authContext';
 import { useToast } from '../../context/ToastContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
+import { SunIcon } from '../icons/SunIcon';
+import { MoonIcon } from '../icons/MoonIcon';
+import { BellIcon } from '../icons/NotificationIcon';
+import { UserIcon } from '../icons/ProfileIcon';
+import { SettingsIcon } from '../icons/SettingsIcon';
+import { LogoutIcon } from '../icons/LogoutIcon';
+import { listenToUserInvitations, acceptGroupInvitation, declineGroupInvitation } from '../../firebase/firestore';
 
 const DashboardHeader = () => {
     const { currentUser, doSignOut } = useAuth();
@@ -11,6 +18,22 @@ const DashboardHeader = () => {
     const { theme, toggleTheme } = useTheme();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
+    const [invitations, setInvitations] = useState([]);
+    const [loadingInvite, setLoadingInvite] = useState({});
+    const themeIconRef = React.useRef(null);
+    const notifIconRef = React.useRef(null);
+    const logoutIconRef = React.useRef(null);
+
+    // Listen to invitations
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const unsubscribe = listenToUserInvitations(currentUser.uid, (invites) => {
+            setInvitations(invites);
+        });
+
+        return () => unsubscribe();
+    }, [currentUser]);
 
     // Get greeting based on time
     const getGreeting = () => {
@@ -34,6 +57,28 @@ const DashboardHeader = () => {
         setIsProfileOpen(!isProfileOpen);
     };
 
+    const handleAcceptInvite = async (invitationId, groupName) => {
+        setLoadingInvite(prev => ({ ...prev, [invitationId]: 'accepting' }));
+        try {
+            await acceptGroupInvitation(invitationId, currentUser.uid);
+            addToast(`You joined ${groupName}!`, 'success');
+        } catch (error) {
+            addToast('Failed to accept invitation', 'error');
+        }
+        setLoadingInvite(prev => ({ ...prev, [invitationId]: null }));
+    };
+
+    const handleDeclineInvite = async (invitationId, groupName) => {
+        setLoadingInvite(prev => ({ ...prev, [invitationId]: 'declining' }));
+        try {
+            await declineGroupInvitation(invitationId);
+            addToast(`Invitation to ${groupName} declined`, 'info');
+        } catch (error) {
+            addToast('Failed to decline invitation', 'error');
+        }
+        setLoadingInvite(prev => ({ ...prev, [invitationId]: null }));
+    };
+
     return (
         <header className="h-20 bg-white dark:bg-black/40 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 flex items-center justify-between px-8 flex-shrink-0 z-10 relative transition-colors duration-300 shadow-sm">
             <div>
@@ -46,11 +91,15 @@ const DashboardHeader = () => {
                 <div className="relative">
                     <button
                         onClick={() => setIsNotifOpen(!isNotifOpen)}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors border ${isNotifOpen ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white border-gray-200 dark:border-white/10' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border-transparent dark:hover:border-white/10'}`}
+                        onMouseEnter={() => notifIconRef.current?.startAnimation()}
+                        onMouseLeave={() => notifIconRef.current?.stopAnimation()}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors border ${isNotifOpen ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white border-gray-200 dark:border-white/10' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border-transparent hover:border-gray-200 dark:hover:border-white/10'}`}
                     >
-                        <span className="material-symbols-outlined">notifications</span>
+                        <BellIcon ref={notifIconRef} size={20} duration={0.8} isAnimated={false} />
                     </button>
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-[#0f172a] pointer-events-none"></span>
+                    {invitations.length > 0 && (
+                        <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-[#0f172a] pointer-events-none"></span>
+                    )}
 
                     {isNotifOpen && (
                         <div className="absolute right-0 top-12 w-80 bg-white dark:bg-[#1a1c23] border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in-up">
@@ -59,7 +108,51 @@ const DashboardHeader = () => {
                                 <button className="text-xs text-amber-400 hover:text-amber-300">Mark all read</button>
                             </div>
                             <div className="max-h-64 overflow-y-auto">
-                                <div className="p-4 text-center text-gray-500 text-sm">No new notifications</div>
+                                {invitations.length === 0 ? (
+                                    <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">No new notifications</div>
+                                ) : (
+                                    invitations.map((invitation) => (
+                                        <div key={invitation.id} className="p-4 border-b border-gray-100 dark:border-white/10 last:border-0 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center text-black flex-shrink-0">
+                                                    <span className="material-symbols-outlined text-xl">groups</span>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Group Invitation</p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                                                        {invitation.inviterName} invited you to <span className="font-semibold text-gray-900 dark:text-white">{invitation.groupName}</span>
+                                                    </p>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleAcceptInvite(invitation.id, invitation.groupName)}
+                                                            disabled={loadingInvite[invitation.id]}
+                                                            className="px-3 py-1 bg-amber-400 hover:bg-amber-500 text-black rounded-lg font-semibold transition-colors disabled:opacity-50 text-xs flex items-center gap-1"
+                                                        >
+                                                            {loadingInvite[invitation.id] === 'accepting' ? (
+                                                                <>
+                                                                    <span className="material-symbols-outlined text-xs animate-spin">refresh</span>
+                                                                    Accepting...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="material-symbols-outlined text-xs">check</span>
+                                                                    Accept
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeclineInvite(invitation.id, invitation.groupName)}
+                                                            disabled={loadingInvite[invitation.id]}
+                                                            className="px-3 py-1 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white rounded-lg font-semibold transition-colors disabled:opacity-50 text-xs"
+                                                        >
+                                                            {loadingInvite[invitation.id] === 'declining' ? 'Declining...' : 'Decline'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
                     )}
@@ -68,12 +161,16 @@ const DashboardHeader = () => {
                 {/* Theme Toggle */}
                 <button
                     onClick={toggleTheme}
-                    className="w-10 h-10 rounded-full flex items-center justify-center transition-colors border text-gray-400 hover:bg-white/10 hover:text-white border-transparent hover:border-white/10"
+                    onMouseEnter={() => themeIconRef.current?.startAnimation()}
+                    onMouseLeave={() => themeIconRef.current?.stopAnimation()}
+                    className="w-10 h-10 rounded-full flex items-center justify-center transition-colors border text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border-transparent hover:border-gray-200 dark:hover:border-white/10"
                     title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                 >
-                    <span className="material-symbols-outlined">
-                        {theme === 'dark' ? 'light_mode' : 'dark_mode'}
-                    </span>
+                    {theme === 'dark' ? (
+                        <SunIcon ref={themeIconRef} size={20} duration={0.6} isAnimated={false} />
+                    ) : (
+                        <MoonIcon ref={themeIconRef} size={20} duration={0.6} isAnimated={false} />
+                    )}
                 </button>
 
                 <div className="w-px h-8 bg-white/10 mx-2"></div>
@@ -105,18 +202,23 @@ const DashboardHeader = () => {
                     {isProfileOpen && (
                         <div className="absolute right-0 top-14 w-48 bg-white dark:bg-[#1a1c23] border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in-up">
                             <div className="p-2">
-                                <Link to="/dashboard/settings" className="flex items-center gap-3 px-3 py-2 text-sm text-[#5c6f73] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-[#0d191b] dark:hover:text-white rounded-lg transition-colors">
-                                    <span className="material-symbols-outlined text-lg">person</span> Profile
+                                <Link to="/dashboard/settings" className="flex items-center gap-3 px-3 py-2 text-sm text-[#5c6f73] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-[#0d191b] dark:hover:text-white rounded-lg transition-colors group">
+                                    <UserIcon size={18} duration={0.5} className="group-hover:animate-pulse" />
+                                    Profile
                                 </Link>
-                                <Link to="/dashboard/settings" className="flex items-center gap-3 px-3 py-2 text-sm text-[#5c6f73] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-[#0d191b] dark:hover:text-white rounded-lg transition-colors">
-                                    <span className="material-symbols-outlined text-lg">settings</span> Settings
+                                <Link to="/dashboard/settings" className="flex items-center gap-3 px-3 py-2 text-sm text-[#5c6f73] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-[#0d191b] dark:hover:text-white rounded-lg transition-colors group">
+                                    <SettingsIcon size={18} duration={0.6} className="group-hover:animate-pulse" />
+                                    Settings
                                 </Link>
                                 <div className="h-px bg-white/10 my-1"></div>
                                 <button
                                     onClick={handleLogout}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-left"
+                                    onMouseEnter={() => logoutIconRef.current?.startAnimation()}
+                                    onMouseLeave={() => logoutIconRef.current?.stopAnimation()}
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-left group"
                                 >
-                                    <span className="material-symbols-outlined text-lg">logout</span> Logout
+                                    <LogoutIcon ref={logoutIconRef} size={18} duration={0.6} isAnimated={false} />
+                                    Logout
                                 </button>
                             </div>
                         </div>

@@ -2,26 +2,41 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../firebase/authContext';
-import { createGroup, getUserGroups, listenToUserGroups } from '../firebase/firestore';
+import { createGroup, getUserGroups, listenToUserGroups, getUserExpenses } from '../firebase/firestore';
+import { calculateTotalBalance, getAmountOwed, getAmountUserIsOwed, getMonthlySpending, getPendingSettlements } from '../utils/expenseCalculator';
+import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
+import { db } from '../firebase/firebaseConfig';
+import { WalletIcon } from '../components/icons/WalletIcon';
+import { PaymentsIcon } from '../components/icons/PaymentsIcon';
+import { TrendingDownIcon } from '../components/icons/TrendingDownIcon';
+import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 
-const StatCard = ({ icon, label, value, trend, trendLabel, trendUp, color }) => (
-    <div className={`p-6 rounded-3xl bg-white dark:bg-white/5 border-2 border-gray-300 dark:border-white/10 backdrop-blur-md relative overflow-hidden group hover:bg-gray-50 dark:hover:bg-white/10 transition-colors shadow-soft`}>
-        <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full opacity-5 group-hover:opacity-10 transition-opacity bg-${color}-500`}></div>
-        <div className="flex items-center gap-3 relative z-10 mb-4">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-${color}-500/10 text-${color}-400`}>
-                <span className="material-symbols-outlined">{icon}</span>
+const StatCard = ({ IconComponent, label, value, trend, trendLabel, trendUp, color }) => {
+    const iconRef = React.useRef(null);
+
+    return (
+        <div
+            className={`p-6 rounded-3xl bg-white dark:bg-white/5 border-2 border-gray-300 dark:border-white/10 backdrop-blur-md relative overflow-hidden group hover:bg-gray-50 dark:hover:bg-white/10 transition-colors shadow-soft cursor-pointer`}
+            onMouseEnter={() => iconRef.current?.startAnimation()}
+            onMouseLeave={() => iconRef.current?.stopAnimation()}
+        >
+            <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full opacity-5 group-hover:opacity-10 transition-opacity bg-${color}-500`}></div>
+            <div className="flex items-center gap-3 relative z-10 mb-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-${color}-500/10 text-${color}-400`}>
+                    <IconComponent ref={iconRef} size={20} duration={0.8} isAnimated={true} />
+                </div>
+                <span className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium">{label}</span>
             </div>
-            <span className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium">{label}</span>
-        </div>
-        <div className="relative z-10">
-            <h3 className="text-3xl font-bold text-[#0d191b] dark:text-white mb-2">{value}</h3>
-            <div className={`flex items-center gap-1 text-xs font-semibold ${trendUp ? 'text-green-400' : 'text-red-400'}`}>
-                <span className="material-symbols-outlined text-sm">{trendUp ? 'trending_up' : 'trending_down'}</span>
-                <span>{trend} {trendLabel}</span>
+            <div className="relative z-10">
+                <h3 className="text-3xl font-bold text-[#0d191b] dark:text-white mb-2">{value}</h3>
+                <div className={`flex items-center gap-1 text-xs font-semibold ${trendUp ? 'text-green-400' : 'text-red-400'}`}>
+                    <span className="material-symbols-outlined text-sm">{trendUp ? 'trending_up' : 'trending_down'}</span>
+                    <span>{trend} {trendLabel}</span>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const GroupCard = ({ name, lastActive, settled, oweAmount, onOpen }) => (
     <div
@@ -109,15 +124,22 @@ const DashboardPage = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [expenses, setExpenses] = useState([]);
+    const [stats, setStats] = useState({
+        totalBalance: 0,
+        youOwe: 0,
+        youreOwed: 0,
+        monthlySpending: 0,
+        activeGroups: 0
+    });
 
     // Get user's first name
     const userFirstName = currentUser?.displayName?.split(' ')[0] || 'You';
 
-    // Fetch user's groups with real-time listener
+    // Fetch groups with real-time listener
     useEffect(() => {
         if (!currentUser) return;
 
-        setLoading(true);
         const unsubscribe = listenToUserGroups(currentUser.uid, (groupsData) => {
             setGroups(groupsData);
             setLoading(false);
@@ -125,6 +147,48 @@ const DashboardPage = () => {
 
         return () => unsubscribe();
     }, [currentUser]);
+
+    // Fetch expenses with real-time listener
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const q = query(
+            collection(db, 'expenses'),
+            orderBy('date', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const expensesData = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .filter(expense =>
+                    expense.paidBy === currentUser.uid ||
+                    expense.splitBetween.some(split => split.userId === currentUser.uid)
+                );
+
+            setExpenses(expensesData);
+        });
+
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    // Calculate stats whenever expenses or groups change
+    useEffect(() => {
+        if (!currentUser || !expenses) return;
+
+        const totalBalance = calculateTotalBalance(expenses, currentUser.uid);
+        const youOwe = getAmountOwed(expenses, currentUser.uid);
+        const youreOwed = getAmountUserIsOwed(expenses, currentUser.uid);
+        const monthlySpending = getMonthlySpending(expenses, currentUser.uid);
+        const activeGroups = groups.filter(g => !g.isSettled).length;
+
+        setStats({
+            totalBalance,
+            youOwe,
+            youreOwed,
+            monthlySpending,
+            activeGroups
+        });
+    }, [expenses, groups, currentUser]);
 
     const handleSettleUp = (name, amount) => {
         addToast(`Payment of ${amount} to ${name} processed!`, 'success');
@@ -158,40 +222,40 @@ const DashboardPage = () => {
             {/* Quick Stats Grid */}
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
-                    icon="payments"
+                    IconComponent={WalletIcon}
+                    label="Total Balance"
+                    value={`₹${Math.abs(stats.totalBalance).toFixed(2)}`}
+                    trend={stats.totalBalance >= 0 ? '+15%' : '-8%'}
+                    trendLabel="this month"
+                    trendUp={stats.totalBalance >= 0}
+                    color={stats.totalBalance >= 0 ? 'green' : 'red'}
+                />
+                <StatCard
+                    IconComponent={PaymentsIcon}
                     label="Expenses (Month)"
-                    value="$1,240.50"
+                    value={`₹${stats.monthlySpending.toFixed(2)}`}
                     trend="12%"
                     trendLabel="less than last month"
                     trendUp={true}
                     color="amber"
                 />
                 <StatCard
-                    icon="call_made"
+                    IconComponent={TrendingDownIcon}
                     label="You Owe"
-                    value="$120.00"
+                    value={`₹${stats.youOwe.toFixed(2)}`}
                     trend="2"
                     trendLabel="friends pending"
                     trendUp={false}
                     color="red"
                 />
                 <StatCard
-                    icon="call_received"
+                    IconComponent={TrendingUpIcon}
                     label="You Are Owed"
-                    value="$45.00"
+                    value={`₹${stats.youreOwed.toFixed(2)}`}
                     trend="1"
                     trendLabel="group pending"
                     trendUp={true}
                     color="green"
-                />
-                <StatCard
-                    icon="groups"
-                    label="Active Groups"
-                    value="3"
-                    trend="2h"
-                    trendLabel="ago last active"
-                    trendUp={true}
-                    color="blue"
                 />
             </section>
 

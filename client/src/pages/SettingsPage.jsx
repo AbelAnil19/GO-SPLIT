@@ -9,7 +9,7 @@ const SettingsPage = () => {
     const [lastName, setLastName] = useState(currentUser?.displayName?.split(' ')[1] || '');
     const [email, setEmail] = useState(currentUser?.email || '');
     const [phone, setPhone] = useState('');
-    const [currency, setCurrency] = useState('USD');
+    const [currency, setCurrency] = useState('INR');
     const [language, setLanguage] = useState('en');
     const [notifExpense, setNotifExpense] = useState(true);
     const [notifSettlement, setNotifSettlement] = useState(true);
@@ -138,14 +138,15 @@ const SettingsPage = () => {
                                 <label className="text-sm font-medium text-gray-300">Default Currency</label>
                                 <div className="relative">
                                     <select
-                                        className="w-full appearance-none rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer"
+                                        className="w-full appearance-none rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer"
                                         value={currency}
                                         onChange={(e) => setCurrency(e.target.value)}
                                     >
-                                        <option value="USD">USD ($) - United States Dollar</option>
-                                        <option value="EUR">EUR (€) - Euro</option>
-                                        <option value="GBP">GBP (£) - British Pound</option>
-                                        <option value="JPY">JPY (¥) - Japanese Yen</option>
+                                        <option value="INR" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">INR (₹) - Indian Rupee</option>
+                                        <option value="USD" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">USD ($) - United States Dollar</option>
+                                        <option value="EUR" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">EUR (€) - Euro</option>
+                                        <option value="GBP" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">GBP (£) - British Pound</option>
+                                        <option value="JPY" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">JPY (¥) - Japanese Yen</option>
                                     </select>
                                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 pointer-events-none">expand_more</span>
                                 </div>
@@ -155,14 +156,14 @@ const SettingsPage = () => {
                                 <label className="text-sm font-medium text-gray-300">Language</label>
                                 <div className="relative">
                                     <select
-                                        className="w-full appearance-none rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer"
+                                        className="w-full appearance-none rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer"
                                         value={language}
                                         onChange={(e) => setLanguage(e.target.value)}
                                     >
-                                        <option value="en">English (US)</option>
-                                        <option value="es">Spanish</option>
-                                        <option value="fr">French</option>
-                                        <option value="de">German</option>
+                                        <option value="en" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">English (US)</option>
+                                        <option value="es" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">Spanish</option>
+                                        <option value="fr" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">French</option>
+                                        <option value="de" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">German</option>
                                     </select>
                                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 pointer-events-none">expand_more</span>
                                 </div>

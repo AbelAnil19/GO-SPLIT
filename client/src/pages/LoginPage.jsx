@@ -3,10 +3,14 @@ import { useState } from 'react';
 import { doSignInWithEmailAndPassword, doSignInWithGoogle } from '../firebase/auth';
 import { useToast } from '../context/ToastContext';
 import { createUserDocument } from '../firebase/firestore';
+import { EyeIcon } from '../components/icons/EyeOpenIcon';
+import { EyeOffIcon } from '../components/icons/EyeCloseIcon';
+import { LoaderIcon } from '../components/Loader';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [isSigningIn, setIsSigningIn] = useState(false);
     const { addToast } = useToast();
@@ -136,13 +140,26 @@ const LoginPage = () => {
                         <div className="flex justify-between items-center mb-1">
                             <label className="block text-sm font-medium text-gray-600">Password</label>
                         </div>
-                        <input
-                            type="password"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
-                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                {showPassword ? (
+                                    <EyeIcon size={20} duration={0.5} />
+                                ) : (
+                                    <EyeOffIcon size={20} duration={0.5} />
+                                )}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex items-center justify-between mt-2">
@@ -156,8 +173,9 @@ const LoginPage = () => {
                     <button
                         type="submit"
                         disabled={isSigningIn}
-                        className="w-full bg-[#34627B] hover:bg-[#2c5369] text-white font-bold py-3 rounded-full shadow-lg transition-transform transform active:scale-95 mt-6 disabled:opacity-50"
+                        className="w-full bg-[#34627B] hover:bg-[#2c5369] text-white font-bold py-3 rounded-full shadow-lg transition-transform transform active:scale-95 mt-6 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
+                        {isSigningIn && <LoaderIcon size={20} duration={0.8} isAnimated={false} />}
                         {isSigningIn ? 'Logging In...' : 'Log in'}
                     </button>
                 </form>

@@ -1,16 +1,169 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
+import { getUserExpenses, deleteExpense } from '../firebase/firestore';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase/firebaseConfig';
+import { calculateTotalBalance } from '../utils/expenseCalculator';
+import AddExpenseModal from '../components/AddExpenseModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const ExpensesPage = () => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
     const [searchQuery, setSearchQuery] = useState('');
+    const [expenses, setExpenses] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState('all'); // 'all', 'owe', 'owed'
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, expense: null });
 
-    const handleAddExpense = () => {
-        addToast('Add expense feature coming soon!', 'info');
+    // Fetch expenses with real-time listener
+    useEffect(() => {
+        if (!currentUser) return;
+
+        setLoading(true);
+
+        // Real-time listener for expenses
+        const q = query(
+            collection(db, 'expenses'),
+            orderBy('date', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const expensesData = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .filter(expense =>
+                    // Filter to only expenses where user is involved
+                    expense.paidBy === currentUser.uid ||
+                    expense.splitBetween.some(split => split.userId === currentUser.uid)
+                );
+
+            setExpenses(expensesData);
+            setLoading(false);
+        }, (error) => {
+            console.error('Error fetching expenses:', error);
+            addToast('Failed to load expenses', 'error');
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    // Calculate balance
+    const totalBalance = calculateTotalBalance(expenses, currentUser?.uid);
+
+    // Filter expenses
+    const getFilteredExpenses = () => {
+        let filtered = expenses;
+
+        // Apply search filter
+        if (searchQuery.trim()) {
+            filtered = filtered.filter(expense =>
+                expense.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                expense.paidByName.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+        }
+
+        // Apply status filter
+        if (filter === 'owe') {
+            filtered = filtered.filter(expense =>
+                expense.paidBy !== currentUser.uid &&
+                expense.splitBetween.some(split => split.userId === currentUser.uid)
+            );
+        } else if (filter === 'owed') {
+            filtered = filtered.filter(expense => expense.paidBy === currentUser.uid);
+        }
+
+        return filtered;
     };
+
+    // Group expenses by date
+    const groupExpensesByDate = (expenses) => {
+        const groups = {};
+        const now = new Date();
+
+        expenses.forEach(expense => {
+            const date = expense.date?.toDate ? expense.date.toDate() : new Date(expense.date);
+            const dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+            // Determine label (Today, Yesterday, or date)
+            const diffTime = now - date;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+            let label;
+            if (diffDays === 0) {
+                label = 'Today';
+            } else if (diffDays === 1) {
+                label = 'Yesterday';
+            } else {
+                label = dateKey;
+            }
+
+            if (!groups[label]) {
+                groups[label] = [];
+            }
+            groups[label].push(expense);
+        });
+
+        return groups;
+    };
+
+    const filteredExpenses = getFilteredExpenses();
+    const groupedExpenses = groupExpensesByDate(filteredExpenses);
+
+    // Calculate user's share for an expense
+    const getUserAmount = (expense) => {
+        if (expense.paidBy === currentUser.uid) {
+            const userSplit = expense.splitBetween.find(s => s.userId === currentUser.uid);
+            const userOwes = userSplit ? userSplit.amount : 0;
+            return { amount: expense.amount - userOwes, type: 'lent' };
+        } else {
+            const userSplit = expense.splitBetween.find(s => s.userId === currentUser.uid);
+            return { amount: userSplit?.amount || 0, type: 'borrowed' };
+        }
+    };
+
+    // Get category icon and color
+    const getCategoryStyle = (category) => {
+        const styles = {
+            food: { icon: 'restaurant', color: 'emerald' },
+            travel: { icon: 'flight', color: 'blue' },
+            shopping: { icon: 'shopping_bag', color: 'purple' },
+            entertainment: { icon: 'movie', color: 'pink' },
+            bills: { icon: 'receipt_long', color: 'orange' },
+            other: { icon: 'category', color: 'gray' }
+        };
+        return styles[category] || styles.other;
+    };
+
+    const handleDeleteClick = (expense) => {
+        setDeleteModal({ isOpen: true, expense });
+    };
+
+    const confirmDeleteExpense = async () => {
+        if (!deleteModal.expense) return;
+
+        try {
+            await deleteExpense(deleteModal.expense.id, deleteModal.expense.groupId, deleteModal.expense.amount);
+            addToast('Expense deleted successfully', 'success');
+        } catch (error) {
+            console.error('Error deleting expense:', error);
+            addToast('Failed to delete expense', 'error');
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent"></div>
+                    <p className="mt-4 text-gray-400">Loading expenses...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col gap-8 pb-20 max-w-7xl mx-auto">
@@ -21,12 +174,19 @@ const ExpensesPage = () => {
                         <h1 className="text-3xl md:text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">Expenses</h1>
                         <div className="flex items-center gap-2">
                             <span className="text-[#5c6f73] dark:text-gray-400 font-medium">Total balance:</span>
-                            <span className="text-amber-400 font-bold text-lg bg-amber-400/10 px-2 py-0.5 rounded">+$120.50</span>
-                            <span className="text-gray-400 text-sm">(You are owed)</span>
+                            <span className={`font-bold text-lg px-2 py-0.5 rounded ${totalBalance >= 0
+                                ? 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-400/10'
+                                : 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-400/10'
+                                }`}>
+                                {totalBalance >= 0 ? '+' : ''}₹{totalBalance.toFixed(2)}
+                            </span>
+                            <span className="text-gray-400 text-sm">
+                                {totalBalance >= 0 ? '(You are owed)' : '(You owe)'}
+                            </span>
                         </div>
                     </div>
                     <button
-                        onClick={handleAddExpense}
+                        onClick={() => setIsAddModalOpen(true)}
                         className="bg-amber-400 hover:bg-amber-300 text-black h-12 rounded-lg text-sm font-bold flex items-center gap-2 px-6 shadow-lg shadow-amber-900/20 transition-all"
                     >
                         <span className="material-symbols-outlined">add</span>
@@ -50,110 +210,142 @@ const ExpensesPage = () => {
                 </div>
                 {/* Filter Chips */}
                 <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-                    <button className="flex items-center gap-2 h-12 px-4 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg hover:border-amber-400/50 whitespace-nowrap transition-colors group backdrop-blur-md">
-                        <span className="text-sm font-medium group-hover:text-amber-400 transition-colors text-[#0d191b] dark:text-white">All Groups</span>
-                        <span className="material-symbols-outlined text-[18px] text-gray-400">expand_more</span>
+                    <button
+                        onClick={() => setFilter('all')}
+                        className={`flex items-center gap-2 h-12 px-4 rounded-lg whitespace-nowrap transition-colors backdrop-blur-md ${filter === 'all'
+                            ? 'bg-amber-400/10 border border-amber-400/20 text-amber-400 font-bold'
+                            : 'bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 text-[#0d191b] dark:text-white hover:border-amber-400/50'
+                            }`}
+                    >
+                        <span className="text-sm font-medium">All Expenses</span>
                     </button>
-                    <button className="flex items-center gap-2 h-12 px-4 bg-amber-400/10 border border-amber-400/20 rounded-lg whitespace-nowrap transition-colors backdrop-blur-md">
-                        <span className="text-sm font-bold text-amber-400">This Month</span>
-                        <span className="material-symbols-outlined text-[18px] text-amber-400">expand_more</span>
+                    <button
+                        onClick={() => setFilter('owe')}
+                        className={`flex items-center gap-2 h-12 px-4 rounded-lg whitespace-nowrap transition-colors backdrop-blur-md ${filter === 'owe'
+                            ? 'bg-amber-400/10 border border-amber-400/20 text-amber-400 font-bold'
+                            : 'bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 text-[#0d191b] dark:text-white hover:border-amber-400/50'
+                            }`}
+                    >
+                        <span className="text-sm font-medium">You Owe</span>
                     </button>
-                    <button className="flex items-center gap-2 h-12 px-4 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg hover:border-amber-400/50 whitespace-nowrap transition-colors group backdrop-blur-md">
-                        <span className="text-sm font-medium group-hover:text-amber-400 transition-colors text-[#0d191b] dark:text-white">Status: All</span>
-                        <span className="material-symbols-outlined text-[18px] text-gray-400">expand_more</span>
+                    <button
+                        onClick={() => setFilter('owed')}
+                        className={`flex items-center gap-2 h-12 px-4 rounded-lg whitespace-nowrap transition-colors backdrop-blur-md ${filter === 'owed'
+                            ? 'bg-amber-400/10 border border-amber-400/20 text-amber-400 font-bold'
+                            : 'bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 text-[#0d191b] dark:text-white hover:border-amber-400/50'
+                            }`}
+                    >
+                        <span className="text-sm font-medium">You're Owed</span>
                     </button>
                 </div>
             </div>
 
             {/* Expense List */}
-            <div className="flex flex-col gap-6">
-                {/* Date Group: Yesterday */}
-                <div className="flex flex-col gap-3">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider pl-1">Yesterday, Oct 24</h3>
-
-                    {/* Expense Item 1 */}
-                    <div className="group flex flex-col sm:flex-row gap-4 bg-white dark:bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer backdrop-blur-md">
-                        <div className="flex items-start gap-4 flex-1">
-                            <div className="shrink-0 size-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                                <span className="material-symbols-outlined">shopping_cart</span>
-                            </div>
-                            <div className="flex flex-col justify-center gap-0.5">
-                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Groceries - Whole Foods</p>
-                                <p className="text-sm text-gray-400">You paid $85.00</p>
-                            </div>
-                        </div>
-                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 pl-16 sm:pl-0">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-amber-400">You lent</span>
-                            <span className="text-base font-bold text-amber-400">$42.50</span>
-                        </div>
-                    </div>
-
-                    {/* Expense Item 2 */}
-                    <div className="group flex flex-col sm:flex-row gap-4 bg-white dark:bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer backdrop-blur-md">
-                        <div className="flex items-start gap-4 flex-1">
-                            <div className="shrink-0 size-12 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-400">
-                                <span className="material-symbols-outlined">local_taxi</span>
-                            </div>
-                            <div className="flex flex-col justify-center gap-0.5">
-                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Uber to Airport</p>
-                                <p className="text-sm text-gray-400">Mark paid $30.00</p>
-                            </div>
-                        </div>
-                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 pl-16 sm:pl-0">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-orange-400">You borrowed</span>
-                            <span className="text-base font-bold text-orange-400">$15.00</span>
-                        </div>
-                    </div>
+            {loading ? (
+                <div className="flex flex-col items-center justify-center min-h-[400px]">
+                    <LoaderIcon size={48} duration={0.8} />
+                    <p className="mt-4 text-[#5c6f73] dark:text-gray-400">Loading expenses...</p>
                 </div>
-
-                {/* Date Group: Oct 20 */}
-                <div className="flex flex-col gap-3">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider pl-1">Oct 20</h3>
-
-                    {/* Expense Item 3 */}
-                    <div className="group flex flex-col sm:flex-row gap-4 bg-white dark:bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer backdrop-blur-md">
-                        <div className="flex items-start gap-4 flex-1">
-                            <div className="shrink-0 size-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
-                                <span className="material-symbols-outlined">restaurant</span>
-                            </div>
-                            <div className="flex flex-col justify-center gap-0.5">
-                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Dinner at Mario's</p>
-                                <p className="text-sm text-gray-400">You paid $120.00</p>
-                            </div>
-                        </div>
-                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 pl-16 sm:pl-0">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-amber-400">You lent</span>
-                            <span className="text-base font-bold text-amber-400">$60.00</span>
-                        </div>
-                    </div>
-
-                    {/* Expense Item 4 (Settled) */}
-                    <div className="group flex flex-col sm:flex-row gap-4 bg-white dark:bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer opacity-75 hover:opacity-100 backdrop-blur-md">
-                        <div className="flex items-start gap-4 flex-1">
-                            <div className="shrink-0 size-12 rounded-full bg-gray-800 flex items-center justify-center text-gray-500">
-                                <span className="material-symbols-outlined">receipt_long</span>
-                            </div>
-                            <div className="flex flex-col justify-center gap-0.5">
-                                <p className="text-base font-bold text-[#0d191b] dark:text-white line-through decoration-gray-400">Monthly Internet</p>
-                                <p className="text-sm text-gray-400">Alice paid $50.00</p>
-                            </div>
-                        </div>
-                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 pl-16 sm:pl-0">
-                            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-gray-500">
-                                <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                                Settled
-                            </span>
-                        </div>
-                    </div>
+            ) : filteredExpenses.length === 0 ? (
+                <div className="text-center py-16">
+                    <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600 mb-4">receipt_long</span>
+                    <p className="text-gray-400 text-lg">
+                        {searchQuery ? 'No expenses match your search' : 'No expenses yet'}
+                    </p>
+                    {!searchQuery && (
+                        <button
+                            onClick={() => setIsAddModalOpen(true)}
+                            className="mt-4 text-amber-400 hover:text-amber-300 font-medium"
+                        >
+                            Add your first expense
+                        </button>
+                    )}
                 </div>
+            ) : (
+                <div className="flex flex-col gap-6">
+                    {Object.entries(groupedExpenses).map(([dateLabel, dateExpenses]) => (
+                        <div key={dateLabel} className="flex flex-col gap-3">
+                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider pl-1">{dateLabel}</h3>
 
-                {/* Load More */}
-                <div className="flex justify-center pt-4">
-                    <button className="text-gray-400 hover:text-amber-400 text-sm font-bold transition-colors">
-                        Show earlier expenses
-                    </button>
+                            {dateExpenses.map(expense => {
+                                const { amount, type } = getUserAmount(expense);
+                                const categoryStyle = getCategoryStyle(expense.category);
+
+                                return (
+                                    <div
+                                        key={expense.id}
+                                        className="group flex flex-col sm:flex-row gap-4 bg-white dark:bg-white/5 p-4 rounded-xl shadow-sm border border-transparent hover:border-amber-400/20 transition-all cursor-pointer backdrop-blur-md"
+                                    >
+                                        <div className="flex items-start gap-4 flex-1">
+                                            <div className={`shrink-0 size-12 rounded-full bg-${categoryStyle.color}-500/10 flex items-center justify-center text-${categoryStyle.color}-400`}>
+                                                <span className="material-symbols-outlined">{categoryStyle.icon}</span>
+                                            </div>
+                                            <div className="flex flex-col justify-center gap-0.5">
+                                                <p className="text-base font-bold text-[#0d191b] dark:text-white">{expense.description}</p>
+                                                <p className="text-sm text-gray-400">
+                                                    {expense.paidByName} paid ₹{expense.amount.toFixed(2)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 pl-16 sm:pl-0">
+                                            <span className={`text-xs font-semibold uppercase tracking-wider ${type === 'lent' ? 'text-green-400' : 'text-orange-400'
+                                                }`}>
+                                                {type === 'lent' ? 'You lent' : 'You borrowed'}
+                                            </span>
+                                            <span className={`text-base font-bold ${type === 'lent' ? 'text-green-400' : 'text-orange-400'
+                                                }`}>
+                                                ₹{amount.toFixed(2)}
+                                            </span>
+                                            {/* Delete Button */}
+                                            {expense.paidBy === currentUser.uid && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteClick(expense);
+                                                    }}
+                                                    className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all absolute top-2 right-2 sm:static sm:opacity-0 sm:group-hover:opacity-100"
+                                                    title="Delete expense"
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ))}
+
+                    {/* Load More */}
+                    {filteredExpenses.length > 20 && (
+                        <div className="flex justify-center pt-4">
+                            <button className="text-gray-400 hover:text-amber-400 text-sm font-bold transition-colors">
+                                Show earlier expenses
+                            </button>
+                        </div>
+                    )}
                 </div>
-            </div>
+            )}
+
+            {/* Add Expense Modal */}
+            <AddExpenseModal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                onExpenseAdded={() => {
+                    // Expenses will update automatically via real-time listener
+                }}
+            />
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, expense: null })}
+                onConfirm={confirmDeleteExpense}
+                title="Delete Expense"
+                message={`Are you sure you want to delete "${deleteModal.expense?.description}"? This action cannot be undone.`}
+                confirmText="Delete"
+                type="danger"
+            />
         </div>
     );
 };

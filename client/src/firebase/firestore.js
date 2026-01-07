@@ -71,7 +71,11 @@ export const createGroup = async (groupName, creatorId, creatorData) => {
             createdBy: creatorId,
             createdAt: serverTimestamp(),
             totalExpenses: 0,
-            isSettled: false
+            createdBy: creatorId,
+            createdAt: serverTimestamp(),
+            totalExpenses: 0,
+            isSettled: false,
+            memberIds: [creatorId] // Add this primarily for permissions and querying
         });
 
         // Add group to user's groups array
@@ -116,20 +120,24 @@ export const getUserGroups = async (userId) => {
 };
 
 export const listenToUserGroups = (userId, callback) => {
-    const q = query(collection(db, 'groups'));
+    // Optimized query: Only fetch groups where memberIds contains userId
+    // This is much faster and secure with rules
+    const q = query(
+        collection(db, 'groups'),
+        where('memberIds', 'array-contains', userId)
+    );
+
     return onSnapshot(q, (snapshot) => {
-        const groups = snapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }))
-            .filter(group =>
-                group.members.some(member => member.userId === userId)
-            );
+        const groups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(groups);
+    }, (error) => {
+        console.error("Error listening to user groups:", error);
     });
 };
 
 // ==================== INVITATION FUNCTIONS ====================
 
-export const sendGroupInvitation = async (groupId, groupName, inviterName, memberEmail) => {
+export const sendGroupInvitation = async (groupId, groupName, inviterName, memberEmail, inviterId) => {
     try {
         // Find user by email
         const usersRef = collection(db, 'users');
@@ -173,6 +181,7 @@ export const sendGroupInvitation = async (groupId, groupName, inviterName, membe
             invitedUserId: userId,
             invitedUserEmail: memberEmail,
             inviterName: inviterName,
+            fromUserId: inviterId, // Add this for security rules
             status: 'pending',
             createdAt: serverTimestamp()
         });
@@ -208,7 +217,8 @@ export const acceptGroupInvitation = async (invitationId, userId) => {
         };
 
         await updateDoc(groupRef, {
-            members: [...groupData.members, newMember]
+            members: [...groupData.members, newMember],
+            memberIds: [...(groupData.memberIds || []), userId] // Maintain the ID list
         });
 
         // Add group to user's groups
@@ -295,6 +305,29 @@ export const createExpense = async (expenseData) => {
         return expenseRef.id;
     } catch (error) {
         console.error('❌ Error creating expense:', error);
+        throw error;
+    }
+};
+
+export const deleteExpense = async (expenseId, groupId, amount) => {
+    try {
+        await deleteDoc(doc(db, 'expenses', expenseId));
+
+        // Update group total expenses
+        if (groupId) {
+            const groupRef = doc(db, 'groups', groupId);
+            const groupSnap = await getDoc(groupRef);
+            if (groupSnap.exists()) {
+                const currentTotal = groupSnap.data()?.totalExpenses || 0;
+                await updateDoc(groupRef, {
+                    totalExpenses: Math.max(0, currentTotal - amount)
+                });
+            }
+        }
+
+        console.log('✅ Expense deleted:', expenseId);
+    } catch (error) {
+        console.error('❌ Error deleting expense:', error);
         throw error;
     }
 };

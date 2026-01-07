@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
 import { listenToUserGroups, createGroup } from '../firebase/firestore';
@@ -8,6 +8,7 @@ import AddMemberModal from '../components/AddMemberModal';
 const GroupsPage = () => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
+    const navigate = useNavigate();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -136,7 +137,8 @@ const GroupsPage = () => {
                 {!loading && filteredGroups.map((group) => (
                     <div
                         key={group.id}
-                        className="group flex flex-col justify-between bg-white dark:bg-white/5 p-5 rounded-2xl border-2 border-gray-300 dark:border-white/10 hover:border-amber-400/50 hover:shadow-lg hover:shadow-amber-900/10 transition-all duration-300 backdrop-blur-md shadow-soft"
+                        onClick={() => navigate(`/dashboard/groups/${group.id}`)}
+                        className="group flex flex-col justify-between bg-white dark:bg-white/5 p-5 rounded-2xl border-2 border-gray-300 dark:border-white/10 hover:border-amber-400/50 hover:shadow-lg hover:shadow-amber-900/10 transition-all duration-300 backdrop-blur-md shadow-soft cursor-pointer"
                     >
                         <div>
                             <div className="flex justify-between items-start mb-4">
@@ -144,7 +146,10 @@ const GroupsPage = () => {
                                     <span className="material-symbols-outlined">{group.icon || 'groups'}</span>
                                 </div>
                                 <button
-                                    onClick={() => setSelectedGroup(group)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedGroup(group);
+                                    }}
                                     className="text-gray-400 hover:text-amber-400 transition-colors"
                                     title="Add Member"
                                 >
@@ -157,7 +162,7 @@ const GroupsPage = () => {
                             </p>
                             <div className="p-3 rounded-xl bg-gray-800/50 border border-gray-700">
                                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Expenses</p>
-                                <p className="text-xl font-bold text-white">${group.totalExpenses || 0}</p>
+                                <p className="text-xl font-bold text-white">₹{group.totalExpenses || 0}</p>
                             </div>
                         </div>
                         <div className="flex items-center justify-between pt-4 mt-4 border-t border-white/5">
@@ -248,6 +253,7 @@ const GroupsPage = () => {
                 groupName={selectedGroup?.name}
                 currentMembers={selectedGroup?.members || []}
             />
+
         </div>
     );
 };

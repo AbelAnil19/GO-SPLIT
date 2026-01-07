@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { CheckIcon } from '../components/icons/CheckIcon';
+import { CrossIcon } from '../components/icons/CrossIcon';
 
 const ToastContext = createContext();
 
@@ -37,7 +39,11 @@ export const ToastProvider = ({ children }) => {
                         `}
                     >
                         <div className="flex items-center justify-between">
-                            <span className="font-medium mr-4">{toast.message}</span>
+                            <div className="flex items-center gap-3">
+                                {toast.type === 'success' && <CheckIcon size={24} duration={1.5} isAnimated={true} />}
+                                {(toast.type === 'error' || toast.type === 'danger') && <CrossIcon size={24} duration={0.8} isAnimated={true} />}
+                                <span className="font-medium mr-4">{toast.message}</span>
+                            </div>
                             <button
                                 onClick={() => removeToast(toast.id)}
                                 className="text-white/50 hover:text-white transition-colors"

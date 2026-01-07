@@ -16,6 +16,7 @@ import ExpensesPage from './pages/ExpensesPage';
 import HistoryPage from './pages/HistoryPage';
 import SettingsPage from './pages/SettingsPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import GroupDetailsPage from './pages/GroupDetailsPage';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
               <Route path="/dashboard" element={<DashboardLayout />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="groups" element={<GroupsPage />} />
+                <Route path="groups/:groupId" element={<GroupDetailsPage />} />
                 <Route path="expenses" element={<ExpensesPage />} />
                 <Route path="history" element={<HistoryPage />} />
                 <Route path="settings" element={<SettingsPage />} />

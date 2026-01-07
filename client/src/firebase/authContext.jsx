@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
 
     async function initializeUser(user) {
         if (user) {
-            setCurrentUser({ ...user });
+            setCurrentUser(user);
             setUserLoggedIn(true);
         } else {
             setCurrentUser(null);
