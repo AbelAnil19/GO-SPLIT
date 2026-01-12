@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
+import { updateUserDocument, getUserDocument } from '../firebase/firestore';
 
 const SettingsPage = () => {
     const { currentUser } = useAuth();
@@ -9,14 +10,52 @@ const SettingsPage = () => {
     const [lastName, setLastName] = useState(currentUser?.displayName?.split(' ')[1] || '');
     const [email, setEmail] = useState(currentUser?.email || '');
     const [phone, setPhone] = useState('');
+    const [upiId, setUpiId] = useState('');
     const [currency, setCurrency] = useState('INR');
     const [language, setLanguage] = useState('en');
     const [notifExpense, setNotifExpense] = useState(true);
     const [notifSettlement, setNotifSettlement] = useState(true);
     const [notifMarketing, setNotifMarketing] = useState(false);
 
-    const handleSave = () => {
-        addToast('Settings saved successfully!', 'success');
+    // Fetch user details from Firestore
+    React.useEffect(() => {
+        const fetchUserData = async () => {
+            if (currentUser?.uid) {
+                try {
+                    const userData = await getUserDocument(currentUser.uid);
+                    if (userData) {
+                        if (userData.phones) setPhone(userData.phone);
+                        if (userData.upiId) setUpiId(userData.upiId);
+                        if (userData.currency) setCurrency(userData.currency);
+                        if (userData.language) setLanguage(userData.language);
+                    }
+                } catch (error) {
+                    console.error("Error fetching user settings:", error);
+                }
+            }
+        };
+        fetchUserData();
+    }, [currentUser]);
+
+    const handleSave = async () => {
+        try {
+            await updateUserDocument(currentUser.uid, {
+                displayName: `${firstName} ${lastName}`.trim(),
+                phone,
+                upiId,
+                currency,
+                language,
+                notifications: {
+                    expense: notifExpense,
+                    settlement: notifSettlement,
+                    marketing: notifMarketing
+                }
+            });
+            addToast('Settings saved successfully!', 'success');
+        } catch (error) {
+            console.error("Error saving settings:", error);
+            addToast('Failed to save settings', 'error');
+        }
     };
 
     const handleCancel = () => {
@@ -123,12 +162,25 @@ const SettingsPage = () => {
                                     />
                                 </div>
                             </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-medium text-gray-300">UPI ID (for payments)</label>
+                                <div className="relative">
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 text-[20px]">account_balance_wallet</span>
+                                    <input
+                                        className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white pl-10 pr-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
+                                        placeholder="username@upi"
+                                        type="text"
+                                        value={upiId}
+                                        onChange={(e) => setUpiId(e.target.value)}
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>
 
                 {/* Regional Preferences */}
-                <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
+                < section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md" >
                     <div className="px-6 py-5 border-b border-gray-300 dark:border-white/10">
                         <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">Regional Preferences</h3>
                     </div>
@@ -170,10 +222,10 @@ const SettingsPage = () => {
                             </div>
                         </div>
                     </div>
-                </section>
+                </section >
 
                 {/* Notifications */}
-                <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
+                < section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md" >
                     <div className="px-6 py-5 border-b border-gray-300 dark:border-white/10">
                         <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">Notifications</h3>
                     </div>
@@ -229,10 +281,10 @@ const SettingsPage = () => {
                             </label>
                         </div>
                     </div>
-                </section>
+                </section >
 
                 {/* Danger Zone */}
-                <section className="border border-red-500/20 bg-red-500/5 rounded-2xl overflow-hidden mt-4 backdrop-blur-md">
+                < section className="border border-red-500/20 bg-red-500/5 rounded-2xl overflow-hidden mt-4 backdrop-blur-md" >
                     <div className="px-6 py-5">
                         <h3 className="text-lg font-bold text-red-400">Danger Zone</h3>
                         <p className="text-sm text-gray-400 mt-1">Once you delete your account, there is no going back. Please be certain.</p>
@@ -245,10 +297,10 @@ const SettingsPage = () => {
                             </button>
                         </div>
                     </div>
-                </section>
+                </section >
 
                 {/* Action Bar */}
-                <div className="sticky bottom-4 z-40 bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10 shadow-lg flex justify-end gap-3">
+                < div className="sticky bottom-4 z-40 bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10 shadow-lg flex justify-end gap-3" >
                     <button
                         onClick={handleCancel}
                         className="px-6 py-2.5 rounded-lg font-bold text-sm text-white hover:bg-white/10 transition-colors"
@@ -261,9 +313,9 @@ const SettingsPage = () => {
                     >
                         Save Changes
                     </button>
-                </div>
-            </div>
-        </div>
+                </div >
+            </div >
+        </div >
     );
 };
 

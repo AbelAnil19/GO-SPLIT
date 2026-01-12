@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../firebase/authContext';
-import { createGroup, getUserGroups, listenToUserGroups, getUserExpenses } from '../firebase/firestore';
+import { createGroup, getUserGroups, listenToUserGroups, getUserExpenses, createExpense, getUserDocument, updateExpense, deleteExpense } from '../firebase/firestore';
 import { calculateTotalBalance, getAmountOwed, getAmountUserIsOwed, getMonthlySpending, getPendingSettlements } from '../utils/expenseCalculator';
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
@@ -132,6 +133,9 @@ const DashboardPage = () => {
         monthlySpending: 0,
         activeGroups: 0
     });
+    const [pendingSettlements, setPendingSettlements] = useState([]);
+    const [pendingApprovals, setPendingApprovals] = useState({});
+    const [paymentModal, setPaymentModal] = useState({ isOpen: false, data: null });
 
     // Get user's first name
     const userFirstName = currentUser?.displayName?.split(' ')[0] || 'You';
@@ -188,10 +192,112 @@ const DashboardPage = () => {
             monthlySpending,
             activeGroups
         });
+
+        // Create userMap for photos
+        const userMap = {};
+        groups.forEach(group => {
+            if (group.members) {
+                group.members.forEach(m => userMap[m.userId] = m);
+            }
+        });
+
+        // Calculate pending settlements
+        const settlements = getPendingSettlements(expenses, currentUser.uid, userMap);
+        setPendingSettlements(settlements);
+
+        // Calculate pending approvals (Approvals Map: userId -> { type, amount, expenseId })
+        const approvalsMap = {};
+        expenses.forEach(expense => {
+            if (expense.approvalStatus === 'pending') {
+                const isPayer = expense.paidBy === currentUser.uid;
+                const isReceiver = expense.splitBetween.some(s => s.userId === currentUser.uid);
+
+                if (isPayer) {
+                    // I paid, waiting for approval
+                    const receiverId = expense.splitBetween[0].userId; // Assuming single receiver for settlement
+                    approvalsMap[receiverId] = { type: 'outgoing', amount: expense.amount, expenseId: expense.id };
+                } else if (isReceiver) {
+                    // Someone paid me, waiting for my approval
+                    approvalsMap[expense.paidBy] = { type: 'incoming', amount: expense.amount, expenseId: expense.id };
+                }
+            }
+        });
+        setPendingApprovals(approvalsMap);
     }, [expenses, groups, currentUser]);
 
-    const handleSettleUp = (name, amount) => {
-        addToast(`Payment of ${amount} to ${name} processed!`, 'success');
+    const handleSettleUp = async (settlement) => {
+        if (!currentUser) return;
+
+        const { personId, type } = settlement;
+        if (type === 'owe') {
+            try {
+                const userData = await getUserDocument(personId);
+                if (userData && userData.upiId) {
+                    setPaymentModal({ isOpen: true, data: { ...settlement, upiId: userData.upiId } });
+                    return;
+                }
+            } catch (error) { console.error(error); }
+        }
+        processSettlement(settlement);
+    };
+
+    const processSettlement = async (settlement) => {
+        if (!currentUser) return;
+
+        try {
+            const { personId, name, amount, type } = settlement;
+            const payerId = type === 'owe' ? currentUser.uid : personId;
+            const receiverId = type === 'owe' ? personId : currentUser.uid;
+
+            const expenseData = {
+                groupId: 'settlement',
+                description: 'Settlement',
+                amount: parseFloat(amount),
+                category: 'other',
+                paidBy: payerId,
+                paidByName: type === 'owe' ? currentUser.displayName : name,
+                date: new Date(),
+                splitBetween: [{
+                    userId: receiverId,
+                    name: type === 'owe' ? name : currentUser.displayName,
+                    amount: parseFloat(amount)
+                }],
+                isSettled: false,
+                approvalStatus: 'pending' // Mark as pending approval
+            };
+
+            await createExpense(expenseData);
+            if (type === 'owe') {
+                addToast(`Payment to ${name} recorded! Waiting for their approval.`, 'info');
+            } else {
+                addToast(`Settlement recorded.`, 'success');
+            }
+            setPaymentModal({ isOpen: false, data: null });
+        } catch (error) {
+            console.error("Error settling up:", error);
+            addToast("Failed to record settlement", "error");
+        }
+    };
+
+    const handleApprovePayment = async (expenseId, name) => {
+        try {
+            await updateExpense(expenseId, { approvalStatus: 'approved' });
+            addToast(`Payment from ${name} verified!`, 'success');
+        } catch (error) {
+            console.error("Error verifying payment:", error);
+            addToast("Failed to verify payment", "error");
+        }
+    };
+
+    const handleRejectPayment = async (expenseId, name) => {
+        if (!window.confirm(`Are you sure you want to reject the payment from ${name}?`)) return;
+        try {
+            await deleteExpense(expenseId, null, 0); // null groupId, 0 amount (settlements don't affect group totals usually or we don't care about groupId here)
+            addToast(`Payment from ${name} rejected.`, 'info');
+        } catch (error) {
+            console.error("Error rejecting payment:", error);
+            addToast("Failed to reject payment", "error");
+        }
     };
 
     const handleRemind = (name) => {
@@ -266,45 +372,81 @@ const DashboardPage = () => {
                     <section>
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-bold text-[#0d191b] dark:text-white">Pending Settlements</h2>
-                            <Link to="/dashboard/expenses" className="text-amber-400 text-sm font-semibold hover:text-amber-300">View all</Link>
+                            {pendingSettlements.length > 0 && (
+                                <Link to="/dashboard/expenses" className="text-amber-400 text-sm font-semibold hover:text-amber-300">View all</Link>
+                            )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-white dark:bg-white/5 p-5 rounded-2xl border-2 border-gray-300 dark:border-white/10 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700"></div>
-                                    <div>
-                                        <p className="font-bold text-[#0d191b] dark:text-white text-sm">Sarah Jenkins</p>
-                                        <p className="text-xs text-[#5c6f73] dark:text-gray-400">owe for "Lunch"</p>
+                            {pendingSettlements.length === 0 ? (
+                                <div className="col-span-1 md:col-span-2 bg-white dark:bg-white/5 p-6 rounded-2xl border-2 border-gray-300 dark:border-white/10 flex flex-col items-center justify-center text-center">
+                                    <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-500 mb-2">
+                                        <span className="material-symbols-outlined">check</span>
                                     </div>
+                                    <p className="font-bold text-[#0d191b] dark:text-white">All settled up!</p>
+                                    <p className="text-sm text-[#5c6f73] dark:text-gray-400">You don't owe anyone anything right now.</p>
                                 </div>
-                                <div className="text-right">
-                                    <p className="font-bold text-red-500 mb-1">-$25.00</p>
-                                    <button
-                                        onClick={() => handleSettleUp('Sarah Jenkins', '$25.00')}
-                                        className="text-xs font-bold bg-red-500/10 text-red-400 px-3 py-1.5 rounded-full hover:bg-red-500/20 transition-colors"
-                                    >
-                                        Settle Up
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="bg-white dark:bg-white/5 p-5 rounded-2xl border-2 border-gray-300 dark:border-white/10 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700"></div>
-                                    <div>
-                                        <p className="font-bold text-[#0d191b] dark:text-white text-sm">Mike Ross</p>
-                                        <p className="text-xs text-[#5c6f73] dark:text-gray-400">owes you for "Uber"</p>
+                            ) : (
+                                pendingSettlements.map((settlement) => (
+                                    <div key={settlement.personId} className="bg-white dark:bg-white/5 p-5 rounded-2xl border-2 border-gray-300 dark:border-white/10 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
+                                        <div className="flex items-center gap-4">
+                                            {settlement.photoURL ? (
+                                                <img src={settlement.photoURL} alt={settlement.name} className="w-12 h-12 rounded-full object-cover border-2 border-white dark:border-white/10" />
+                                            ) : (
+                                                <div className="w-12 h-12 rounded-full bg-amber-400 flex items-center justify-center text-black font-bold text-lg">
+                                                    {settlement.name.charAt(0)}
+                                                </div>
+                                            )}
+                                            <div>
+                                                <p className="font-bold text-[#0d191b] dark:text-white text-sm">{settlement.name}</p>
+                                                <p className="text-xs text-[#5c6f73] dark:text-gray-400">
+                                                    {settlement.type === 'owe' ? 'you owe' : 'owes you'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className={`font-bold mb-1 ${settlement.type === 'owed' ? 'text-green-500' : 'text-red-500'}`}>
+                                                {settlement.type === 'owed' ? '+' : '-'}₹{settlement.amount.toFixed(2)}
+                                            </p>
+                                            <div className="flex gap-2 justify-end">
+                                                {pendingApprovals[settlement.personId] ? (
+                                                    pendingApprovals[settlement.personId].type === 'outgoing' ? (
+                                                        <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-700/50 flex items-center gap-1">
+                                                            <span className="material-symbols-outlined text-[14px]">hourglass_empty</span>
+                                                            Pending Approval
+                                                        </span>
+                                                    ) : (
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => handleRejectPayment(pendingApprovals[settlement.personId].expenseId, settlement.name)}
+                                                                className="text-xs font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors"
+                                                            >
+                                                                Reject
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleApprovePayment(pendingApprovals[settlement.personId].expenseId, settlement.name)}
+                                                                className="text-xs font-bold px-3 py-1.5 rounded-full bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50 transition-colors flex items-center gap-1"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[14px]">check</span>
+                                                                Verify
+                                                            </button>
+                                                        </div>
+                                                    )
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleSettleUp(settlement)}
+                                                        className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${settlement.type === 'owed'
+                                                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 cursor-pointer'
+                                                            : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                                                            }`}
+                                                    >
+                                                        {settlement.type === 'owed' ? 'Remind' : 'Settle Up'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-bold text-green-500 mb-1">+$15.00</p>
-                                    <button
-                                        onClick={() => handleRemind('Mike Ross')}
-                                        className="text-xs font-bold bg-white/10 text-gray-300 px-3 py-1.5 rounded-full hover:bg-white/20 transition-colors"
-                                    >
-                                        Remind
-                                    </button>
-                                </div>
-                            </div>
+                                ))
+                            )}
                         </div>
                     </section>
 
@@ -400,7 +542,46 @@ const DashboardPage = () => {
                 </button>
             </div>
 
-            {/* Modals */}
+            {/* Payment Modal */}
+            {paymentModal.isOpen && paymentModal.data && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPaymentModal({ isOpen: false, data: null })}></div>
+                    <div className="relative bg-white dark:bg-[#1a1c23] border border-gray-200 dark:border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-fade-in-up text-center">
+                        <div className="w-16 h-16 rounded-full bg-amber-400 mx-auto flex items-center justify-center text-black font-bold text-2xl mb-4">
+                            {paymentModal.data.name.charAt(0)}
+                        </div>
+                        <h2 className="text-xl font-bold text-[#0d191b] dark:text-white mb-1">Pay {paymentModal.data.name}</h2>
+                        <p className="text-[#5c6f73] dark:text-gray-400 mb-6 font-mono text-sm">{paymentModal.data.upiId}</p>
+
+                        <div className="bg-white p-4 rounded-xl mx-auto w-fit mb-6 border border-gray-200 shadow-inner">
+                            <QRCodeSVG
+                                value={`upi://pay?pa=${paymentModal.data.upiId}&pn=${encodeURIComponent(paymentModal.data.name)}&am=${paymentModal.data.amount}&cu=INR`}
+                                size={200}
+                                level={"H"}
+                            />
+                        </div>
+
+                        <h3 className="text-3xl font-bold text-[#0d191b] dark:text-white mb-6">₹{paymentModal.data.amount.toFixed(2)}</h3>
+
+                        <div className="flex flex-col gap-3">
+                            <a
+                                href={`upi://pay?pa=${paymentModal.data.upiId}&pn=${encodeURIComponent(paymentModal.data.name)}&am=${paymentModal.data.amount}&cu=INR`}
+                                className="w-full py-3 bg-amber-400 text-black font-bold rounded-xl hover:bg-amber-300 transition-colors shadow-lg shadow-amber-900/20 flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined">payments</span>
+                                Pay via UPI App
+                            </a>
+                            <button
+                                onClick={() => processSettlement(paymentModal.data)}
+                                className="w-full py-3 bg-gray-100 dark:bg-white/5 text-[#0d191b] dark:text-white font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
+                            >
+                                Record as Paid manually
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <CreateGroupModal
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}

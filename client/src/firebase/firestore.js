@@ -55,6 +55,17 @@ export const getUserDocument = async (userId) => {
     }
 };
 
+export const updateUserDocument = async (userId, data) => {
+    try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, data);
+        console.log('✅ User document updated successfully');
+    } catch (error) {
+        console.error('❌ Error updating user document:', error);
+        throw error;
+    }
+};
+
 // ==================== GROUP FUNCTIONS ====================
 
 export const createGroup = async (groupName, creatorId, creatorData) => {
@@ -305,6 +316,17 @@ export const createExpense = async (expenseData) => {
         return expenseRef.id;
     } catch (error) {
         console.error('❌ Error creating expense:', error);
+        throw error;
+    }
+};
+
+export const updateExpense = async (expenseId, updates) => {
+    try {
+        const expenseRef = doc(db, 'expenses', expenseId);
+        await updateDoc(expenseRef, updates);
+        console.log('✅ Expense updated:', expenseId);
+    } catch (error) {
+        console.error('❌ Error updating expense:', error);
         throw error;
     }
 };

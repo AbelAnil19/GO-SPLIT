@@ -167,11 +167,13 @@ export const getMonthlySpending = (expenses, userId) => {
  * @param {string} userId - User ID
  * @returns {Array} - Array of { person, amount, type: 'owe'|'owed' }
  */
-export const getPendingSettlements = (expenses, userId) => {
+export const getPendingSettlements = (expenses, userId, userMap = {}) => {
     const settlements = new Map();
+    const names = new Map();
+    const photos = new Map();
 
     expenses.forEach(expense => {
-        if (expense.isSettled) return;
+        if (expense.isSettled || expense.approvalStatus === 'pending') return;
 
         if (expense.paidBy === userId) {
             // User paid - others owe them
@@ -179,6 +181,14 @@ export const getPendingSettlements = (expenses, userId) => {
                 if (split.userId !== userId) {
                     const current = settlements.get(split.userId) || 0;
                     settlements.set(split.userId, current + split.amount);
+
+                    // Try to get name/photo from map, fallback to expense data
+                    if (!names.has(split.userId)) {
+                        names.set(split.userId, userMap[split.userId]?.name || split.name);
+                    }
+                    if (!photos.has(split.userId) && userMap[split.userId]?.photoURL) {
+                        photos.set(split.userId, userMap[split.userId].photoURL);
+                    }
                 }
             });
         } else {
@@ -187,6 +197,13 @@ export const getPendingSettlements = (expenses, userId) => {
             if (userSplit) {
                 const current = settlements.get(expense.paidBy) || 0;
                 settlements.set(expense.paidBy, current - userSplit.amount);
+
+                if (!names.has(expense.paidBy)) {
+                    names.set(expense.paidBy, userMap[expense.paidBy]?.name || expense.paidByName);
+                }
+                if (!photos.has(expense.paidBy) && userMap[expense.paidBy]?.photoURL) {
+                    photos.set(expense.paidBy, userMap[expense.paidBy].photoURL);
+                }
             }
         }
     });
@@ -194,6 +211,8 @@ export const getPendingSettlements = (expenses, userId) => {
     return Array.from(settlements.entries())
         .map(([personId, amount]) => ({
             personId,
+            name: names.get(personId) || 'Unknown',
+            photoURL: photos.get(personId) || null,
             amount: Math.abs(amount),
             type: amount > 0 ? 'owed' : 'owe'
         }))
