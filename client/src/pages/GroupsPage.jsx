@@ -81,15 +81,15 @@ const GroupsPage = () => {
                     <p className="text-[#0d191b] dark:text-white text-3xl font-bold tracking-tight">{groups.length}</p>
                     <p className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium mt-1">active groups</p>
                 </div>
-                <div className="flex flex-col gap-2 rounded-2xl p-6 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 shadow-soft backdrop-blur-md">
+                <div className="flex flex-col gap-2 rounded-2xl p-6 bg-white dark:bg-white/5 border-2 border-gray-300 dark:border-white/10 shadow-soft backdrop-blur-md">
                     <div className="flex items-center justify-between">
-                        <p className="text-gray-400 font-medium">Total Members</p>
+                        <p className="text-[#5c6f73] dark:text-gray-400 font-medium">Total Members</p>
                         <span className="material-symbols-outlined text-blue-400 bg-blue-400/10 p-1.5 rounded-lg">people</span>
                     </div>
-                    <p className="text-white text-3xl font-bold tracking-tight">
+                    <p className="text-[#0d191b] dark:text-white text-3xl font-bold tracking-tight">
                         {groups.reduce((sum, g) => sum + (g.members?.length || 0), 0)}
                     </p>
-                    <p className="text-gray-400 text-sm font-medium mt-1">across all groups</p>
+                    <p className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium mt-1">across all groups</p>
                 </div>
             </div>
 
@@ -197,14 +197,14 @@ const GroupsPage = () => {
                 {!loading && (
                     <button
                         onClick={() => setIsCreateModalOpen(true)}
-                        className="group flex flex-col items-center justify-center gap-4 bg-transparent p-5 rounded-2xl border-2 border-dashed border-white/10 hover:border-amber-400/50 hover:bg-amber-400/5 transition-all duration-300 min-h-[250px] cursor-pointer backdrop-blur-md"
+                        className="group flex flex-col items-center justify-center gap-4 bg-transparent p-5 rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/10 hover:border-amber-400/50 hover:bg-amber-400/5 transition-all duration-300 min-h-[250px] cursor-pointer backdrop-blur-md"
                     >
-                        <div className="size-16 rounded-full bg-white/5 group-hover:bg-white/10 flex items-center justify-center shadow-sm transition-colors">
+                        <div className="size-16 rounded-full bg-gray-100 dark:bg-white/5 group-hover:bg-amber-100 dark:group-hover:bg-white/10 flex items-center justify-center shadow-sm transition-colors">
                             <span className="material-symbols-outlined text-amber-400 text-3xl">add</span>
                         </div>
                         <div className="text-center">
-                            <h3 className="text-lg font-bold text-white group-hover:text-amber-400 transition-colors">Create New Group</h3>
-                            <p className="text-sm text-gray-400 mt-1">Start sharing expenses</p>
+                            <h3 className="text-lg font-bold text-[#0d191b] dark:text-white group-hover:text-amber-400 transition-colors">Create New Group</h3>
+                            <p className="text-sm text-[#5c6f73] dark:text-gray-400 mt-1">Start sharing expenses</p>
                         </div>
                     </button>
                 )}

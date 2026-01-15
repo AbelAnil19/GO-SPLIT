@@ -1,20 +1,5 @@
 import { db } from './firebaseConfig';
-import {
-    collection,
-    doc,
-    setDoc,
-    getDoc,
-    getDocs,
-    query,
-    where,
-    orderBy,
-    limit,
-    addDoc,
-    updateDoc,
-    deleteDoc,
-    serverTimestamp,
-    onSnapshot
-} from 'firebase/firestore';
+import { collection, addDoc, getDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion } from 'firebase/firestore';
 
 // ==================== USER FUNCTIONS ====================
 
@@ -98,6 +83,17 @@ export const createGroup = async (groupName, creatorId, creatorData) => {
         });
 
         console.log('✅ Group created with ID:', groupRef.id);
+
+        // Log activity
+        await createActivity({
+            type: 'group_created',
+            description: `You created group "${groupName}"`,
+            userId: creatorId,
+            relatedId: groupRef.id,
+            involvedUserIds: [creatorId],
+            icon: 'group_add'
+        });
+
         return groupRef.id;
     } catch (error) {
         console.error('❌ Error creating group:', error);
@@ -307,10 +303,46 @@ export const createExpense = async (expenseData) => {
         // Update group total expenses
         const groupRef = doc(db, 'groups', expenseData.groupId);
         const groupSnap = await getDoc(groupRef);
-        const currentTotal = groupSnap.data()?.totalExpenses || 0;
+        const groupData = groupSnap.data();
+        const currentTotal = groupData?.totalExpenses || 0;
         await updateDoc(groupRef, {
             totalExpenses: currentTotal + expenseData.amount
         });
+
+        // Log activity
+        if (groupData) {
+            const memberIds = groupData.memberIds || [];
+            await createActivity({
+                type: 'expense_added',
+                description: `${expenseData.paidByName} added "${expenseData.description}"`,
+                userId: expenseData.paidBy,
+                relatedId: expenseRef.id,
+                groupId: expenseData.groupId,
+                amount: expenseData.amount,
+                involvedUserIds: memberIds,
+                icon: 'receipt_long'
+            });
+
+            // Notify all group members except the creator
+            const notificationPromises = memberIds
+                .filter(memberId => memberId !== expenseData.paidBy)
+                .map(memberId =>
+                    createNotification(
+                        memberId,
+                        'expense',
+                        'New Expense Added',
+                        `${expenseData.paidByName} added ₹${expenseData.amount} for "${expenseData.description}"`,
+                        {
+                            groupId: expenseData.groupId,
+                            expenseId: expenseRef.id,
+                            amount: expenseData.amount,
+                            fromUserId: expenseData.paidBy,
+                            fromUserName: expenseData.paidByName
+                        }
+                    )
+                );
+            await Promise.all(notificationPromises);
+        }
 
         console.log('✅ Expense created with ID:', expenseRef.id);
         return expenseRef.id;
@@ -350,6 +382,123 @@ export const deleteExpense = async (expenseId, groupId, amount) => {
         console.log('✅ Expense deleted:', expenseId);
     } catch (error) {
         console.error('❌ Error deleting expense:', error);
+        throw error;
+    }
+};
+
+export const deleteAllCreatedGroups = async (userId) => {
+    try {
+        const q = query(
+            collection(db, 'groups'),
+            where('createdBy', '==', userId)
+        );
+        const snapshot = await getDocs(q);
+
+        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+        await Promise.all(deletePromises);
+
+        console.log(`✅ Deleted ${snapshot.size} groups created by user ${userId}`);
+        return snapshot.size;
+    } catch (error) {
+        console.error('❌ Error deleting all groups:', error);
+        throw error;
+    }
+};
+
+export const deleteAllUserExpenses = async (userId) => {
+    try {
+        console.log('🔍 Starting deleteAllUserExpenses for user:', userId);
+        const expensesToDelete = [];
+        const affectedGroups = new Set(); // Track which groups need their totals reset
+
+        // 1. Get expenses user paid for
+        console.log('📋 Step 1: Fetching expenses paid by user...');
+        const paidByQuery = query(
+            collection(db, 'expenses'),
+            where('paidBy', '==', userId)
+        );
+        const paidBySnapshot = await getDocs(paidByQuery);
+        console.log(`   Found ${paidBySnapshot.size} expenses paid by user`);
+        paidBySnapshot.docs.forEach(doc => {
+            console.log(`   - Expense: ${doc.id}, Amount: ₹${doc.data().amount}, Group: ${doc.data().groupId}`);
+            expensesToDelete.push(doc);
+            if (doc.data().groupId) affectedGroups.add(doc.data().groupId);
+        });
+
+        // 2. Get groups created by user and ALL their expenses
+        console.log('📋 Step 2: Fetching groups created by user...');
+        const groupsQuery = query(
+            collection(db, 'groups'),
+            where('createdBy', '==', userId)
+        );
+        const groupsSnapshot = await getDocs(groupsQuery);
+        console.log(`   Found ${groupsSnapshot.size} groups created by user`);
+
+        for (const groupDoc of groupsSnapshot.docs) {
+            console.log(`   - Checking group: ${groupDoc.id} (${groupDoc.data().name})`);
+            affectedGroups.add(groupDoc.id); // Always track user-created groups
+
+            const groupExpensesQuery = query(
+                collection(db, 'expenses'),
+                where('groupId', '==', groupDoc.id)
+            );
+            const groupExpensesSnapshot = await getDocs(groupExpensesQuery);
+            console.log(`     Found ${groupExpensesSnapshot.size} expenses in this group`);
+            groupExpensesSnapshot.docs.forEach(doc => {
+                // Add if not already in list (avoid duplicates)
+                if (!expensesToDelete.find(e => e.id === doc.id)) {
+                    console.log(`     + Adding expense: ${doc.id}, Amount: ₹${doc.data().amount}, Paid by: ${doc.data().paidBy}`);
+                    expensesToDelete.push(doc);
+                } else {
+                    console.log(`     = Already in list: ${doc.id}`);
+                }
+            });
+        }
+
+        console.log(`\n🗑️ Total expenses to delete: ${expensesToDelete.length}`);
+        console.log(`🏢 Affected groups: ${affectedGroups.size}`);
+
+        // Delete all expenses
+        if (expensesToDelete.length > 0) {
+            console.log('🔥 Starting deletion process...');
+            const deletePromises = expensesToDelete.map((doc, index) => {
+                console.log(`   Deleting ${index + 1}/${expensesToDelete.length}: ${doc.id}`);
+                return deleteExpense(doc.id, doc.data().groupId, doc.data().amount);
+            });
+            await Promise.all(deletePromises);
+            console.log(`✅ Successfully deleted ${expensesToDelete.length} expenses`);
+        } else {
+            console.log('⚠️ No expenses found to delete!');
+        }
+
+        // Reset totalExpenses for all affected groups
+        if (affectedGroups.size > 0) {
+            console.log('\n🔄 Resetting totalExpenses for affected groups...');
+            const resetPromises = Array.from(affectedGroups).map(async (groupId) => {
+                const groupRef = doc(db, 'groups', groupId);
+                await updateDoc(groupRef, { totalExpenses: 0 });
+                console.log(`   ✅ Reset totalExpenses for group: ${groupId}`);
+            });
+            await Promise.all(resetPromises);
+            console.log(`✅ Reset ${affectedGroups.size} group totals to ₹0`);
+        }
+
+        // Delete all user activities (using involvedUserIds to match Dashboard display)
+        console.log('\n🗑️ Deleting activity history...');
+        const activityQuery = query(
+            collection(db, 'activity'),
+            where('involvedUserIds', 'array-contains', userId)
+        );
+        const activitySnapshot = await getDocs(activityQuery);
+        const activityDeletePromises = activitySnapshot.docs.map(doc => deleteDoc(doc.ref));
+        await Promise.all(activityDeletePromises);
+        console.log(`✅ Deleted ${activitySnapshot.size} activity records`);
+
+        return expensesToDelete.length;
+    } catch (error) {
+        console.error('❌ Error deleting all expenses:', error);
+        console.error('Error details:', error.message);
+        console.error('Error code:', error.code);
         throw error;
     }
 };
@@ -421,34 +570,270 @@ export const getUserActivity = async (userId, limitCount = 20) => {
     }
 };
 
+export const listenToUserActivity = (userId, callback) => {
+    // Note: We sort in client to avoid needing a composite index immediately
+    const q = query(
+        collection(db, 'activity'),
+        where('involvedUserIds', 'array-contains', userId),
+        limit(50)
+    );
+    return onSnapshot(q, (snapshot) => {
+        const activities = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Sort client-side
+        activities.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+        callback(activities);
+    });
+};
+
+
 // ==================== SETTLEMENT FUNCTIONS ====================
 
-export const createSettlement = async (settlementData) => {
+export const createSettlement = async (fromUserId, toUserId, amount, fromUserData, toUserData) => {
     try {
-        const settlementRef = await addDoc(collection(db, 'settlements'), {
-            ...settlementData,
-            date: serverTimestamp(),
-            status: 'pending'
-        });
-        console.log('✅ Settlement created with ID:', settlementRef.id);
-        return settlementRef.id;
+        const settlement = {
+            fromUserId,
+            fromUserName: fromUserData.displayName?.split(' ')[0] || 'User',
+            fromUserPhoto: fromUserData.photoURL,
+            toUserId,
+            toUserName: toUserData.displayName?.split(' ')[0] || 'User',
+            toUserPhoto: toUserData.photoURL,
+            amount,
+            status: 'pending',
+            createdAt: serverTimestamp(),
+            approvedAt: null,
+            note: null
+        };
+
+        const docRef = await addDoc(collection(db, 'settlements'), settlement);
+        console.log('✅ Settlement created:', docRef.id);
+
+        // Notify the receiver
+        await createNotification(
+            toUserId,
+            'settlement',
+            'Settlement Request',
+            `${fromUserData.displayName?.split(' ')[0]} wants to settle ₹${amount}`,
+            {
+                settlementId: docRef.id,
+                amount,
+                fromUserId,
+                fromUserName: fromUserData.displayName?.split(' ')[0] || 'User'
+            }
+        );
+
+        return docRef;
     } catch (error) {
         console.error('❌ Error creating settlement:', error);
         throw error;
     }
 };
 
-export const getGroupSettlements = async (groupId) => {
+export const approveSettlement = async (settlementId) => {
+    try {
+        const settlementRef = doc(db, 'settlements', settlementId);
+        const settlementSnap = await getDoc(settlementRef);
+        const settlementData = settlementSnap.data();
+
+        await updateDoc(settlementRef, {
+            status: 'approved',
+            approvedAt: serverTimestamp()
+        });
+        console.log('✅ Settlement approved:', settlementId);
+
+        // Notify the payer
+        if (settlementData) {
+            await createNotification(
+                settlementData.fromUserId,
+                'payment',
+                'Payment Approved',
+                `${settlementData.toUserName} verified your ₹${settlementData.amount} payment`,
+                {
+                    settlementId,
+                    amount: settlementData.amount,
+                    fromUserId: settlementData.toUserId,
+                    fromUserName: settlementData.toUserName
+                }
+            );
+        }
+    } catch (error) {
+        console.error('❌ Error approving settlement:', error);
+        throw error;
+    }
+};
+
+export const rejectSettlement = async (settlementId) => {
+    try {
+        await deleteDoc(doc(db, 'settlements', settlementId));
+        console.log('✅ Settlement rejected/deleted:', settlementId);
+    } catch (error) {
+        console.error('❌ Error rejecting settlement:', error);
+        throw error;
+    }
+};
+
+export const listenToUserSettlements = (userId, callback) => {
+    // Listen to settlements where user is either sender or receiver
+    const sentQuery = query(
+        collection(db, 'settlements'),
+        where('fromUserId', '==', userId)
+    );
+
+    const receivedQuery = query(
+        collection(db, 'settlements'),
+        where('toUserId', '==', userId)
+    );
+
+    const unsubscribeSent = onSnapshot(sentQuery, (sentSnapshot) => {
+        const unsubscribeReceived = onSnapshot(receivedQuery, (receivedSnapshot) => {
+            const settlements = [
+                ...sentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                ...receivedSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+            ];
+            callback(settlements);
+        });
+
+        // Store the second unsubscribe function
+        listenToUserSettlements._unsubscribeReceived = unsubscribeReceived;
+    });
+
+    // Return combined unsubscribe function
+    return () => {
+        unsubscribeSent();
+        if (listenToUserSettlements._unsubscribeReceived) {
+            listenToUserSettlements._unsubscribeReceived();
+        }
+    };
+};
+
+// ==================== MESSAGING FUNCTIONS ====================
+
+export const sendMessage = async (groupId, text, currentUser) => {
+    try {
+        const messagesRef = collection(db, 'groups', groupId, 'messages');
+        await addDoc(messagesRef, {
+            text,
+            senderId: currentUser.uid,
+            senderName: currentUser.displayName?.split(' ')[0] || 'User',
+            senderPhoto: currentUser.photoURL,
+            timestamp: serverTimestamp(),
+            type: 'text'
+        });
+        console.log('✅ Message sent to group:', groupId);
+
+        // Notify all group members except the sender
+        const groupRef = doc(db, 'groups', groupId);
+        const groupSnap = await getDoc(groupRef);
+        const groupData = groupSnap.data();
+
+        if (groupData) {
+            const memberIds = groupData.memberIds || [];
+            const senderName = currentUser.displayName?.split(' ')[0] || 'User';
+
+            const notificationPromises = memberIds
+                .filter(memberId => memberId !== currentUser.uid)
+                .map(memberId =>
+                    createNotification(
+                        memberId,
+                        'message',
+                        'New Message',
+                        `${senderName}: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`,
+                        {
+                            groupId,
+                            groupName: groupData.name,
+                            fromUserId: currentUser.uid,
+                            fromUserName: senderName
+                        }
+                    )
+                );
+            await Promise.all(notificationPromises);
+        }
+    } catch (error) {
+        console.error('❌ Error sending message:', error);
+        throw error;
+    }
+};
+
+export const listenToGroupMessages = (groupId, callback) => {
+    const q = query(
+        collection(db, 'groups', groupId, 'messages'),
+        orderBy('timestamp', 'asc'),
+        limit(100)
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const messages = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        callback(messages);
+    });
+};
+
+// ==================== NOTIFICATION FUNCTIONS ====================
+
+export const createNotification = async (userId, type, title, message, metadata = {}) => {
+    try {
+        const notification = {
+            userId,
+            type,
+            title,
+            message,
+            read: false,
+            createdAt: serverTimestamp(),
+            metadata
+        };
+
+        await addDoc(collection(db, 'notifications'), notification);
+        console.log('✅ Notification created for user:', userId);
+    } catch (error) {
+        console.error('❌ Error creating notification:', error);
+        // Don't throw - notifications are non-critical
+    }
+};
+
+export const listenToUserNotifications = (userId, callback) => {
+    const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', userId),
+        where('read', '==', false),
+        orderBy('createdAt', 'desc'),
+        limit(20)
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const notifications = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        callback(notifications);
+    });
+};
+
+export const markNotificationRead = async (notificationId) => {
+    try {
+        await updateDoc(doc(db, 'notifications', notificationId), {
+            read: true
+        });
+    } catch (error) {
+        console.error('❌ Error marking notification as read:', error);
+    }
+};
+
+export const markAllNotificationsRead = async (userId) => {
     try {
         const q = query(
-            collection(db, 'settlements'),
-            where('groupId', '==', groupId),
-            orderBy('date', 'desc')
+            collection(db, 'notifications'),
+            where('userId', '==', userId),
+            where('read', '==', false)
         );
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        const snapshot = await getDocs(q);
+        const promises = snapshot.docs.map(d =>
+            updateDoc(d.ref, { read: true })
+        );
+        await Promise.all(promises);
+        console.log(`✅ Marked ${snapshot.size} notifications as read`);
     } catch (error) {
-        console.error('Error getting group settlements:', error);
-        throw error;
+        console.error('❌ Error marking all notifications as read:', error);
     }
 };

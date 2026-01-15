@@ -24,16 +24,22 @@ export const calculateSplit = (totalAmount, participants, customSplits = null) =
         }));
     }
 
-    // Equal split
-    const splitAmount = totalAmount / participants.length;
-    const roundedAmount = Math.floor(splitAmount * 100) / 100; // Round down to 2 decimals
-    const remainder = totalAmount - (roundedAmount * participants.length);
+    // Equal split using integer math to avoid floating point errors
+    const totalCents = Math.round(totalAmount * 100);
+    const splitCents = Math.floor(totalCents / participants.length);
+    const remainderCents = totalCents - (splitCents * participants.length);
 
-    return participants.map((userId, index) => ({
-        userId,
-        // First participant gets the remainder to ensure total adds up
-        amount: index === 0 ? roundedAmount + remainder : roundedAmount
-    }));
+    return participants.map((userId, index) => {
+        let amountCents = splitCents;
+        // Distribute remainder cents to first few participants
+        if (index < remainderCents) {
+            amountCents += 1;
+        }
+        return {
+            userId,
+            amount: amountCents / 100
+        };
+    });
 };
 
 /**

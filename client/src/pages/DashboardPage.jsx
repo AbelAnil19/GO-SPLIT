@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../firebase/authContext';
-import { createGroup, getUserGroups, listenToUserGroups, getUserExpenses, createExpense, getUserDocument, updateExpense, deleteExpense } from '../firebase/firestore';
+import { createGroup, getUserGroups, listenToUserGroups, getUserExpenses, createExpense, getUserDocument, updateExpense, deleteExpense, createActivity, listenToUserActivity, createSettlement, approveSettlement, rejectSettlement, listenToUserSettlements } from '../firebase/firestore';
 import { calculateTotalBalance, getAmountOwed, getAmountUserIsOwed, getMonthlySpending, getPendingSettlements } from '../utils/expenseCalculator';
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
@@ -118,6 +118,33 @@ const CreateGroupModal = ({ isOpen, onClose, onCreate }) => {
     );
 };
 
+const timeAgo = (timestamp) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const seconds = Math.floor((new Date() - date) / 1000);
+
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + "y ago";
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + "mo ago";
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + "d ago";
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + "h ago";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + "m ago";
+    return "Just now";
+};
+
+const getActivityColor = (type) => {
+    switch (type) {
+        case 'group_created': return 'blue';
+        case 'expense_added': return 'amber';
+        case 'payment_verified': return 'green';
+        default: return 'gray';
+    }
+};
+
 const DashboardPage = () => {
     const { addToast } = useToast();
     const { currentUser } = useAuth();
@@ -135,6 +162,8 @@ const DashboardPage = () => {
     });
     const [pendingSettlements, setPendingSettlements] = useState([]);
     const [pendingApprovals, setPendingApprovals] = useState({});
+    const [settlements, setSettlements] = useState([]);
+    const [recentActivity, setRecentActivity] = useState([]);
     const [paymentModal, setPaymentModal] = useState({ isOpen: false, data: null });
 
     // Get user's first name
@@ -201,102 +230,131 @@ const DashboardPage = () => {
             }
         });
 
-        // Calculate pending settlements
-        const settlements = getPendingSettlements(expenses, currentUser.uid, userMap);
-        setPendingSettlements(settlements);
+        // Calculate pending settlements (from expenses only, not settlement collection)
+        const settlementSuggestions = getPendingSettlements(expenses, currentUser.uid, userMap);
+        setPendingSettlements(settlementSuggestions);
 
-        // Calculate pending approvals (Approvals Map: userId -> { type, amount, expenseId })
-        const approvalsMap = {};
-        expenses.forEach(expense => {
-            if (expense.approvalStatus === 'pending') {
-                const isPayer = expense.paidBy === currentUser.uid;
-                const isReceiver = expense.splitBetween.some(s => s.userId === currentUser.uid);
+        // Calculate pending approvals from settlements collection (handled by separate effect)
+    }, [expenses, groups, currentUser, settlements]);
 
-                if (isPayer) {
-                    // I paid, waiting for approval
-                    const receiverId = expense.splitBetween[0].userId; // Assuming single receiver for settlement
-                    approvalsMap[receiverId] = { type: 'outgoing', amount: expense.amount, expenseId: expense.id };
-                } else if (isReceiver) {
-                    // Someone paid me, waiting for my approval
-                    approvalsMap[expense.paidBy] = { type: 'incoming', amount: expense.amount, expenseId: expense.id };
-                }
-            }
+    // Listen to settlements collection
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const unsubscribe = listenToUserSettlements(currentUser.uid, (settlementsData) => {
+            setSettlements(settlementsData);
+
+            // Map pending settlements to approvals format
+            const approvalsMap = {};
+            settlementsData
+                .filter(s => s.status === 'pending')
+                .forEach(settlement => {
+                    if (settlement.fromUserId === currentUser.uid) {
+                        // I sent payment, waiting for approval
+                        approvalsMap[settlement.toUserId] = {
+                            type: 'outgoing',
+                            amount: settlement.amount,
+                            settlementId: settlement.id,
+                            name: settlement.toUserName
+                        };
+                    } else if (settlement.toUserId === currentUser.uid) {
+                        // I received payment request, needs my approval
+                        approvalsMap[settlement.fromUserId] = {
+                            type: 'incoming',
+                            amount: settlement.amount,
+                            settlementId: settlement.id,
+                            name: settlement.fromUserName
+                        };
+                    }
+                });
+            setPendingApprovals(approvalsMap);
         });
-        setPendingApprovals(approvalsMap);
-    }, [expenses, groups, currentUser]);
+
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    // Listen to recent activity
+    useEffect(() => {
+        if (!currentUser) return;
+        const unsubscribe = listenToUserActivity(currentUser.uid, (activities) => {
+            setRecentActivity(activities);
+        });
+        return () => unsubscribe();
+    }, [currentUser]);
 
     const handleSettleUp = async (settlement) => {
         if (!currentUser) return;
 
-        const { personId, type } = settlement;
+        const { personId, type, name } = settlement;
+
+        // If someone owes YOU money, show reminder toast (can't force them to pay)
+        if (type === 'owed') {
+            addToast(`Reminder: ${name} owes you ₹${settlement.amount.toFixed(2)}`, 'info');
+            return;
+        }
+
+        // If YOU owe someone, proceed with payment
         if (type === 'owe') {
             try {
                 const userData = await getUserDocument(personId);
                 if (userData && userData.upiId) {
                     setPaymentModal({ isOpen: true, data: { ...settlement, upiId: userData.upiId } });
                     return;
+                } else {
+                    // UPI ID not found - show warning
+                    addToast(`${name} hasn't set their UPI ID yet. Recording payment manually.`, 'warning');
                 }
-            } catch (error) { console.error(error); }
+            } catch (error) {
+                console.error(error);
+                addToast('Failed to fetch payment details', 'error');
+            }
+            processSettlement(settlement);
         }
-        processSettlement(settlement);
     };
 
     const processSettlement = async (settlement) => {
         if (!currentUser) return;
 
         try {
-            const { personId, name, amount, type } = settlement;
-            const payerId = type === 'owe' ? currentUser.uid : personId;
-            const receiverId = type === 'owe' ? personId : currentUser.uid;
+            const { personId, name, amount, photoURL } = settlement;
 
-            const expenseData = {
-                groupId: 'settlement',
-                description: 'Settlement',
-                amount: parseFloat(amount),
-                category: 'other',
-                paidBy: payerId,
-                paidByName: type === 'owe' ? currentUser.displayName : name,
-                date: new Date(),
-                splitBetween: [{
-                    userId: receiverId,
-                    name: type === 'owe' ? name : currentUser.displayName,
-                    amount: parseFloat(amount)
-                }],
-                isSettled: false,
-                approvalStatus: 'pending' // Mark as pending approval
-            };
+            // Get receiver data
+            const receiverData = await getUserDocument(personId);
 
-            await createExpense(expenseData);
-            if (type === 'owe') {
-                addToast(`Payment to ${name} recorded! Waiting for their approval.`, 'info');
-            } else {
-                addToast(`Settlement recorded.`, 'success');
-            }
+            // Create settlement record
+            await createSettlement(
+                currentUser.uid,  // fromUserId (payer)
+                personId,         // toUserId (receiver)
+                parseFloat(amount),
+                currentUser,      // fromUserData
+                receiverData      // toUserData
+            );
+
+            addToast(`Settlement request sent to ${name}`, 'success');
             setPaymentModal({ isOpen: false, data: null });
         } catch (error) {
-            console.error("Error settling up:", error);
-            addToast("Failed to record settlement", "error");
+            console.error('Error processing settlement:', error);
+            addToast('Failed to record settlement', 'error');
         }
     };
 
-    const handleApprovePayment = async (expenseId, name) => {
+    const handleApprovePayment = async (settlementId, name) => {
         try {
-            await updateExpense(expenseId, { approvalStatus: 'approved' });
-            addToast(`Payment from ${name} verified!`, 'success');
+            await approveSettlement(settlementId);
+            addToast(`${name}'s payment approved!`, 'success');
         } catch (error) {
-            console.error("Error verifying payment:", error);
-            addToast("Failed to verify payment", "error");
+            console.error('Error approving settlement:', error);
+            addToast('Failed to approve payment', 'error');
         }
     };
 
-    const handleRejectPayment = async (expenseId, name) => {
-        if (!window.confirm(`Are you sure you want to reject the payment from ${name}?`)) return;
+    const handleRejectPayment = async (settlementId, name) => {
         try {
-            await deleteExpense(expenseId, null, 0); // null groupId, 0 amount (settlements don't affect group totals usually or we don't care about groupId here)
-            addToast(`Payment from ${name} rejected.`, 'info');
+            await rejectSettlement(settlementId);
+            addToast(`${name}'s payment rejected`, 'info');
         } catch (error) {
-            console.error("Error rejecting payment:", error);
-            addToast("Failed to reject payment", "error");
+            console.error('Error rejecting settlement:', error);
+            addToast('Failed to reject payment', 'error');
         }
     };
 
@@ -417,13 +475,13 @@ const DashboardPage = () => {
                                                     ) : (
                                                         <div className="flex gap-2">
                                                             <button
-                                                                onClick={() => handleRejectPayment(pendingApprovals[settlement.personId].expenseId, settlement.name)}
+                                                                onClick={() => handleRejectPayment(pendingApprovals[settlement.personId].settlementId, settlement.name)}
                                                                 className="text-xs font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors"
                                                             >
                                                                 Reject
                                                             </button>
                                                             <button
-                                                                onClick={() => handleApprovePayment(pendingApprovals[settlement.personId].expenseId, settlement.name)}
+                                                                onClick={() => handleApprovePayment(pendingApprovals[settlement.personId].settlementId, settlement.name)}
                                                                 className="text-xs font-bold px-3 py-1.5 rounded-full bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50 transition-colors flex items-center gap-1"
                                                             >
                                                                 <span className="material-symbols-outlined text-[14px]">check</span>
@@ -496,22 +554,22 @@ const DashboardPage = () => {
                 {/* Right Column (Activity Feed) */}
                 <aside className="bg-white dark:bg-white/5 p-6 rounded-3xl border-2 border-gray-300 dark:border-white/10 h-full backdrop-blur-sm">
                     <h2 className="text-lg font-bold text-[#0d191b] dark:text-white mb-6">Recent Activity</h2>
-                    <div className="relative pl-4 border-l border-gray-200 dark:border-white/10 space-y-8">
-                        {[
-                            { user: 'Sarah', action: 'added "Utility Bill"', target: 'Apt 4B Roomies', time: '2 mins ago', color: 'blue' },
-                            { user: userFirstName, action: 'settled $15.00 with', target: 'Mike', time: '1 hour ago', color: 'green' },
-                            { user: 'John', action: 'commented on "Grocery Run"', time: '3 hours ago', color: 'gray' },
-                        ].map((item, index) => (
-                            <div key={index} className="relative">
-                                <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-${item.color}-500 ring-4 ring-[#0f172a]`}></div>
-                                <div className="flex flex-col gap-1">
-                                    <p className="text-sm text-[#5c6f73] dark:text-gray-300 leading-relaxed">
-                                        <span className="font-bold text-[#0d191b] dark:text-white">{item.user}</span> {item.action} {item.target && <span className="font-semibold text-amber-500">{item.target}</span>}.
-                                    </p>
-                                    <span className="text-xs text-[#5c6f73] dark:text-gray-400">{item.time}</span>
+                    <div className="relative pl-4 border-l border-gray-200 dark:border-white/10 space-y-6">
+                        {recentActivity.length === 0 ? (
+                            <p className="text-gray-400 text-sm italic">No recent activity</p>
+                        ) : (
+                            recentActivity.map((item) => (
+                                <div key={item.id} className="relative group">
+                                    <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-${getActivityColor(item.type)}-500 ring-4 ring-[#0f172a] group-hover:scale-125 transition-transform`}></div>
+                                    <div className="flex flex-col gap-1">
+                                        <p className="text-sm text-[#5c6f73] dark:text-gray-300 leading-relaxed">
+                                            {item.description}
+                                        </p>
+                                        <span className="text-xs text-[#5c6f73] dark:text-gray-500 font-medium">{timeAgo(item.timestamp)}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                     <Link to="/dashboard/history" className="block w-full text-center mt-8 py-3 text-sm font-bold text-gray-400 hover:text-white transition-colors border border-white/10 rounded-xl hover:bg-white/5 hover:border-white/20">
                         View Full History

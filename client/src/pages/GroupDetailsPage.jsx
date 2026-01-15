@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
@@ -6,7 +6,7 @@ import { doc, getDoc, onSnapshot, collection, query, where, orderBy } from 'fire
 import { db } from '../firebase/firebaseConfig';
 import AddExpenseModal from '../components/AddExpenseModal';
 import AddMemberModal from '../components/AddMemberModal';
-import { deleteExpense } from '../firebase/firestore';
+import { deleteExpense, sendMessage, listenToGroupMessages } from '../firebase/firestore';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 const GroupDetailsPage = () => {
@@ -21,7 +21,10 @@ const GroupDetailsPage = () => {
     const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
     const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, expense: null });
-    const [activeTab, setActiveTab] = useState('expenses'); // 'expenses', 'members', 'settlements'
+    const [activeTab, setActiveTab] = useState('expenses'); // 'expenses', 'members', 'settlements', 'chat'
+    const [messages, setMessages] = useState([]);
+    const [newMessage, setNewMessage] = useState('');
+    const messagesEndRef = useRef(null);
 
     // Fetch group details
     useEffect(() => {
@@ -68,6 +71,20 @@ const GroupDetailsPage = () => {
 
         return () => unsubscribe();
     }, [groupId, addToast]);
+
+    // Listen to group messages
+    useEffect(() => {
+        if (!groupId || activeTab !== 'chat') return;
+        const unsubscribe = listenToGroupMessages(groupId, (msgs) => {
+            setMessages(msgs);
+        });
+        return () => unsubscribe();
+    }, [groupId, activeTab]);
+
+    // Auto-scroll to bottom when new messages arrive
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
     // Calculate member balances
     const calculateBalances = () => {
@@ -178,6 +195,19 @@ const GroupDetailsPage = () => {
         return styles[category] || styles.other;
     };
 
+    const handleSendMessage = async (e) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !currentUser) return;
+
+        try {
+            await sendMessage(groupId, newMessage.trim(), currentUser);
+            setNewMessage('');
+        } catch (error) {
+            console.error('Error sending message:', error);
+            addToast('Failed to send message', 'error');
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-full">
@@ -268,6 +298,15 @@ const GroupDetailsPage = () => {
                         }`}
                 >
                     Settlements ({settlements.length})
+                </button>
+                <button
+                    onClick={() => setActiveTab('chat')}
+                    className={`px-4 py-2 font-semibold transition-colors border-b-2 ${activeTab === 'chat'
+                        ? 'border-amber-400 text-amber-400'
+                        : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                >
+                    Chat {messages.length > 0 && `(${messages.length})`}
                 </button>
             </div>
 
@@ -412,6 +451,75 @@ const GroupDetailsPage = () => {
                             ))}
                         </div>
                     )}
+                </div>
+            )}
+
+            {activeTab === 'chat' && (
+                <div className="bg-white dark:bg-[#1a1c23] rounded-2xl border border-gray-200 dark:border-white/10 flex flex-col" style={{ height: '500px' }}>
+                    {/* Messages Area */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                        {messages.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center">
+                                <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600 mb-4">chat_bubble</span>
+                                <p className="text-gray-500 dark:text-gray-400 font-semibold">No messages yet</p>
+                                <p className="text-sm text-gray-400 dark:text-gray-500">Start the conversation!</p>
+                            </div>
+                        ) : (
+                            messages.map((msg) => {
+                                const isMyMessage = msg.senderId === currentUser.uid;
+                                const messageTime = msg.timestamp?.toDate ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+                                return (
+                                    <div key={msg.id} className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'} gap-3`}>
+                                        {!isMyMessage && (
+                                            <div className="flex-shrink-0">
+                                                {msg.senderPhoto ? (
+                                                    <img src={msg.senderPhoto} alt={msg.senderName} className="w-8 h-8 rounded-full" />
+                                                ) : (
+                                                    <div className="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center text-black font-bold text-sm">
+                                                        {msg.senderName?.charAt(0) || 'U'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div className={`flex flex-col ${isMyMessage ? 'items-end' : 'items-start'} max-w-[70%]`}>
+                                            {!isMyMessage && (
+                                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">{msg.senderName}</span>
+                                            )}
+                                            <div className={`px-4 py-2 rounded-2xl ${isMyMessage
+                                                ? 'bg-amber-400 text-black'
+                                                : 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white'
+                                                }`}>
+                                                <p className="text-sm break-words">{msg.text}</p>
+                                            </div>
+                                            <span className="text-xs text-gray-400 mt-1">{messageTime}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Input Area */}
+                    <div className="border-t border-gray-200 dark:border-white/10 p-4">
+                        <form onSubmit={handleSendMessage} className="flex gap-3">
+                            <input
+                                type="text"
+                                value={newMessage}
+                                onChange={(e) => setNewMessage(e.target.value)}
+                                placeholder="Type a message..."
+                                className="flex-1 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-amber-400 transition-colors"
+                            />
+                            <button
+                                type="submit"
+                                disabled={!newMessage.trim()}
+                                className="px-6 py-3 bg-amber-400 hover:bg-amber-300 text-black rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                <span className="material-symbols-outlined">send</span>
+                            </button>
+                        </form>
+                    </div>
                 </div>
             )}
 

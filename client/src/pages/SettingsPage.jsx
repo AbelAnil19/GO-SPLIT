@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
-import { updateUserDocument, getUserDocument } from '../firebase/firestore';
+import { updateUserDocument, getUserDocument, deleteAllUserExpenses, deleteAllCreatedGroups } from '../firebase/firestore';
 
 const SettingsPage = () => {
     const { currentUser } = useAuth();
@@ -62,8 +62,27 @@ const SettingsPage = () => {
         addToast('Changes cancelled', 'info');
     };
 
-    const handleDeleteAccount = () => {
-        addToast('This feature requires additional confirmation', 'warning');
+    const [dangerModal, setDangerModal] = useState({ isOpen: false, type: null });
+    const [confirmText, setConfirmText] = useState('');
+
+    const handleConfirmDelete = async () => {
+        if (confirmText !== 'DELETE') return;
+
+        try {
+            if (dangerModal.type === 'expenses') {
+                await deleteAllUserExpenses(currentUser.uid);
+                addToast('All your expenses have been deleted.', 'success');
+            } else if (dangerModal.type === 'all') {
+                await deleteAllUserExpenses(currentUser.uid);
+                await deleteAllCreatedGroups(currentUser.uid);
+                addToast('Your account has been reset.', 'success');
+            }
+            setDangerModal({ isOpen: false, type: null });
+            setConfirmText('');
+        } catch (error) {
+            console.error(error);
+            addToast('Failed to delete data.', 'error');
+        }
     };
 
     return (
@@ -287,17 +306,68 @@ const SettingsPage = () => {
                 < section className="border border-red-500/20 bg-red-500/5 rounded-2xl overflow-hidden mt-4 backdrop-blur-md" >
                     <div className="px-6 py-5">
                         <h3 className="text-lg font-bold text-red-400">Danger Zone</h3>
-                        <p className="text-sm text-gray-400 mt-1">Once you delete your account, there is no going back. Please be certain.</p>
-                        <div className="mt-4 flex justify-end">
+                        <p className="text-sm text-gray-400 mt-1">Irreversible actions. Please be certain.</p>
+                        <div className="mt-4 flex flex-wrap gap-3 justify-end">
                             <button
-                                onClick={handleDeleteAccount}
+                                onClick={() => setDangerModal({ isOpen: true, type: 'expenses' })}
                                 className="px-4 py-2 bg-white/5 border border-red-500/30 text-red-400 text-sm font-bold rounded-lg hover:bg-red-500/10 transition-colors"
                             >
-                                Delete Account
+                                Delete All Expenses
+                            </button>
+                            <button
+                                onClick={() => setDangerModal({ isOpen: true, type: 'all' })}
+                                className="px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-bold rounded-lg hover:bg-red-500/20 transition-colors"
+                            >
+                                Reset Account
                             </button>
                         </div>
                     </div>
                 </section >
+
+                {/* Danger Modal */}
+                {dangerModal.isOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setDangerModal({ isOpen: false, type: null })}></div>
+                        <div className="relative bg-[#1a1c23] border border-red-500/30 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in-up">
+                            <div className="w-16 h-16 rounded-full bg-red-500/10 mx-auto flex items-center justify-center text-red-500 mb-4">
+                                <span className="material-symbols-outlined text-3xl">warning</span>
+                            </div>
+                            <h2 className="text-xl font-bold text-white text-center mb-2">Are you sure?</h2>
+                            <p className="text-gray-400 text-center text-sm mb-6">
+                                {dangerModal.type === 'expenses'
+                                    ? "This will permanently delete ALL expenses you have paid for. This cannot be undone."
+                                    : "This will delete ALL your expenses and groups you created. This cannot be undone."}
+                            </p>
+
+                            <div className="mb-6">
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Type "DELETE" to confirm</label>
+                                <input
+                                    type="text"
+                                    value={confirmText}
+                                    onChange={(e) => setConfirmText(e.target.value)}
+                                    className="w-full bg-black/30 border border-red-500/30 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500 transition-colors font-mono"
+                                    placeholder="DELETE"
+                                />
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setDangerModal({ isOpen: false, type: null })}
+                                    className="flex-1 px-4 py-2 text-gray-400 font-bold hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleConfirmDelete}
+                                    disabled={confirmText !== 'DELETE'}
+                                    className="flex-1 px-4 py-2 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Confirm Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Action Bar */}
                 < div className="sticky bottom-4 z-40 bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10 shadow-lg flex justify-end gap-3" >

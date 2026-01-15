@@ -31,11 +31,12 @@ export const ToastProvider = ({ children }) => {
                     <div
                         key={toast.id}
                         className={`
-                            min-w-[300px] p-4 rounded-lg shadow-lg backdrop-blur-md border border-white/10
+                            min-w-[300px] p-4 rounded-lg shadow-lg backdrop-blur-md border
                             transform transition-all duration-300 ease-in-out animate-fade-in-up
-                            ${toast.type === 'success' ? 'bg-green-500/20 text-green-200 border-green-500/30' : ''}
-                            ${toast.type === 'error' ? 'bg-red-500/20 text-red-200 border-red-500/30' : ''}
-                            ${toast.type === 'info' ? 'bg-blue-500/20 text-blue-200 border-blue-500/30' : ''}
+                            ${toast.type === 'success' ? 'bg-green-500/20 dark:bg-green-500/20 text-green-800 dark:text-green-200 border-green-500/30' : ''}
+                            ${toast.type === 'error' ? 'bg-red-500/20 dark:bg-red-500/20 text-red-800 dark:text-red-200 border-red-500/30' : ''}
+                            ${toast.type === 'info' ? 'bg-blue-500/20 dark:bg-blue-500/20 text-blue-900 dark:text-blue-200 border-blue-500/30' : ''}
+                            ${toast.type === 'warning' ? 'bg-amber-500/20 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/30' : ''}
                         `}
                     >
                         <div className="flex items-center justify-between">
@@ -46,7 +47,7 @@ export const ToastProvider = ({ children }) => {
                             </div>
                             <button
                                 onClick={() => removeToast(toast.id)}
-                                className="text-white/50 hover:text-white transition-colors"
+                                className="text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white transition-colors"
                             >
                                 ✕
                             </button>
@@ -57,6 +58,7 @@ export const ToastProvider = ({ children }) => {
                                 ${toast.type === 'success' ? 'bg-green-500' : ''}
                                 ${toast.type === 'error' ? 'bg-red-500' : ''}
                                 ${toast.type === 'info' ? 'bg-blue-500' : ''}
+                                ${toast.type === 'warning' ? 'bg-amber-500' : ''}
                              `}></div>
                         </div>
                     </div>
