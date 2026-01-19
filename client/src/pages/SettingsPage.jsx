@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
-import { updateUserDocument, getUserDocument, deleteAllUserExpenses, deleteAllCreatedGroups } from '../firebase/firestore';
+import { updateUserDocument, getUserDocument, deleteAllUserExpenses, deleteAllCreatedGroups, updateUserAvatar } from '../firebase/firestore';
+import AvatarPickerModal from '../components/AvatarPickerModal';
 
 const SettingsPage = () => {
     const { currentUser } = useAuth();
@@ -16,6 +17,8 @@ const SettingsPage = () => {
     const [notifExpense, setNotifExpense] = useState(true);
     const [notifSettlement, setNotifSettlement] = useState(true);
     const [notifMarketing, setNotifMarketing] = useState(false);
+    const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
+    const [userAvatar, setUserAvatar] = useState(currentUser?.photoURL || '');
 
     // Fetch user details from Firestore
     React.useEffect(() => {
@@ -24,10 +27,11 @@ const SettingsPage = () => {
                 try {
                     const userData = await getUserDocument(currentUser.uid);
                     if (userData) {
-                        if (userData.phones) setPhone(userData.phone);
+                        if (userData.phone) setPhone(userData.phone);
                         if (userData.upiId) setUpiId(userData.upiId);
                         if (userData.currency) setCurrency(userData.currency);
                         if (userData.language) setLanguage(userData.language);
+                        if (userData.photoURL) setUserAvatar(userData.photoURL);
                     }
                 } catch (error) {
                     console.error("Error fetching user settings:", error);
@@ -55,6 +59,17 @@ const SettingsPage = () => {
         } catch (error) {
             console.error("Error saving settings:", error);
             addToast('Failed to save settings', 'error');
+        }
+    };
+
+    const handleAvatarSave = async (newPhotoURL, avatarStyle) => {
+        try {
+            await updateUserAvatar(currentUser.uid, newPhotoURL, avatarStyle);
+            setUserAvatar(newPhotoURL);
+            addToast('Avatar updated successfully!', 'success');
+        } catch (error) {
+            console.error("Error updating avatar:", error);
+            addToast('Failed to update avatar', 'error');
         }
     };
 
@@ -98,19 +113,22 @@ const SettingsPage = () => {
                 <section className="bg-white dark:bg-white/5 rounded-2xl p-6 shadow-sm border border-gray-300 dark:border-white/10 backdrop-blur-md">
                     <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start justify-between">
                         <div className="flex flex-col sm:flex-row gap-5 items-center">
-                            <div className="relative group cursor-pointer">
-                                {currentUser?.photoURL ? (
+                            <div
+                                className="relative group cursor-pointer"
+                                onClick={() => setIsAvatarPickerOpen(true)}
+                            >
+                                {(userAvatar || currentUser?.photoURL) ? (
                                     <div
-                                        className="bg-center bg-no-repeat bg-cover rounded-full h-24 w-24 ring-4 ring-[#0f172a]"
-                                        style={{ backgroundImage: `url('${currentUser.photoURL}')` }}
+                                        className="bg-center bg-no-repeat bg-cover rounded-full h-24 w-24 ring-4 ring-amber-400"
+                                        style={{ backgroundImage: `url('${userAvatar || currentUser.photoURL}')` }}
                                     ></div>
                                 ) : (
-                                    <div className="rounded-full h-24 w-24 ring-4 ring-[#0f172a] bg-amber-500/20 flex items-center justify-center text-3xl font-bold text-amber-400">
+                                    <div className="rounded-full h-24 w-24 ring-4 ring-amber-400 bg-amber-500/20 flex items-center justify-center text-3xl font-bold text-amber-400">
                                         {currentUser?.displayName?.charAt(0) || 'U'}
                                     </div>
                                 )}
-                                <div className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <span className="material-symbols-outlined text-[#0d191b] dark:text-white">edit</span>
+                                <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <span className="material-symbols-outlined text-white">edit</span>
                                 </div>
                             </div>
                             <div className="text-center sm:text-left">
@@ -383,9 +401,18 @@ const SettingsPage = () => {
                     >
                         Save Changes
                     </button>
-                </div >
-            </div >
-        </div >
+                </div>
+            </div>
+
+            {/* Avatar Picker Modal */}
+            <AvatarPickerModal
+                isOpen={isAvatarPickerOpen}
+                currentPhotoURL={userAvatar || currentUser?.photoURL}
+                userId={currentUser?.uid}
+                onClose={() => setIsAvatarPickerOpen(false)}
+                onSave={handleAvatarSave}
+            />
+        </div>
     );
 };
 

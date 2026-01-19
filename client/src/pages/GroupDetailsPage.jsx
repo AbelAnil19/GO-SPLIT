@@ -6,7 +6,7 @@ import { doc, getDoc, onSnapshot, collection, query, where, orderBy } from 'fire
 import { db } from '../firebase/firebaseConfig';
 import AddExpenseModal from '../components/AddExpenseModal';
 import AddMemberModal from '../components/AddMemberModal';
-import { deleteExpense, sendMessage, listenToGroupMessages } from '../firebase/firestore';
+import { deleteExpense, sendMessage, listenToGroupMessages, getUserDocument } from '../firebase/firestore';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 const GroupDetailsPage = () => {
@@ -24,6 +24,7 @@ const GroupDetailsPage = () => {
     const [activeTab, setActiveTab] = useState('expenses'); // 'expenses', 'members', 'settlements', 'chat'
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
+    const [memberAvatars, setMemberAvatars] = useState({}); //Map userId to fresh photoURL
     const messagesEndRef = useRef(null);
 
     // Fetch group details
@@ -80,6 +81,35 @@ const GroupDetailsPage = () => {
         });
         return () => unsubscribe();
     }, [groupId, activeTab]);
+
+    // Fetch fresh avatars for all group members
+    useEffect(() => {
+        const fetchMemberAvatars = async () => {
+            if (!group?.members) return;
+
+            const avatarPromises = group.members.map(async (member) => {
+                try {
+                    const userData = await getUserDocument(member.userId);
+                    return {
+                        userId: member.userId,
+                        photoURL: userData?.photoURL || member.photoURL
+                    };
+                } catch (error) {
+                    console.error(`Error fetching avatar for ${member.userId}:`, error);
+                    return { userId: member.userId, photoURL: member.photoURL };
+                }
+            });
+
+            const avatars = await Promise.all(avatarPromises);
+            const avatarMap = {};
+            avatars.forEach(({ userId, photoURL }) => {
+                avatarMap[userId] = photoURL;
+            });
+            setMemberAvatars(avatarMap);
+        };
+
+        fetchMemberAvatars();
+    }, [group?.members]);
 
     // Auto-scroll to bottom when new messages arrive
     useEffect(() => {
@@ -371,9 +401,9 @@ const GroupDetailsPage = () => {
                         return (
                             <div key={member.userId} className="bg-white dark:bg-[#1a1c23] rounded-xl p-6 border border-gray-200 dark:border-white/10">
                                 <div className="flex items-center gap-4 mb-4">
-                                    {member.photoURL ? (
+                                    {(memberAvatars[member.userId] || member.photoURL) ? (
                                         <img
-                                            src={member.photoURL}
+                                            src={memberAvatars[member.userId] || member.photoURL}
                                             alt={member.name}
                                             className="w-12 h-12 rounded-full object-cover border-2 border-amber-400"
                                         />
@@ -473,8 +503,8 @@ const GroupDetailsPage = () => {
                                     <div key={msg.id} className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'} gap-3`}>
                                         {!isMyMessage && (
                                             <div className="flex-shrink-0">
-                                                {msg.senderPhoto ? (
-                                                    <img src={msg.senderPhoto} alt={msg.senderName} className="w-8 h-8 rounded-full" />
+                                                {(memberAvatars[msg.senderId] || msg.senderPhoto) ? (
+                                                    <img src={memberAvatars[msg.senderId] || msg.senderPhoto} alt={msg.senderName} className="w-8 h-8 rounded-full" />
                                                 ) : (
                                                     <div className="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center text-black font-bold text-sm">
                                                         {msg.senderName?.charAt(0) || 'U'}

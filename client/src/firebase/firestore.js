@@ -1,5 +1,6 @@
 import { db } from './firebaseConfig';
 import { collection, addDoc, getDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { getDefaultAvatar } from '../utils/avatarUtils';
 
 // ==================== USER FUNCTIONS ====================
 
@@ -14,15 +15,19 @@ export const createUserDocument = async (userId, userData) => {
             return;
         }
 
+        // Generate default DiceBear avatar if no photoURL provided
+        const defaultPhotoURL = userData.photoURL || getDefaultAvatar(userId);
+
         // Create new document only if it doesn't exist
         await setDoc(userRef, {
             displayName: userData.displayName,
             email: userData.email,
-            photoURL: userData.photoURL,
+            photoURL: defaultPhotoURL,
+            avatarStyle: 'avataaars', // Default style
             groups: [],
             createdAt: serverTimestamp()
         });
-        console.log('✅ User document created successfully');
+        console.log('✅ User document created successfully with default avatar');
     } catch (error) {
         console.error('❌ Error creating user document:', error);
         throw error;
@@ -527,12 +532,31 @@ export const getUserExpenses = async (userId) => {
         );
         const querySnapshot = await getDocs(q);
 
-        return querySnapshot.docs
+        const expenses = querySnapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() }))
             .filter(expense =>
                 expense.paidBy === userId ||
                 expense.splitBetween.some(split => split.userId === userId)
             );
+
+        // Fetch group names for expenses
+        const expensesWithGroups = await Promise.all(
+            expenses.map(async (expense) => {
+                if (expense.groupId) {
+                    try {
+                        const groupDoc = await getDoc(doc(db, 'groups', expense.groupId));
+                        if (groupDoc.exists()) {
+                            return { ...expense, groupName: groupDoc.data().name };
+                        }
+                    } catch (error) {
+                        console.error('Error fetching group name:', error);
+                    }
+                }
+                return expense;
+            })
+        );
+
+        return expensesWithGroups;
     } catch (error) {
         console.error('Error getting user expenses:', error);
         throw error;
@@ -835,5 +859,30 @@ export const markAllNotificationsRead = async (userId) => {
         console.log(`✅ Marked ${snapshot.size} notifications as read`);
     } catch (error) {
         console.error('❌ Error marking all notifications as read:', error);
+    }
+};
+
+// ==================== AVATAR FUNCTIONS ====================
+
+/**
+ * Update user's avatar in Firestore and Firebase Auth
+ * @param {string} userId - User ID
+ * @param {string} photoURL - New avatar URL
+ * @param {string} avatarStyle - Selected avatar style
+ */
+export const updateUserAvatar = async (userId, photoURL, avatarStyle) => {
+    try {
+        // Update Firestore
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+            photoURL,
+            avatarStyle,
+            updatedAt: serverTimestamp()
+        });
+
+        console.log('✅ User avatar updated in Firestore');
+    } catch (error) {
+        console.error('❌ Error updating user avatar:', error);
+        throw error;
     }
 };

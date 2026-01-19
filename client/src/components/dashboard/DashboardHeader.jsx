@@ -9,6 +9,7 @@ import { UserIcon } from '../icons/ProfileIcon';
 import { SettingsIcon } from '../icons/SettingsIcon';
 import { LogoutIcon } from '../icons/LogoutIcon';
 import NotificationBell from '../NotificationBell';
+import { getUserDocument } from '../../firebase/firestore';
 
 const DashboardHeader = () => {
     const { currentUser, doSignOut } = useAuth();
@@ -16,8 +17,26 @@ const DashboardHeader = () => {
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [userAvatar, setUserAvatar] = useState(null);
     const themeIconRef = React.useRef(null);
     const logoutIconRef = React.useRef(null);
+
+    // Fetch user avatar from Firestore
+    useEffect(() => {
+        const fetchUserAvatar = async () => {
+            if (currentUser?.uid) {
+                try {
+                    const userData = await getUserDocument(currentUser.uid);
+                    if (userData?.photoURL) {
+                        setUserAvatar(userData.photoURL);
+                    }
+                } catch (error) {
+                    console.error('Error fetching user avatar:', error);
+                }
+            }
+        };
+        fetchUserAvatar();
+    }, [currentUser]);
 
     // Get greeting based on time
     const getGreeting = () => {
@@ -76,9 +95,9 @@ const DashboardHeader = () => {
                         className={`flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-full transition-colors border ${isProfileOpen ? 'bg-gray-100 dark:bg-white/10 border-gray-200 dark:border-white/10' : 'border-transparent hover:bg-gray-100 dark:hover:bg-white/10 hover:border-gray-200 dark:hover:border-white/10'} group`}
                     >
                         <div className="relative">
-                            {currentUser?.photoURL ? (
+                            {userAvatar ? (
                                 <img
-                                    src={currentUser.photoURL}
+                                    src={userAvatar}
                                     alt="User"
                                     className="w-8 h-8 rounded-full object-cover border border-white/20 group-hover:border-amber-400/50 transition-colors"
                                 />

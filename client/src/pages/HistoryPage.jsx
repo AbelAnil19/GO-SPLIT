@@ -1,15 +1,194 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
+import { getUserExpenses, listenToUserSettlements } from '../firebase/firestore';
 
 const HistoryPage = () => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
+    const [activities, setActivities] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+
+                // Fetch expenses
+                const expensesData = await getUserExpenses(currentUser.uid);
+
+                // Fetch settlements
+                const settlementsPromise = new Promise((resolve) => {
+                    const unsubscribe = listenToUserSettlements(currentUser.uid, (settlementsData) => {
+                        resolve(settlementsData);
+                        unsubscribe();
+                    });
+                });
+
+                const settlementsData = await settlementsPromise;
+
+                // Combine and format activities
+                const allActivities = [
+                    ...expensesData.map(expense => ({
+                        id: expense.id,
+                        type: 'expense',
+                        title: expense.description,
+                        description: `${expense.paidByName} paid ${expense.currency || '₹'}${expense.amount}`,
+                        group: expense.groupName || 'No Group',
+                        amount: expense.amount,
+                        timestamp: expense.createdAt,
+                        icon: 'receipt_long',
+                        color: 'orange',
+                        isSettled: expense.isSettled || false
+                    })),
+                    ...settlementsData.map(settlement => ({
+                        id: settlement.id,
+                        type: 'settlement',
+                        title: settlement.fromUserId === currentUser.uid
+                            ? `Payment to ${settlement.toUserName}`
+                            : `Payment from ${settlement.fromUserName}`,
+                        description: settlement.status === 'approved' ? 'Approved' : 'Pending approval',
+                        amount: settlement.amount,
+                        timestamp: settlement.createdAt,
+                        icon: 'payments',
+                        color: settlement.status === 'approved' ? 'green' : 'yellow',
+                        status: settlement.status
+                    }))
+                ];
+
+                // Sort by timestamp (newest first)
+                allActivities.sort((a, b) => {
+                    const timeA = a.timestamp?.toDate?.() || new Date(0);
+                    const timeB = b.timestamp?.toDate?.() || new Date(0);
+                    return timeB - timeA;
+                });
+
+                setActivities(allActivities);
+            } catch (error) {
+                console.error('Error fetching activities:', error);
+                addToast('Failed to load activity history', 'error');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [currentUser, addToast]);
 
     const handleExport = () => {
-        addToast('Exporting activity history...', 'info');
+        if (filteredActivities.length === 0) {
+            addToast('No activities to export', 'warning');
+            return;
+        }
+
+        try {
+            // Create CSV header
+            const headers = ['Date', 'Type', 'Description', 'Group', 'Amount (₹)', 'Status'];
+
+            // Create CSV rows
+            const rows = filteredActivities.map(activity => {
+                const date = activity.timestamp?.toDate?.()?.toLocaleDateString() || 'No Date';
+                const type = activity.type === 'expense' ? 'Expense' : 'Settlement';
+                const description = activity.title;
+                const group = activity.group || 'N/A';
+                const amount = activity.amount;
+
+                // Correct status logic
+                let status;
+                if (activity.type === 'expense') {
+                    // For expenses, check if settled
+                    status = activity.isSettled ? 'Settled' : 'Unsettled';
+                } else {
+                    // For settlements, show approval status
+                    status = activity.status === 'approved' ? 'Approved' : 'Pending';
+                }
+
+                return [date, type, description, group, amount, status];
+            });
+
+            // Combine headers and rows
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+
+            // Create blob and download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', `gosplit-history-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            addToast(`Exported ${filteredActivities.length} activities`, 'success');
+        } catch (error) {
+            console.error('Export failed:', error);
+            addToast('Failed to export CSV', 'error');
+        }
+    };
+
+    // Filter activities
+    const filteredActivities = activities.filter(activity => {
+        // Filter by type
+        if (activeFilter === 'expenses' && activity.type !== 'expense') return false;
+        if (activeFilter === 'settlements' && activity.type !== 'settlement') return false;
+
+        // Filter by search
+        if (searchQuery) {
+            const search = searchQuery.toLowerCase();
+            return activity.title.toLowerCase().includes(search) ||
+                activity.description.toLowerCase().includes(search) ||
+                (activity.group && activity.group.toLowerCase().includes(search));
+        }
+
+        return true;
+    });
+
+    // Group by date
+    const groupedActivities = filteredActivities.reduce((groups, activity) => {
+        const date = activity.timestamp?.toDate?.() || new Date();
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        let key;
+        if (date.toDateString() === today.toDateString()) {
+            key = 'Today';
+        } else if (date.toDateString() === yesterday.toDateString()) {
+            key = 'Yesterday';
+        } else {
+            key = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        }
+
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(activity);
+        return groups;
+    }, {});
+
+    const getTimeAgo = (timestamp) => {
+        if (!timestamp?.toDate) return 'Unknown';
+
+        const now = new Date();
+        const past = timestamp.toDate();
+        const diffMs = now - past;
+        const diffMins = Math.floor(diffMs / 60000);
+
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        const diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 24) return `${diffHours}h ago`;
+        const diffDays = Math.floor(diffHours / 24);
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return past.toLocaleDateString();
     };
 
     return (
@@ -21,10 +200,6 @@ const HistoryPage = () => {
                     <p className="text-[#5c6f73] dark:text-gray-400 text-base">View your past expenses, settlements, and group updates.</p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 text-sm font-bold hover:bg-white/10 transition-colors text-[#0d191b] dark:text-white backdrop-blur-md">
-                        <span className="material-symbols-outlined text-[20px]">filter_list</span>
-                        <span className="hidden sm:inline">Filter</span>
-                    </button>
                     <button
                         onClick={handleExport}
                         className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-amber-400 text-black text-sm font-bold shadow-md shadow-amber-900/20 hover:bg-amber-300 transition-colors"
@@ -42,7 +217,7 @@ const HistoryPage = () => {
                         <span className="material-symbols-outlined">search</span>
                     </div>
                     <input
-                        className="block w-full rounded-xl border-none bg-white/5 py-3 pl-10 pr-4 text-sm shadow-sm ring-1 ring-inset ring-white/10 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-amber-400 sm:leading-6 text-[#0d191b] dark:text-white backdrop-blur-md"
+                        className="block w-full rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 py-3 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent text-[#0d191b] dark:text-white backdrop-blur-md transition-all"
                         placeholder="Search by description, person, or group"
                         type="text"
                         value={searchQuery}
@@ -50,121 +225,76 @@ const HistoryPage = () => {
                     />
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    <button
-                        onClick={() => setActiveFilter('all')}
-                        className={`group flex h-8 items-center gap-x-2 rounded-full px-4 text-sm font-medium transition-all ${activeFilter === 'all' ? 'bg-amber-400 text-black' : 'bg-white/5 border border-white/10 hover:border-amber-400/50 text-white'
-                            }`}
-                    >
-                        All Types
-                    </button>
-                    <button
-                        onClick={() => setActiveFilter('expenses')}
-                        className={`group flex h-8 items-center gap-x-2 rounded-full px-4 text-sm font-medium transition-all ${activeFilter === 'expenses' ? 'bg-amber-400 text-black' : 'bg-white/5 border border-white/10 hover:border-amber-400/50 text-white'
-                            }`}
-                    >
-                        Expenses
-                    </button>
-                    <button
-                        onClick={() => setActiveFilter('settlements')}
-                        className={`group flex h-8 items-center gap-x-2 rounded-full px-4 text-sm font-medium transition-all ${activeFilter === 'settlements' ? 'bg-amber-400 text-black' : 'bg-white/5 border border-white/10 hover:border-amber-400/50 text-white'
-                            }`}
-                    >
-                        Settlements
-                    </button>
-                    <button
-                        onClick={() => setActiveFilter('groups')}
-                        className={`group flex h-8 items-center gap-x-2 rounded-full px-4 text-sm font-medium transition-all ${activeFilter === 'groups' ? 'bg-amber-400 text-black' : 'bg-white/5 border border-white/10 hover:border-amber-400/50 text-white'
-                            }`}
-                    >
-                        Group Updates
-                    </button>
+                    {['all', 'expenses', 'settlements'].map(filter => (
+                        <button
+                            key={filter}
+                            onClick={() => setActiveFilter(filter)}
+                            className={`group flex h-8 items-center gap-x-2 rounded-full px-4 text-sm font-medium transition-all ${activeFilter === filter
+                                ? 'bg-amber-400 text-black'
+                                : 'bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 hover:border-amber-400/50 text-[#0d191b] dark:text-white'
+                                }`}
+                        >
+                            {filter === 'all' ? 'All Types' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                        </button>
+                    ))}
                 </div>
             </div>
 
             {/* Timeline */}
             <div className="flex flex-col gap-8 mt-4">
-                {/* Today */}
-                <div className="flex flex-col gap-4">
-                    <h3 className="text-lg font-bold px-1 text-[#0d191b] dark:text-white">Today</h3>
-
-                    {/* Activity Card 1: Expense */}
-                    <div className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent hover:border-amber-400/30 shadow-sm hover:shadow-md transition-all cursor-pointer backdrop-blur-md">
-                        <div className="flex items-center gap-4 flex-1">
-                            <div className="relative shrink-0">
-                                <div className="size-12 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-400">
-                                    <span className="material-symbols-outlined">receipt_long</span>
-                                </div>
-                                <div className="absolute -bottom-1 -right-1 size-5 rounded-full bg-[#0f172a] p-0.5">
-                                    <div className="size-full rounded-full bg-gray-700"></div>
-                                </div>
-                            </div>
-                            <div className="flex flex-col">
-                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Sushi Dinner</p>
-                                <div className="flex items-center gap-2 text-sm text-gray-400">
-                                    <span>Alice paid $84.00</span>
-                                    <span className="size-1 bg-gray-600 rounded-full"></span>
-                                    <span className="font-medium text-gray-300">Roommates 🏠</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex flex-row sm:flex-col justify-between sm:items-end sm:text-right pl-[4rem] sm:pl-0">
-                            <span className="text-sm text-orange-400 font-bold">You owe $28.00</span>
-                            <span className="text-xs text-gray-500">2 hours ago</span>
-                        </div>
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                        <span className="material-symbols-outlined text-6xl animate-spin mb-4">refresh</span>
+                        <p>Loading activity history...</p>
                     </div>
-
-                    {/* Activity Card 2: Settlement */}
-                    <div className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent hover:border-amber-400/30 shadow-sm hover:shadow-md transition-all cursor-pointer backdrop-blur-md">
-                        <div className="flex items-center gap-4 flex-1">
-                            <div className="relative shrink-0">
-                                <div className="size-12 rounded-full bg-green-500/10 flex items-center justify-center text-green-400">
-                                    <span className="material-symbols-outlined">payments</span>
-                                </div>
-                                <div className="absolute -bottom-1 -right-1 size-5 rounded-full bg-[#0f172a] p-0.5">
-                                    <div className="size-full rounded-full bg-gray-700"></div>
-                                </div>
-                            </div>
-                            <div className="flex flex-col">
-                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Payment to John</p>
-                                <div className="flex items-center gap-2 text-sm text-gray-400">
-                                    <span>You paid John</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex flex-row sm:flex-col justify-between sm:items-end sm:text-right pl-[4rem] sm:pl-0">
-                            <span className="text-sm text-white font-bold">You paid $50.00</span>
-                            <span className="text-xs text-gray-500">5 hours ago</span>
-                        </div>
+                ) : filteredActivities.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                        <span className="material-symbols-outlined text-6xl mb-4">history</span>
+                        <p className="text-lg font-semibold">No activity found</p>
+                        <p className="text-sm">Start adding expenses or making settlements!</p>
                     </div>
+                ) : (
+                    Object.entries(groupedActivities).map(([dateLabel, items]) => (
+                        <div key={dateLabel} className="flex flex-col gap-4">
+                            <h3 className="text-lg font-bold px-1 text-[#0d191b] dark:text-white">{dateLabel}</h3>
 
-                    {/* Activity Card 3: Group Update */}
-                    <div className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent hover:border-amber-400/30 shadow-sm hover:shadow-md transition-all cursor-pointer backdrop-blur-md">
-                        <div className="flex items-center gap-4 flex-1">
-                            <div className="relative shrink-0">
-                                <div className="size-12 rounded-full bg-gray-700 flex items-center justify-center text-gray-400">
-                                    <span className="material-symbols-outlined">group_add</span>
+                            {items.map(activity => (
+                                <div
+                                    key={activity.id}
+                                    className="group flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent hover:border-amber-400/30 shadow-sm hover:shadow-md transition-all cursor-pointer backdrop-blur-md"
+                                >
+                                    <div className="flex items-center gap-4 flex-1">
+                                        <div className="relative shrink-0">
+                                            <div className={`size-12 rounded-full bg-${activity.color}-500/10 flex items-center justify-center text-${activity.color}-400`}>
+                                                <span className="material-symbols-outlined">{activity.icon}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <p className="text-base font-bold text-[#0d191b] dark:text-white">{activity.title}</p>
+                                            <div className="flex items-center gap-2 text-sm text-gray-400">
+                                                <span>{activity.description}</span>
+                                                {activity.group && (
+                                                    <>
+                                                        <span className="size-1 bg-gray-600 rounded-full"></span>
+                                                        <span className="font-medium text-gray-300">{activity.group}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-row sm:flex-col justify-between sm:items-end sm:text-right pl-[4rem] sm:pl-0">
+                                        <span className={`text-sm font-bold ${activity.type === 'expense' ? 'text-orange-400' :
+                                            activity.status === 'approved' ? 'text-green-400' : 'text-yellow-400'
+                                            }`}>
+                                            ₹{activity.amount}
+                                        </span>
+                                        <span className="text-xs text-gray-500">{getTimeAgo(activity.timestamp)}</span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="flex flex-col">
-                                <p className="text-base font-bold text-[#0d191b] dark:text-white">Group "Trip to Bali" Created</p>
-                                <div className="flex items-center gap-2 text-sm text-gray-400">
-                                    <span>Added by You</span>
-                                </div>
-                            </div>
+                            ))}
                         </div>
-                        <div className="flex flex-row sm:flex-col justify-between sm:items-end sm:text-right pl-[4rem] sm:pl-0">
-                            <span className="text-sm text-gray-400 font-medium">No expense</span>
-                            <span className="text-xs text-gray-500">8 hours ago</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Load More */}
-                <div className="flex justify-center mt-6">
-                    <button className="text-sm font-bold text-gray-400 hover:text-amber-400 transition-colors py-2 px-4 rounded-lg hover:bg-white/5">
-                        Load older activity
-                    </button>
-                </div>
+                    ))
+                )}
             </div>
         </div>
     );
