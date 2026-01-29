@@ -6,7 +6,9 @@ import { doc, getDoc, onSnapshot, collection, query, where, orderBy } from 'fire
 import { db } from '../firebase/firebaseConfig';
 import AddExpenseModal from '../components/AddExpenseModal';
 import AddMemberModal from '../components/AddMemberModal';
-import { deleteExpense, sendMessage, listenToGroupMessages, getUserDocument } from '../firebase/firestore';
+import GroupIconPicker from '../components/GroupIconPicker';
+import ColorPicker from '../components/ColorPicker';
+import { deleteExpense, sendMessage, listenToGroupMessages, getUserDocument, removeMemberFromGroup, leaveGroup, deleteGroup, updateGroupCustomization } from '../firebase/firestore';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 const GroupDetailsPage = () => {
@@ -21,11 +23,23 @@ const GroupDetailsPage = () => {
     const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
     const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, expense: null });
+    const [removeMemberModal, setRemoveMemberModal] = useState({ isOpen: false, member: null });
+    const [leaveGroupModal, setLeaveGroupModal] = useState(false);
+    const [deleteGroupModal, setDeleteGroupModal] = useState(false);
     const [activeTab, setActiveTab] = useState('expenses'); // 'expenses', 'members', 'settlements', 'chat'
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [memberAvatars, setMemberAvatars] = useState({}); //Map userId to fresh photoURL
     const messagesEndRef = useRef(null);
+    const isLeavingRef = useRef(false); // Track if user is voluntarily leaving
+
+    // Customization states
+    const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
+    const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
+    const [customIcon, setCustomIcon] = useState('💰');
+    const [customColor, setCustomColor] = useState('#F59E0B');
+    const [customDescription, setCustomDescription] = useState('');
+    const [customCategory, setCustomCategory] = useState('Other');
 
     // Fetch group details
     useEffect(() => {
@@ -34,7 +48,20 @@ const GroupDetailsPage = () => {
         const groupRef = doc(db, 'groups', groupId);
         const unsubscribe = onSnapshot(groupRef, (snapshot) => {
             if (snapshot.exists()) {
-                setGroup({ id: snapshot.id, ...snapshot.data() });
+                const groupData = { id: snapshot.id, ...snapshot.data() };
+
+                // ACCESS CONTROL: Check if current user is a member
+                const isMember = groupData.members?.some(m => m.userId === currentUser.uid);
+                if (!isMember) {
+                    // Only show error if NOT voluntarily leaving
+                    if (!isLeavingRef.current) {
+                        addToast('You do not have access to this group', 'error');
+                    }
+                    navigate('/dashboard/groups');
+                    return;
+                }
+
+                setGroup(groupData);
             } else {
                 addToast('Group not found', 'error');
                 navigate('/dashboard/groups');
@@ -213,6 +240,45 @@ const GroupDetailsPage = () => {
         }
     };
 
+    const confirmRemoveMember = async () => {
+        if (!removeMemberModal.member) return;
+
+        try {
+            await removeMemberFromGroup(groupId, removeMemberModal.member.userId, currentUser.uid);
+            addToast(`${removeMemberModal.member.name} removed from group`, 'success');
+            setRemoveMemberModal({ isOpen: false, member: null });
+        } catch (error) {
+            console.error('Error removing member:', error);
+            addToast(error.message || 'Failed to remove member', 'error');
+        }
+    };
+
+    const handleLeaveGroup = async () => {
+        try {
+            isLeavingRef.current = true; // Set flag to suppress access error
+            await leaveGroup(groupId, currentUser.uid);
+            addToast(`You left ${group.name}`, 'success');
+            navigate('/dashboard/groups');
+        } catch (error) {
+            console.error('Error leaving group:', error);
+            addToast(error.message || 'Failed to leave group', 'error');
+            isLeavingRef.current = false; // Reset on error
+        }
+    };
+
+    const handleDeleteGroup = async () => {
+        try {
+            isLeavingRef.current = true; // Suppress access error since group is gone
+            await deleteGroup(groupId, currentUser.uid);
+            addToast('Group deleted successfully', 'success');
+            navigate('/dashboard/groups');
+        } catch (error) {
+            console.error('Error deleting group:', error);
+            addToast('Failed to delete group', 'error');
+        }
+    };
+
+
     const getCategoryStyle = (category) => {
         const styles = {
             food: { icon: 'restaurant', color: 'emerald' },
@@ -223,6 +289,37 @@ const GroupDetailsPage = () => {
             other: { icon: 'category', color: 'gray' }
         };
         return styles[category] || styles.other;
+    };
+
+    // Load customization data when group loads
+    useEffect(() => {
+        if (group?.customization) {
+            setCustomIcon(group.customization.icon || '💰');
+            setCustomColor(group.customization.color || '#F59E0B');
+            setCustomDescription(group.customization.description || '');
+            setCustomCategory(group.customization.category || 'Other');
+        }
+    }, [group]);
+
+    const handleSaveCustomization = async () => {
+        try {
+            await updateGroupCustomization(groupId, currentUser.uid, {
+                icon: customIcon,
+                color: customColor,
+                description: customDescription,
+                category: customCategory
+            });
+            addToast('Group customization updated!', 'success');
+            setIsCustomizationOpen(false);
+        } catch (error) {
+            console.error('Error updating customization:', error);
+            addToast(error.message || 'Failed to update customization', 'error');
+        }
+    };
+
+    const handleIconSelect = (icon) => {
+        setCustomIcon(icon);
+        setIsIconPickerOpen(false);
     };
 
     const handleSendMessage = async (e) => {
@@ -269,15 +366,23 @@ const GroupDetailsPage = () => {
                     Back to Groups
                 </button>
 
-                <div className="bg-white dark:bg-[#1a1c23] rounded-2xl p-6 border border-gray-200 dark:border-white/10">
+                <div className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-2xl p-6 border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-3xl text-black">{group.icon || 'groups'}</span>
+                            <div
+                                className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                                style={{
+                                    background: `linear-gradient(135deg, ${customColor}, ${customColor}dd)`
+                                }}
+                            >
+                                <span className="text-4xl">{customIcon}</span>
                             </div>
                             <div>
                                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{group.name}</h1>
                                 <p className="text-gray-500 dark:text-gray-400">{group.members?.length || 0} members · ₹{(group.totalExpenses || 0).toFixed(2)} total</p>
+                                {customDescription && (
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 italic">"{customDescription}"</p>
+                                )}
                             </div>
                         </div>
                         <div className="flex gap-2">
@@ -290,11 +395,41 @@ const GroupDetailsPage = () => {
                             </button>
                             <button
                                 onClick={() => setIsAddMemberOpen(true)}
-                                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-900 dark:text-white rounded-xl font-semibold transition-colors flex items-center gap-2 border border-gray-200 dark:border-white/10"
+                                className="px-4 py-2 bg-white/20 hover:bg-white/30 dark:bg-white/10 dark:hover:bg-white/20 text-gray-900 dark:text-white rounded-xl font-semibold transition-colors flex items-center gap-2 border-2 border-gray-200 dark:border-white/10 backdrop-blur-[2px]"
                             >
                                 <span className="material-symbols-outlined text-xl">person_add</span>
                                 Add Member
                             </button>
+                            {!isAdmin && (
+                                <button
+                                    onClick={() => setLeaveGroupModal(true)}
+                                    className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl font-semibold transition-colors flex items-center gap-2 border-2 border-red-500/20 backdrop-blur-[2px]"
+                                    title="Leave Group"
+                                >
+                                    <span className="material-symbols-outlined text-xl">logout</span>
+                                    Leave
+                                </button>
+                            )}
+                            {isAdmin && (
+                                <>
+                                    <button
+                                        onClick={() => setIsCustomizationOpen(true)}
+                                        className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 rounded-xl font-semibold transition-colors flex items-center gap-2 border-2 border-purple-500/20 backdrop-blur-[2px]"
+                                        title="Customize Group"
+                                    >
+                                        <span className="material-symbols-outlined text-xl">palette</span>
+                                        Customize
+                                    </button>
+                                    <button
+                                        onClick={() => setDeleteGroupModal(true)}
+                                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl font-semibold transition-colors flex items-center gap-2 border-2 border-red-500/20 backdrop-blur-[2px]"
+                                        title="Delete Group"
+                                    >
+                                        <span className="material-symbols-outlined text-xl">delete</span>
+                                        Delete
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -344,7 +479,7 @@ const GroupDetailsPage = () => {
             {activeTab === 'expenses' && (
                 <div className="space-y-4">
                     {expenses.length === 0 ? (
-                        <div className="text-center py-16 bg-white dark:bg-[#1a1c23] rounded-2xl border border-gray-200 dark:border-white/10">
+                        <div className="text-center py-16 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-2xl border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
                             <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600 mb-4">receipt_long</span>
                             <p className="text-gray-500 dark:text-gray-400">No expenses yet</p>
                             <button
@@ -360,7 +495,7 @@ const GroupDetailsPage = () => {
                             const payer = group.members?.find(m => m.userId === expense.paidBy);
 
                             return (
-                                <div key={expense.id} className="bg-white dark:bg-[#1a1c23] rounded-xl p-4 border border-gray-200 dark:border-white/10 hover:border-amber-400/50 dark:hover:border-amber-400/50 transition-colors group">
+                                <div key={expense.id} className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-xl p-4 border-2 border-gray-200 dark:border-white/10 hover:border-amber-400/50 dark:hover:border-amber-400/50 transition-all group shadow-md dark:shadow-none backdrop-blur-[2px] hover:shadow-xl">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4 flex-1">
                                             <div className={`w-12 h-12 rounded-xl bg-${categoryStyle.color}-500/10 flex items-center justify-center`}>
@@ -378,7 +513,7 @@ const GroupDetailsPage = () => {
                                             {expense.paidBy === currentUser.uid && (
                                                 <button
                                                     onClick={() => setDeleteModal({ isOpen: true, expense })}
-                                                    className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
+                                                    className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-lg transition-all"
                                                 >
                                                     <span className="material-symbols-outlined text-xl">delete</span>
                                                 </button>
@@ -399,7 +534,7 @@ const GroupDetailsPage = () => {
                         const isPositive = balance > 0;
 
                         return (
-                            <div key={member.userId} className="bg-white dark:bg-[#1a1c23] rounded-xl p-6 border border-gray-200 dark:border-white/10">
+                            <div key={member.userId} className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-xl p-6 border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
                                 <div className="flex items-center gap-4 mb-4">
                                     {(memberAvatars[member.userId] || member.photoURL) ? (
                                         <img
@@ -418,6 +553,16 @@ const GroupDetailsPage = () => {
                                             {member.role === 'admin' ? '👑 Admin' : 'Member'}
                                         </p>
                                     </div>
+                                    {/* Remove button - only show if current user is admin and member is not current user */}
+                                    {isAdmin && member.userId !== currentUser.uid && (
+                                        <button
+                                            onClick={() => setRemoveMemberModal({ isOpen: true, member })}
+                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                                            title={`Remove ${member.name}`}
+                                        >
+                                            <span className="material-symbols-outlined text-xl">person_remove</span>
+                                        </button>
+                                    )}
                                 </div>
                                 <div className={`text-center p-3 rounded-lg ${Math.abs(balance) < 0.01
                                     ? 'bg-green-500/10 text-green-500'
@@ -442,7 +587,7 @@ const GroupDetailsPage = () => {
             {activeTab === 'settlements' && (
                 <div className="space-y-4">
                     {settlements.length === 0 ? (
-                        <div className="text-center py-16 bg-white dark:bg-[#1a1c23] rounded-2xl border border-gray-200 dark:border-white/10">
+                        <div className="text-center py-16 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-2xl border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
                             <span className="material-symbols-outlined text-6xl text-green-500 mb-4">check_circle</span>
                             <p className="text-xl font-semibold text-gray-900 dark:text-white mb-2">All Settled!</p>
                             <p className="text-gray-500 dark:text-gray-400">Everyone is paid up. No settlements needed.</p>
@@ -459,7 +604,7 @@ const GroupDetailsPage = () => {
                                 </div>
                             </div>
                             {settlements.map((settlement, index) => (
-                                <div key={index} className="bg-white dark:bg-[#1a1c23] rounded-xl p-6 border border-gray-200 dark:border-white/10">
+                                <div key={index} className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-xl p-6 border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4">
                                             <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 font-bold">
@@ -485,7 +630,7 @@ const GroupDetailsPage = () => {
             )}
 
             {activeTab === 'chat' && (
-                <div className="bg-white dark:bg-[#1a1c23] rounded-2xl border border-gray-200 dark:border-white/10 flex flex-col" style={{ height: '500px' }}>
+                <div className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-2xl border-2 border-gray-200 dark:border-white/10 flex flex-col shadow-md dark:shadow-none backdrop-blur-[2px]" style={{ height: '500px' }}>
                     {/* Messages Area */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-4">
                         {messages.length === 0 ? (
@@ -577,6 +722,129 @@ const GroupDetailsPage = () => {
                 confirmText="Delete"
                 type="danger"
             />
+
+            <ConfirmationModal
+                isOpen={removeMemberModal.isOpen}
+                onClose={() => setRemoveMemberModal({ isOpen: false, member: null })}
+                onConfirm={confirmRemoveMember}
+                title="Remove Member"
+                message={`Are you sure you want to remove ${removeMemberModal.member?.name} from this group? They will no longer have access to group expenses and chat.`}
+                confirmText="Remove"
+                type="danger"
+            />
+
+            <ConfirmationModal
+                isOpen={deleteGroupModal}
+                onClose={() => setDeleteGroupModal(false)}
+                onConfirm={handleDeleteGroup}
+                title="Delete Group"
+                message="Are you sure you want to delete this group? ALL expenses and data will be permanently lost! This action cannot be undone."
+                confirmText="Delete Group"
+                type="danger"
+            />
+
+            <ConfirmationModal
+                isOpen={leaveGroupModal}
+                onClose={() => setLeaveGroupModal(false)}
+                onConfirm={handleLeaveGroup}
+                title="Leave Group"
+                message={`Are you sure you want to leave "${group.name}"? You will lose access to all expenses and history.`}
+                confirmText="Leave Group"
+                type="danger"
+            />
+
+            {/* Customization Modal */}
+            {isCustomizationOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsCustomizationOpen(false)}></div>
+                    <div className="relative bg-white dark:bg-[#1a1c23] rounded-2xl p-6 w-full max-w-2xl shadow-2xl animate-fade-in-up max-h-[90vh] overflow-y-auto">
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Customize Group</h2>
+                            <button
+                                onClick={() => setIsCustomizationOpen(false)}
+                                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            {/* Icon Picker */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Group Icon</label>
+                                <button
+                                    onClick={() => setIsIconPickerOpen(true)}
+                                    className="w-full px-4 py-3 bg-gray-100 dark:bg-white/10 rounded-xl flex items-center justify-between hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-4xl">{customIcon}</span>
+                                        <span className="text-gray-700 dark:text-gray-300">Click to change icon</span>
+                                    </div>
+                                    <span className="material-symbols-outlined text-gray-500">chevron_right</span>
+                                </button>
+                            </div>
+
+                            {/* Color Picker */}
+                            <ColorPicker currentColor={customColor} onChange={setCustomColor} />
+
+                            {/* Description */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description (Optional)</label>
+                                <textarea
+                                    value={customDescription}
+                                    onChange={(e) => setCustomDescription(e.target.value)}
+                                    placeholder="Add a description for your group..."
+                                    className="w-full px-4 py-3 bg-gray-100 dark:bg-white/10 border border-gray-300 dark:border-white/20 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                                    rows="3"
+                                />
+                            </div>
+
+                            {/* Category */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                                <select
+                                    value={customCategory}
+                                    onChange={(e) => setCustomCategory(e.target.value)}
+                                    className="w-full px-4 py-3 bg-gray-100 dark:bg-[#2a2d35] border border-gray-300 dark:border-white/20 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer [&>option]:bg-white dark:[&>option]:bg-[#2a2d35] [&>option]:text-gray-900 dark:[&>option]:text-white"
+                                >
+                                    <option value="Travel">Travel</option>
+                                    <option value="Roommates">Roommates</option>
+                                    <option value="Office">Office</option>
+                                    <option value="Friends">Friends</option>
+                                    <option value="Family">Family</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-3 mt-8">
+                            <button
+                                onClick={() => setIsCustomizationOpen(false)}
+                                className="flex-1 px-4 py-3 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveCustomization}
+                                className="flex-1 px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-xl transition-colors"
+                            >
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Icon Picker Modal */}
+            {isIconPickerOpen && (
+                <GroupIconPicker
+                    currentIcon={customIcon}
+                    onSelect={handleIconSelect}
+                    onClose={() => setIsIconPickerOpen(false)}
+                />
+            )}
         </div>
     );
 };

@@ -3,8 +3,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../firebase/authContext';
-import { createGroup, getUserGroups, listenToUserGroups, getUserExpenses, createExpense, getUserDocument, updateExpense, deleteExpense, createActivity, listenToUserActivity, createSettlement, approveSettlement, rejectSettlement, listenToUserSettlements } from '../firebase/firestore';
-import { calculateTotalBalance, getAmountOwed, getAmountUserIsOwed, getMonthlySpending, getPendingSettlements } from '../utils/expenseCalculator';
+import { createGroup, getUserGroups, listenToUserGroups, getUserExpenses, createExpense, getUserDocument, updateExpense, deleteExpense, createActivity, listenToUserActivity, createSettlement, approveSettlement, rejectSettlement, listenToUserSettlements, createNotification } from '../firebase/firestore';
+import { calculateTotalBalance, getAmountOwed, getAmountUserIsOwed, getMonthlySpending, getPendingSettlements, getMonthlySpendingTrend, getBalanceTrend } from '../utils/expenseCalculator';
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
 import { WalletIcon } from '../components/icons/WalletIcon';
@@ -17,7 +17,7 @@ const StatCard = ({ IconComponent, label, value, trend, trendLabel, trendUp, col
 
     return (
         <div
-            className={`p-6 rounded-3xl bg-white dark:bg-white/5 border-2 border-gray-300 dark:border-white/10 backdrop-blur-md relative overflow-hidden group hover:bg-gray-50 dark:hover:bg-white/10 transition-colors shadow-soft cursor-pointer`}
+            className={`p-6 rounded-3xl bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] border-2 border-gray-200 dark:border-white/10 backdrop-blur-[2px] relative overflow-hidden group hover:shadow-lg transition-all shadow-md dark:shadow-none cursor-pointer`}
             onMouseEnter={() => iconRef.current?.startAnimation()}
             onMouseLeave={() => iconRef.current?.stopAnimation()}
         >
@@ -30,10 +30,12 @@ const StatCard = ({ IconComponent, label, value, trend, trendLabel, trendUp, col
             </div>
             <div className="relative z-10">
                 <h3 className="text-3xl font-bold text-[#0d191b] dark:text-white mb-2">{value}</h3>
-                <div className={`flex items-center gap-1 text-xs font-semibold ${trendUp ? 'text-green-400' : 'text-red-400'}`}>
-                    <span className="material-symbols-outlined text-sm">{trendUp ? 'trending_up' : 'trending_down'}</span>
-                    <span>{trend} {trendLabel}</span>
-                </div>
+                {trend && (
+                    <div className={`flex items-center gap-1 text-xs font-semibold ${trendUp ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className="material-symbols-outlined text-sm">{trendUp ? 'trending_up' : 'trending_down'}</span>
+                        <span>{trend} {trendLabel}</span>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -42,7 +44,7 @@ const StatCard = ({ IconComponent, label, value, trend, trendLabel, trendUp, col
 const GroupCard = ({ name, lastActive, settled, oweAmount, onOpen }) => (
     <div
         onClick={onOpen}
-        className="p-5 rounded-2xl bg-white dark:bg-white/5 border-2 border-gray-300 dark:border-white/10 hover:border-amber-400/30 transition-all cursor-pointer group shadow-soft"
+        className="p-5 rounded-2xl bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] border-2 border-gray-200 dark:border-white/10 hover:border-amber-400/30 transition-all cursor-pointer group shadow-md dark:shadow-none backdrop-blur-[2px] hover:shadow-xl"
     >
         <div className="flex justify-between items-start mb-4">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400/10 to-orange-500/10 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
@@ -83,14 +85,14 @@ const CreateGroupModal = ({ isOpen, onClose, onCreate }) => {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="relative bg-[#1a1c23] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in-up">
-                <h2 className="text-xl font-bold text-white mb-4">Create New Group</h2>
+            <div className="relative bg-white dark:bg-[#1a1c23] border-2 border-gray-300 dark:border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in-up">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Create New Group</h2>
                 <form onSubmit={handleSubmit}>
                     <div className="mb-4">
-                        <label className="block text-gray-400 text-sm font-bold mb-2">Group Name</label>
+                        <label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Group Name</label>
                         <input
                             type="text"
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-400 transition-colors"
+                            className="w-full bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:border-amber-400 transition-colors"
                             placeholder="e.g. Summer Trip"
                             value={groupName}
                             onChange={(e) => setGroupName(e.target.value)}
@@ -101,7 +103,7 @@ const CreateGroupModal = ({ isOpen, onClose, onCreate }) => {
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-gray-400 font-bold hover:text-white transition-colors"
+                            className="px-4 py-2 text-gray-700 dark:text-gray-400 font-bold hover:text-gray-900 dark:hover:text-white transition-colors"
                         >
                             Cancel
                         </button>
@@ -212,14 +214,19 @@ const DashboardPage = () => {
         const youOwe = getAmountOwed(expenses, currentUser.uid);
         const youreOwed = getAmountUserIsOwed(expenses, currentUser.uid);
         const monthlySpending = getMonthlySpending(expenses, currentUser.uid);
+
         const activeGroups = groups.filter(g => !g.isSettled).length;
+        const spendingTrend = getMonthlySpendingTrend(expenses, currentUser.uid);
+        const balanceTrend = getBalanceTrend(expenses, currentUser.uid);
 
         setStats({
             totalBalance,
             youOwe,
             youreOwed,
             monthlySpending,
-            activeGroups
+            activeGroups,
+            spendingTrend,
+            balanceTrend: balanceTrend.isPositive ? balanceTrend.diff : -balanceTrend.diff
         });
 
         // Create userMap for photos
@@ -299,16 +306,26 @@ const DashboardPage = () => {
                 const userData = await getUserDocument(personId);
                 if (userData && userData.upiId) {
                     setPaymentModal({ isOpen: true, data: { ...settlement, upiId: userData.upiId } });
-                    return;
                 } else {
-                    // UPI ID not found - show warning
-                    addToast(`${name} hasn't set their UPI ID yet. Recording payment manually.`, 'warning');
+                    // UPI ID not found - show error and STOP
+                    addToast(`Payment failed: ${name} must upload their UPI ID to receive payments.`, 'error');
+
+                    // Allow firing this notification even if we stop the payment flow
+                    createNotification(
+                        personId,
+                        'system',
+                        'Action Required: Add UPI ID',
+                        `${userFirstName} tried to pay you but couldn't because your UPI ID is missing. Please add it in Settings.`,
+                        {
+                            type: 'missing_upi',
+                            fromUserId: currentUser.uid
+                        }
+                    );
                 }
             } catch (error) {
                 console.error(error);
                 addToast('Failed to fetch payment details', 'error');
             }
-            processSettlement(settlement);
         }
     };
 
@@ -389,26 +406,28 @@ const DashboardPage = () => {
                     IconComponent={WalletIcon}
                     label="Total Balance"
                     value={`₹${Math.abs(stats.totalBalance).toFixed(2)}`}
-                    trend={stats.totalBalance >= 0 ? '+15%' : '-8%'}
-                    trendLabel="this month"
-                    trendUp={stats.totalBalance >= 0}
-                    color={stats.totalBalance >= 0 ? 'green' : 'red'}
+                    trend={`₹${Math.abs(stats.balanceTrend || 0)}`}
+                    trendLabel="change this month"
+                    trendUp={(stats.balanceTrend || 0) >= 0}
+                    color={(stats.totalBalance || 0) >= 0 ? 'green' : 'red'}
                 />
                 <StatCard
                     IconComponent={PaymentsIcon}
                     label="Expenses (Month)"
                     value={`₹${stats.monthlySpending.toFixed(2)}`}
-                    trend="12%"
-                    trendLabel="less than last month"
-                    trendUp={true}
+                    trend={`${stats.spendingTrend?.diffPercent || 0}%`}
+                    trendLabel={`${stats.spendingTrend?.isHigher ? 'more' : 'less'} than last month`}
+                    trendUp={!stats.spendingTrend?.isHigher}
                     color="amber"
                 />
                 <StatCard
                     IconComponent={TrendingDownIcon}
                     label="You Owe"
                     value={`₹${stats.youOwe.toFixed(2)}`}
-                    trend="2"
-                    trendLabel="friends pending"
+                    trend={pendingSettlements.filter(s => s.type === 'owe').length > 0
+                        ? pendingSettlements.filter(s => s.type === 'owe').length
+                        : "All settled up"}
+                    trendLabel={pendingSettlements.filter(s => s.type === 'owe').length > 0 ? "people pending" : ""}
                     trendUp={false}
                     color="red"
                 />
@@ -416,8 +435,10 @@ const DashboardPage = () => {
                     IconComponent={TrendingUpIcon}
                     label="You Are Owed"
                     value={`₹${stats.youreOwed.toFixed(2)}`}
-                    trend="1"
-                    trendLabel="group pending"
+                    trend={pendingSettlements.filter(s => s.type === 'owed').length > 0
+                        ? pendingSettlements.filter(s => s.type === 'owed').length
+                        : "No pending payments"}
+                    trendLabel={pendingSettlements.filter(s => s.type === 'owed').length > 0 ? "people pending" : ""}
                     trendUp={true}
                     color="green"
                 />
@@ -436,16 +457,16 @@ const DashboardPage = () => {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {pendingSettlements.length === 0 ? (
-                                <div className="col-span-1 md:col-span-2 bg-white dark:bg-white/5 p-6 rounded-2xl border-2 border-gray-300 dark:border-white/10 flex flex-col items-center justify-center text-center">
-                                    <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-500 mb-2">
-                                        <span className="material-symbols-outlined">check</span>
+                                <div className="col-span-1 md:col-span-2 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] p-8 rounded-2xl border-2 border-gray-200 dark:border-white/10 flex flex-col items-center justify-center text-center shadow-md dark:shadow-none backdrop-blur-[2px]">
+                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 dark:from-green-500 dark:to-emerald-600 flex items-center justify-center text-white mb-3 shadow-lg shadow-green-500/20">
+                                        <span className="material-symbols-outlined text-2xl">check</span>
                                     </div>
-                                    <p className="font-bold text-[#0d191b] dark:text-white">All settled up!</p>
+                                    <p className="font-bold text-lg text-[#0d191b] dark:text-white mb-1">All settled up!</p>
                                     <p className="text-sm text-[#5c6f73] dark:text-gray-400">You don't owe anyone anything right now.</p>
                                 </div>
                             ) : (
                                 pendingSettlements.map((settlement) => (
-                                    <div key={settlement.personId} className="bg-white dark:bg-white/5 p-5 rounded-2xl border-2 border-gray-300 dark:border-white/10 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/10 transition-colors">
+                                    <div key={settlement.personId} className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] p-5 rounded-2xl border-2 border-gray-200 dark:border-white/10 flex items-center justify-between hover:border-amber-400/30 dark:hover:border-white/20 transition-all backdrop-blur-[2px] shadow-md dark:shadow-none hover:shadow-xl">
                                         <div className="flex items-center gap-4">
                                             {settlement.photoURL ? (
                                                 <img src={settlement.photoURL} alt={settlement.name} className="w-12 h-12 rounded-full object-cover border-2 border-white dark:border-white/10" />
@@ -531,9 +552,9 @@ const DashboardPage = () => {
 
                             {/* No Groups State */}
                             {!loading && groups.length === 0 && (
-                                <div className="bg-white/5 p-6 rounded-2xl border border-white/10 flex flex-col items-center justify-center gap-2 min-h-[140px] col-span-2">
-                                    <span className="material-symbols-outlined text-4xl text-white/40">group_off</span>
-                                    <p className="text-white/60">No groups yet. Create one to get started!</p>
+                                <div className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] p-6 rounded-2xl border-2 border-gray-200 dark:border-white/10 flex flex-col items-center justify-center gap-2 min-h-[140px] col-span-2 shadow-md dark:shadow-none backdrop-blur-[2px]">
+                                    <span className="material-symbols-outlined text-4xl text-gray-400 dark:text-white/40">group_off</span>
+                                    <p className="text-gray-600 dark:text-white/60">No groups yet. Create one to get started!</p>
                                 </div>
                             )}
 
@@ -552,7 +573,7 @@ const DashboardPage = () => {
                 </div>
 
                 {/* Right Column (Activity Feed) */}
-                <aside className="bg-white dark:bg-white/5 p-6 rounded-3xl border-2 border-gray-300 dark:border-white/10 h-full backdrop-blur-sm">
+                <aside className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] p-6 rounded-3xl border-2 border-gray-200 dark:border-white/10 h-full backdrop-blur-[2px] shadow-md dark:shadow-none">
                     <h2 className="text-lg font-bold text-[#0d191b] dark:text-white mb-6">Recent Activity</h2>
                     <div className="relative pl-4 border-l border-gray-200 dark:border-white/10 space-y-6">
                         {recentActivity.length === 0 ? (
@@ -576,17 +597,7 @@ const DashboardPage = () => {
                     </Link>
 
                     {/* Pro Upgrade Card */}
-                    <div className="mt-8 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:opacity-20 transition-opacity"></div>
-                        <h3 className="font-bold text-lg mb-2 relative z-10">Go Pro!</h3>
-                        <p className="text-sm opacity-90 mb-4 relative z-10 text-indigo-100">Scan receipts automatically and export reports.</p>
-                        <button
-                            onClick={() => addToast('Premium features coming soon!', 'info')}
-                            className="bg-white text-indigo-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-50 transition relative z-10 shadow-lg"
-                        >
-                            Upgrade Now
-                        </button>
-                    </div>
+
                 </aside>
             </div>
 

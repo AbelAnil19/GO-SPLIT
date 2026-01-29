@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../firebase/authContext';
 import { useToast } from '../../context/ToastContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { SunIcon } from '../icons/SunIcon';
 import { MoonIcon } from '../icons/MoonIcon';
@@ -10,32 +10,52 @@ import { SettingsIcon } from '../icons/SettingsIcon';
 import { LogoutIcon } from '../icons/LogoutIcon';
 import NotificationBell from '../NotificationBell';
 import { getUserDocument } from '../../firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../firebase/firebaseConfig';
 
 const DashboardHeader = () => {
     const { currentUser, doSignOut } = useAuth();
     const { addToast } = useToast();
     const navigate = useNavigate();
+    const location = useLocation();
     const { theme, toggleTheme } = useTheme();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [userAvatar, setUserAvatar] = useState(null);
     const themeIconRef = React.useRef(null);
     const logoutIconRef = React.useRef(null);
 
-    // Fetch user avatar from Firestore
+    // Get page title based on current route
+    const getPageTitle = () => {
+        const path = location.pathname;
+        if (path === '/dashboard') return 'Dashboard';
+        if (path.startsWith('/dashboard/groups')) return 'Groups';
+        if (path.startsWith('/dashboard/expenses')) return 'Expenses';
+        if (path.startsWith('/dashboard/trip-planner')) return 'Travel Budget';
+        if (path.startsWith('/dashboard/history')) return 'History';
+        if (path.startsWith('/dashboard/settings')) return 'Settings';
+        return 'Dashboard';
+    };
+
+    // Listen to user avatar changes in real-time
     useEffect(() => {
-        const fetchUserAvatar = async () => {
-            if (currentUser?.uid) {
-                try {
-                    const userData = await getUserDocument(currentUser.uid);
-                    if (userData?.photoURL) {
-                        setUserAvatar(userData.photoURL);
-                    }
-                } catch (error) {
-                    console.error('Error fetching user avatar:', error);
+        if (!currentUser?.uid) return;
+
+        const userRef = doc(db, 'users', currentUser.uid);
+
+        // Set up real-time listener
+        const unsubscribe = onSnapshot(userRef, (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const userData = docSnapshot.data();
+                if (userData?.photoURL) {
+                    setUserAvatar(userData.photoURL);
                 }
             }
-        };
-        fetchUserAvatar();
+        }, (error) => {
+            console.error('Error listening to user avatar:', error);
+        });
+
+        // Cleanup listener on unmount
+        return () => unsubscribe();
     }, [currentUser]);
 
     // Get greeting based on time
@@ -63,7 +83,7 @@ const DashboardHeader = () => {
     return (
         <header className="h-20 bg-white dark:bg-black/40 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 flex items-center justify-between px-8 flex-shrink-0 z-10 relative transition-colors duration-300 shadow-sm">
             <div>
-                <h1 className="text-xl font-bold text-[#0d191b] dark:text-white">Dashboard</h1>
+                <h1 className="text-xl font-bold text-[#0d191b] dark:text-white">{getPageTitle()}</h1>
                 <p className="text-sm text-[#5c6f73] dark:text-gray-400">{getGreeting()}, {currentUser?.displayName?.split(' ')[0] || 'User'}!</p>
             </div>
 

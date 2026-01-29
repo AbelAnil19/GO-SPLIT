@@ -96,3 +96,12 @@ export const checkIfEmailVerified = async () => {
 export const doUpdateProfile = async (user, displayName, photoURL) => {
     return updateProfile(user, { displayName, photoURL });
 };
+
+export const doDeleteUser = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+        throw new Error('No user is currently signed in');
+    }
+    return user.delete();
+};
+

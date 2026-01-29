@@ -80,16 +80,13 @@ export const calculateTotalBalance = (expenses, userId) => {
 export const getAmountOwed = (expenses, userId) => {
     if (!expenses || expenses.length === 0) return 0;
 
-    let totalOwed = 0;
+    // Reuse the robust logic from getPendingSettlements
+    const settlements = getPendingSettlements(expenses, userId);
 
-    expenses.forEach(expense => {
-        if (expense.paidBy !== userId && !expense.isSettled) {
-            const userSplit = expense.splitBetween.find(s => s.userId === userId);
-            if (userSplit) {
-                totalOwed += userSplit.amount;
-            }
-        }
-    });
+    // Sum up only the 'owe' type
+    const totalOwed = settlements
+        .filter(s => s.type === 'owe')
+        .reduce((sum, s) => sum + s.amount, 0);
 
     return Math.round(totalOwed * 100) / 100;
 };
@@ -103,16 +100,13 @@ export const getAmountOwed = (expenses, userId) => {
 export const getAmountUserIsOwed = (expenses, userId) => {
     if (!expenses || expenses.length === 0) return 0;
 
-    let totalOwed = 0;
+    // Reuse the robust logic from getPendingSettlements
+    const settlements = getPendingSettlements(expenses, userId);
 
-    expenses.forEach(expense => {
-        if (expense.paidBy === userId && !expense.isSettled) {
-            const userSplit = expense.splitBetween.find(s => s.userId === userId);
-            const userOwes = userSplit ? userSplit.amount : 0;
-            const othersOwe = expense.amount - userOwes;
-            totalOwed += othersOwe;
-        }
-    });
+    // Sum up only the 'owed' type
+    const totalOwed = settlements
+        .filter(s => s.type === 'owed')
+        .reduce((sum, s) => sum + s.amount, 0);
 
     return Math.round(totalOwed * 100) / 100;
 };
@@ -137,6 +131,7 @@ export const filterByGroup = (expenses, groupId) => {
  */
 export const filterByDateRange = (expenses, startDate, endDate) => {
     return expenses.filter(expense => {
+        if (!expense.date) return false;
         const expenseDate = expense.date.toDate ? expense.date.toDate() : new Date(expense.date);
         return expenseDate >= startDate && expenseDate <= endDate;
     });
@@ -224,4 +219,82 @@ export const getPendingSettlements = (expenses, userId, userMap = {}) => {
         }))
         .filter(s => s.amount > 0.01)
         .sort((a, b) => b.amount - a.amount);
+};
+
+/**
+ * Compare current month's spending vs last month's
+ * @param {Array} expenses 
+ * @param {string} userId 
+ * @returns {Object} { diffPercent, isHigher: boolean }
+ */
+export const getMonthlySpendingTrend = (expenses, userId) => {
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+    const thisMonthTotal = expenses
+        .filter(e => {
+            if (!e.date || e.paidBy !== userId) return false;
+            const d = e.date.toDate ? e.date.toDate() : new Date(e.date);
+            return d >= thisMonthStart;
+        })
+        .reduce((sum, e) => sum + e.amount, 0);
+
+    const lastMonthTotal = expenses
+        .filter(e => {
+            if (!e.date || e.paidBy !== userId) return false;
+            const d = e.date.toDate ? e.date.toDate() : new Date(e.date);
+            return d >= lastMonthStart && d <= lastMonthEnd;
+        })
+        .reduce((sum, e) => sum + e.amount, 0);
+
+    if (lastMonthTotal === 0) return { diffPercent: 100, isHigher: true };
+
+    const diff = thisMonthTotal - lastMonthTotal;
+    const diffPercent = Math.round(Math.abs(diff / lastMonthTotal) * 100);
+
+    return {
+        diffPercent,
+        isHigher: diff > 0
+    };
+};
+
+/**
+ * Calculate trend for Net Balance (This month vs Last month)
+ * @param {Array} expenses 
+ * @param {string} userId 
+ * @returns {Object} { diff, isPositive: boolean }
+ */
+export const getBalanceTrend = (expenses, userId) => {
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Calculate Net Balance Change for THIS MONTH only
+    let thisMonthChange = 0;
+
+    expenses.forEach(expense => {
+        if (!expense.date) return;
+        const d = expense.date.toDate ? expense.date.toDate() : new Date(expense.date);
+
+        if (d >= thisMonthStart) {
+            if (expense.paidBy === userId) {
+                // I paid -> Balance increases (I am owed)
+                const userSplit = expense.splitBetween.find(s => s.userId === userId);
+                const userOwes = userSplit ? userSplit.amount : 0;
+                thisMonthChange += (expense.amount - userOwes);
+            } else {
+                // Someone else paid -> Balance decreases (I owe)
+                const userSplit = expense.splitBetween.find(s => s.userId === userId);
+                if (userSplit) {
+                    thisMonthChange -= userSplit.amount;
+                }
+            }
+        }
+    });
+
+    return {
+        diff: Math.abs(thisMonthChange),
+        isPositive: thisMonthChange >= 0
+    };
 };

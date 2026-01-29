@@ -1,11 +1,21 @@
-import React, { useState } from 'react';
-import { AVATAR_STYLES, getAvatarUrl, getRandomSeed, getStyleFromUrl } from '../utils/avatarUtils';
+import React, { useState, useEffect } from 'react';
+import { AVATAR_STYLES, getAvatarUrl, getRandomSeed, getStyleFromUrl, getSeedFromUrl } from '../utils/avatarUtils';
 
 const AvatarPickerModal = ({ isOpen, currentPhotoURL, userId, onClose, onSave }) => {
-    const currentStyle = getStyleFromUrl(currentPhotoURL);
-    const [selectedStyle, setSelectedStyle] = useState(currentStyle);
+    const [selectedStyle, setSelectedStyle] = useState('avataaars');
     const [seed, setSeed] = useState(userId);
     const [previewUrl, setPreviewUrl] = useState(currentPhotoURL);
+
+    // Update state when currentPhotoURL changes (e.g., user has changed avatar before)
+    useEffect(() => {
+        if (currentPhotoURL) {
+            const style = getStyleFromUrl(currentPhotoURL);
+            const currentSeed = getSeedFromUrl(currentPhotoURL) || userId;
+            setSelectedStyle(style);
+            setSeed(currentSeed);
+            setPreviewUrl(currentPhotoURL);
+        }
+    }, [currentPhotoURL, userId]);
 
     const handleStyleSelect = (styleId) => {
         setSelectedStyle(styleId);
@@ -26,10 +36,14 @@ const AvatarPickerModal = ({ isOpen, currentPhotoURL, userId, onClose, onSave })
     };
 
     const handleCancel = () => {
-        // Reset to current values
-        setSelectedStyle(currentStyle);
-        setSeed(userId);
-        setPreviewUrl(currentPhotoURL);
+        // Reset to current values from props
+        if (currentPhotoURL) {
+            const style = getStyleFromUrl(currentPhotoURL);
+            const currentSeed = getSeedFromUrl(currentPhotoURL) || userId;
+            setSelectedStyle(style);
+            setSeed(currentSeed);
+            setPreviewUrl(currentPhotoURL);
+        }
         onClose();
     };
 
@@ -71,8 +85,8 @@ const AvatarPickerModal = ({ isOpen, currentPhotoURL, userId, onClose, onSave })
                                 key={style.id}
                                 onClick={() => handleStyleSelect(style.id)}
                                 className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${selectedStyle === style.id
-                                        ? 'border-amber-400 bg-amber-50 dark:bg-amber-400/10'
-                                        : 'border-gray-200 dark:border-white/10 hover:border-amber-400/50 bg-white dark:bg-white/5'
+                                    ? 'border-amber-400 bg-amber-50 dark:bg-amber-400/10'
+                                    : 'border-gray-200 dark:border-white/10 hover:border-amber-400/50 bg-white dark:bg-white/5'
                                     }`}
                             >
                                 <span className="text-4xl">{style.emoji}</span>

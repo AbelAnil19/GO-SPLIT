@@ -91,7 +91,7 @@ const RegisterPage = () => {
                 // Send email verification
                 await sendEmailVerification(user);
 
-                addToast('Account created! Please check your email to verify.', 'success');
+                // Navigate to verify-email (toast will be shown by DashboardLayout)
                 navigate('/verify-email');
             } catch (err) {
                 const errorMessage = err.message.includes('email-already-in-use')

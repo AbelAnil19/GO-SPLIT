@@ -1,11 +1,36 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { doSignOut } from '../firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase/firebaseConfig';
 
 const HomePage = () => {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
+    const [userAvatar, setUserAvatar] = useState(currentUser?.photoURL || null);
+
+    // Listen to user avatar changes in real-time
+    useEffect(() => {
+        if (!currentUser?.uid) return;
+
+        const userRef = doc(db, 'users', currentUser.uid);
+
+        // Set up real-time listener
+        const unsubscribe = onSnapshot(userRef, (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const userData = docSnapshot.data();
+                if (userData?.photoURL) {
+                    setUserAvatar(userData.photoURL);
+                }
+            }
+        }, (error) => {
+            console.error('Error listening to user avatar:', error);
+        });
+
+        // Cleanup listener on unmount
+        return () => unsubscribe();
+    }, [currentUser]);
 
     const handleLogout = async () => {
         await doSignOut();
@@ -21,9 +46,9 @@ const HomePage = () => {
                     </svg>
                 </Link>
                 <div className="relative inline-block mb-6">
-                    {currentUser.photoURL ? (
+                    {userAvatar ? (
                         <img
-                            src={currentUser.photoURL}
+                            src={userAvatar}
                             alt="Profile"
                             className="w-32 h-32 rounded-full border-4 border-amber-400 mx-auto shadow-lg object-cover"
                         />

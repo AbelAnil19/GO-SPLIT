@@ -1,14 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../firebase/authContext';
 import { useToast } from '../../context/ToastContext';
 import Sidebar from './Sidebar';
 import DashboardHeader from './DashboardHeader';
+import '../../styles/patterns.css';
 
 const DashboardLayout = () => {
     const { currentUser, userLoggedIn } = useAuth();
     const { addToast } = useToast();
     const navigate = useNavigate();
+    const hasShownToast = useRef(false); // Track if we've shown the verification toast
 
     useEffect(() => {
         const checkVerification = async () => {
@@ -33,7 +35,11 @@ const DashboardLayout = () => {
             );
 
             if (!currentUser.emailVerified && !isGoogleUser) {
-                addToast('Please verify your email to access the dashboard', 'warning');
+                // Only show toast once per mount
+                if (!hasShownToast.current) {
+                    addToast('Please verify your email to access the dashboard', 'warning');
+                    hasShownToast.current = true;
+                }
                 navigate('/verify-email');
             }
         };
@@ -53,16 +59,20 @@ const DashboardLayout = () => {
     }
 
     return (
-        <div className="h-screen flex bg-slate-50 dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 relative overflow-hidden transition-colors duration-300">
-            {/* Background effects - removed for light mode, keep for dark */}
-            <div className="absolute inset-0 dark:bg-[radial-gradient(circle_at_30%_20%,rgba(251,191,36,0.05),transparent_50%)]"></div>
-            <div className="absolute inset-0 dark:bg-[radial-gradient(circle_at_70%_80%,rgba(251,191,36,0.03),transparent_50%)]"></div>
-
+        <div className="flex h-screen bg-gray-50 dark:bg-gradient-to-br dark:from-[#0a0f14] dark:via-[#0d191b] dark:to-[#0a0f14] overflow-hidden relative">
+            {/* Sidebar */}
             <Sidebar />
-            <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+
+            {/* Main Content Area with Pattern */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Header */}
                 <DashboardHeader />
-                <main className="flex-1 overflow-y-auto px-8 py-6">
-                    <Outlet />
+
+                {/* Page Content with Pattern Overlay */}
+                <main className="flex-1 overflow-x-hidden overflow-y-auto relative">
+                    <div className="min-h-full p-8 noise-pattern">
+                        <Outlet />
+                    </div>
                 </main>
             </div>
         </div>

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
-import { listenToUserGroups, createGroup } from '../firebase/firestore';
+import { listenToUserGroups, createGroup, deleteGroup } from '../firebase/firestore';
 import AddMemberModal from '../components/AddMemberModal';
+import ConfirmationModal from '../components/ConfirmationModal';
+import GroupInvitations from '../components/GroupInvitations';
 
 const GroupsPage = () => {
     const { currentUser } = useAuth();
@@ -15,6 +17,7 @@ const GroupsPage = () => {
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedGroup, setSelectedGroup] = useState(null);
+    const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, group: null });
 
     // Fetch user's groups with real-time listener
     useEffect(() => {
@@ -71,9 +74,12 @@ const GroupsPage = () => {
                 </button>
             </div>
 
+            {/* Pending Invitations */}
+            <GroupInvitations />
+
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2 rounded-2xl p-6 bg-white dark:bg-white/5 border-2 border-gray-300 dark:border-white/10 shadow-soft backdrop-blur-md">
+                <div className="flex flex-col gap-2 rounded-2xl p-6 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
                     <div className="flex items-center justify-between">
                         <p className="text-[#5c6f73] dark:text-gray-400 font-medium">Total Groups</p>
                         <span className="material-symbols-outlined text-amber-400 bg-amber-400/10 p-1.5 rounded-lg">groups</span>
@@ -81,7 +87,7 @@ const GroupsPage = () => {
                     <p className="text-[#0d191b] dark:text-white text-3xl font-bold tracking-tight">{groups.length}</p>
                     <p className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium mt-1">active groups</p>
                 </div>
-                <div className="flex flex-col gap-2 rounded-2xl p-6 bg-white dark:bg-white/5 border-2 border-gray-300 dark:border-white/10 shadow-soft backdrop-blur-md">
+                <div className="flex flex-col gap-2 rounded-2xl p-6 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
                     <div className="flex items-center justify-between">
                         <p className="text-[#5c6f73] dark:text-gray-400 font-medium">Total Members</p>
                         <span className="material-symbols-outlined text-blue-400 bg-blue-400/10 p-1.5 rounded-lg">people</span>
@@ -138,43 +144,43 @@ const GroupsPage = () => {
                     <div
                         key={group.id}
                         onClick={() => navigate(`/dashboard/groups/${group.id}`)}
-                        className="group flex flex-col justify-between bg-white dark:bg-white/5 p-5 rounded-2xl border-2 border-gray-300 dark:border-white/10 hover:border-amber-400/50 hover:shadow-lg hover:shadow-amber-900/10 transition-all duration-300 backdrop-blur-md shadow-soft cursor-pointer"
+                        className="group flex flex-col justify-between bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] p-5 rounded-2xl border-2 border-gray-200 dark:border-white/10 hover:border-amber-400/50 hover:shadow-xl transition-all duration-300 shadow-md dark:shadow-none backdrop-blur-[2px] cursor-pointer"
                     >
                         <div>
                             <div className="flex justify-between items-start mb-4">
                                 <div className="size-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400">
                                     <span className="material-symbols-outlined">{group.icon || 'groups'}</span>
                                 </div>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedGroup(group);
-                                    }}
-                                    className="text-gray-400 hover:text-amber-400 transition-colors"
-                                    title="Add Member"
-                                >
-                                    <span className="material-symbols-outlined">person_add</span>
-                                </button>
                             </div>
                             <h3 className="text-lg font-bold text-[#0d191b] dark:text-white mb-1">{group.name}</h3>
                             <p className="text-sm text-[#5c6f73] dark:text-gray-400 mb-4">
                                 {group.members?.length || 0} member{(group.members?.length || 0) !== 1 ? 's' : ''}
                             </p>
-                            <div className="p-3 rounded-xl bg-gray-800/50 border border-gray-700">
+                            <div className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
                                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Expenses</p>
-                                <p className="text-xl font-bold text-white">₹{group.totalExpenses || 0}</p>
+                                <p className="text-xl font-bold text-[#0d191b] dark:text-white">₹{group.totalExpenses || 0}</p>
                             </div>
                         </div>
-                        <div className="flex items-center justify-between pt-4 mt-4 border-t border-white/5">
+                        <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200 dark:border-white/5">
                             <div className="flex items-center -space-x-2">
                                 {group.members?.slice(0, 3).map((member, idx) => (
-                                    <div
-                                        key={idx}
-                                        className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-bold text-black"
-                                        title={member.name}
-                                    >
-                                        {member.name?.charAt(0)}
-                                    </div>
+                                    member.photoURL ? (
+                                        <img
+                                            key={idx}
+                                            src={member.photoURL}
+                                            alt={member.name}
+                                            className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] object-cover"
+                                            title={member.name}
+                                        />
+                                    ) : (
+                                        <div
+                                            key={idx}
+                                            className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-bold text-black"
+                                            title={member.name}
+                                        >
+                                            {member.name?.charAt(0)}
+                                        </div>
+                                    )
                                 ))}
                                 {(group.members?.length || 0) > 3 && (
                                     <div className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-[#5c6f73] dark:text-gray-400">
@@ -182,13 +188,20 @@ const GroupsPage = () => {
                                     </div>
                                 )}
                             </div>
-                            <button
-                                onClick={() => setSelectedGroup(group)}
-                                className="text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1"
-                            >
-                                <span className="material-symbols-outlined text-sm">add</span>
-                                Add Member
-                            </button>
+                            {/* Only show delete button if current user is the creator */}
+                            {group.createdBy === currentUser.uid && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeleteConfirmation({ isOpen: true, group });
+                                    }}
+                                    className="text-xs font-semibold text-red-500 hover:text-red-400 transition-colors flex items-center gap-1"
+                                    title="Delete Group"
+                                >
+                                    <span className="material-symbols-outlined text-sm">delete</span>
+                                    Delete
+                                </button>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -199,7 +212,7 @@ const GroupsPage = () => {
                         onClick={() => setIsCreateModalOpen(true)}
                         className="group flex flex-col items-center justify-center gap-4 bg-transparent p-5 rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/10 hover:border-amber-400/50 hover:bg-amber-400/5 transition-all duration-300 min-h-[250px] cursor-pointer backdrop-blur-md"
                     >
-                        <div className="size-16 rounded-full bg-gray-100 dark:bg-white/5 group-hover:bg-amber-100 dark:group-hover:bg-white/10 flex items-center justify-center shadow-sm transition-colors">
+                        <div className="size-16 rounded-full bg-gray-100 dark:bg-white/10 group-hover:bg-amber-100 dark:group-hover:bg-white/20 flex items-center justify-center shadow-sm transition-colors">
                             <span className="material-symbols-outlined text-amber-400 text-3xl">add</span>
                         </div>
                         <div className="text-center">
@@ -213,14 +226,14 @@ const GroupsPage = () => {
             {/* Create Group Modal */}
             {isCreateModalOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl border border-white/10">
-                        <h3 className="text-2xl font-bold text-white mb-4">Create New Group</h3>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl border-2 border-gray-300 dark:border-white/10">
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Create New Group</h3>
                         <input
                             type="text"
                             value={newGroupName}
                             onChange={(e) => setNewGroupName(e.target.value)}
                             placeholder="Enter group name..."
-                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent mb-6"
+                            className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent mb-6"
                             onKeyPress={(e) => e.key === 'Enter' && handleCreateGroup()}
                             autoFocus
                         />
@@ -230,7 +243,7 @@ const GroupsPage = () => {
                                     setIsCreateModalOpen(false);
                                     setNewGroupName('');
                                 }}
-                                className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-semibold transition-colors"
+                                className="flex-1 px-4 py-3 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-900 dark:text-white rounded-xl font-semibold transition-colors"
                             >
                                 Cancel
                             </button>
@@ -252,6 +265,27 @@ const GroupsPage = () => {
                 groupId={selectedGroup?.id}
                 groupName={selectedGroup?.name}
                 currentMembers={selectedGroup?.members || []}
+            />
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteConfirmation.isOpen}
+                onClose={() => setDeleteConfirmation({ isOpen: false, group: null })}
+                onConfirm={async () => {
+                    try {
+                        await deleteGroup(deleteConfirmation.group?.id, currentUser.uid);
+                        addToast(`Group "${deleteConfirmation.group?.name}" deleted successfully`, 'success');
+                        setDeleteConfirmation({ isOpen: false, group: null });
+                    } catch (error) {
+                        addToast(error.message || 'Failed to delete group', 'error');
+                        setDeleteConfirmation({ isOpen: false, group: null });
+                    }
+                }}
+                title="Delete Group?"
+                message={`Are you sure you want to delete "${deleteConfirmation.group?.name}"? This action cannot be undone and all expenses in this group will be lost.`}
+                confirmText="Delete"
+                cancelText="Cancel"
+                type="danger"
             />
 
         </div>

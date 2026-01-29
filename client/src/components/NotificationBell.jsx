@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../firebase/authContext';
-import { listenToUserNotifications, markNotificationRead, markAllNotificationsRead } from '../firebase/firestore';
+import { listenToUserNotifications, markNotificationRead, markAllNotificationsRead, listenToUserInvitations, acceptGroupInvitation, declineGroupInvitation, approveJoinRequest, rejectJoinRequest } from '../firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { BellIcon } from './icons/NotificationIcon';
+import { useToast } from '../context/ToastContext';
 
 const NotificationBell = () => {
     const { currentUser } = useAuth();
+    const { addToast } = useToast();
     const [notifications, setNotifications] = useState([]);
+    const [invitations, setInvitations] = useState([]);
     const [showPopover, setShowPopover] = useState(false);
     const popoverRef = useRef(null);
     const bellIconRef = useRef(null);
@@ -17,6 +20,44 @@ const NotificationBell = () => {
         if (!currentUser) return;
 
         const unsubscribe = listenToUserNotifications(currentUser.uid, setNotifications);
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    // Show toast for specific real-time notifications
+    // We use a ref to track which notifications we've already "seen" in this session to avoid spamming on reload
+    // but allowing real-time alerts
+    const seenNotificationIds = useRef(new Set());
+
+    useEffect(() => {
+        // Initialize seen set on first load if empty (assume existing ones are "seen" to avoid alert bomb on refresh)
+        if (notifications.length > 0 && seenNotificationIds.current.size === 0) {
+            notifications.forEach(n => seenNotificationIds.current.add(n.id));
+            return;
+        }
+
+        notifications.forEach(notification => {
+            if (!seenNotificationIds.current.has(notification.id)) {
+                // This is a new real-time notification
+                if (notification.metadata?.type === 'missing_upi') {
+                    addToast(
+                        'Action Required: Someone tried to pay you! Please add your UPI ID. (Click to Add)',
+                        'warning',
+                        {
+                            duration: 8000,
+                            onClick: () => navigate('/dashboard/settings')
+                        }
+                    );
+                }
+                seenNotificationIds.current.add(notification.id);
+            }
+        });
+    }, [notifications, addToast]);
+
+    // Listen to invitations
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const unsubscribe = listenToUserInvitations(currentUser.uid, setInvitations);
         return () => unsubscribe();
     }, [currentUser]);
 
@@ -34,15 +75,42 @@ const NotificationBell = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showPopover]);
 
-    const unreadCount = notifications.length;
+    const unreadCount = notifications.length + invitations.length;
+
+    const handleInvitationAccept = async (invitationId, groupName) => {
+        try {
+            await acceptGroupInvitation(invitationId, currentUser.uid);
+            addToast(`You joined ${groupName}!`, 'success');
+        } catch (error) {
+            addToast('Failed to accept invitation', 'error');
+        }
+    };
+
+    const handleInvitationDecline = async (invitationId, groupName) => {
+        try {
+            await declineGroupInvitation(invitationId);
+            addToast(`Invitation to ${groupName} declined`, 'info');
+        } catch (error) {
+            addToast('Failed to decline invitation', 'error');
+        }
+    };
 
     const handleNotificationClick = async (notification) => {
         await markNotificationRead(notification.id);
         setShowPopover(false);
 
         // Navigate to relevant page based on notification type
-        const { metadata } = notification;
-        if (metadata.groupId) {
+        if (notification.type === 'system') {
+            // Don't navigate to the group if removed, maybe just stay on dashboard
+            return;
+        }
+
+        if (metadata?.type === 'missing_upi') {
+            navigate('/dashboard/settings');
+            return;
+        }
+
+        if (metadata?.groupId) {
             navigate(`/dashboard/groups/${metadata.groupId}`);
         }
     };
@@ -88,7 +156,7 @@ const NotificationBell = () => {
 
                     {/* Notifications List */}
                     <div className="max-h-96 overflow-y-auto">
-                        {notifications.length === 0 ? (
+                        {notifications.length === 0 && invitations.length === 0 ? (
                             <div className="p-12 text-center">
                                 <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600 mb-3 block">
                                     notifications_off
@@ -101,13 +169,46 @@ const NotificationBell = () => {
                                 </p>
                             </div>
                         ) : (
-                            notifications.map(notif => (
-                                <NotificationItem
-                                    key={notif.id}
-                                    notification={notif}
-                                    onClick={() => handleNotificationClick(notif)}
-                                />
-                            ))
+                            <>
+                                {/* Invitations Section */}
+                                {invitations.length > 0 && (
+                                    <div className="border-b border-gray-200 dark:border-white/10">
+                                        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-500/10">
+                                            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                                                Group Invitations
+                                            </p>
+                                        </div>
+                                        {invitations.map(invitation => (
+                                            <InvitationItem
+                                                key={invitation.id}
+                                                invitation={invitation}
+                                                onAccept={handleInvitationAccept}
+                                                onDecline={handleInvitationDecline}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Notifications Section */}
+                                {notifications.length > 0 && (
+                                    <>
+                                        {invitations.length > 0 && (
+                                            <div className="px-4 py-2 bg-gray-50 dark:bg-white/5">
+                                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-400 uppercase tracking-wide">
+                                                    Activity
+                                                </p>
+                                            </div>
+                                        )}
+                                        {notifications.map(notif => (
+                                            <NotificationItem
+                                                key={notif.id}
+                                                notification={notif}
+                                                onClick={() => handleNotificationClick(notif)}
+                                            />
+                                        ))}
+                                    </>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
@@ -117,6 +218,34 @@ const NotificationBell = () => {
 };
 
 const NotificationItem = ({ notification, onClick }) => {
+    const { addToast } = useToast();
+    const { currentUser } = useAuth();
+    const [loading, setLoading] = useState(false);
+
+    const handleApprove = async (e) => {
+        e.stopPropagation();
+        setLoading(true);
+        try {
+            await approveJoinRequest(notification.id, notification.metadata, currentUser.displayName);
+            addToast('Request approved! Invitation sent.', 'success');
+        } catch (error) {
+            addToast('Failed to approve request', 'error');
+        }
+        setLoading(false);
+    };
+
+    const handleReject = async (e) => {
+        e.stopPropagation();
+        setLoading(true);
+        try {
+            await rejectJoinRequest(notification.id);
+            addToast('Request rejected', 'info');
+        } catch (error) {
+            addToast('Failed to reject request', 'error');
+        }
+        setLoading(false);
+    };
+
     const getIcon = () => {
         switch (notification.type) {
             case 'expense': return '💰';
@@ -125,6 +254,8 @@ const NotificationItem = ({ notification, onClick }) => {
             case 'message': return '💬';
             case 'group_add': return '👥';
             case 'invite': return '📝';
+            case 'system': return '⚠️';
+            case 'approval_request': return '🙋‍♂️';
             default: return '🔔';
         }
     };
@@ -162,9 +293,76 @@ const NotificationItem = ({ notification, onClick }) => {
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
                         {getTimeAgo()}
                     </p>
+
+                    {notification.type === 'approval_request' && (
+                        <div className="flex gap-2 mt-3">
+                            <button
+                                onClick={handleReject}
+                                disabled={loading}
+                                className="flex-1 px-3 py-1.5 bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20 text-gray-900 dark:text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                            >
+                                Reject
+                            </button>
+                            <button
+                                onClick={handleApprove}
+                                disabled={loading}
+                                className="flex-1 px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-black rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                            >
+                                {loading ? 'Approving...' : 'Approve'}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </button>
+    );
+};
+
+const InvitationItem = ({ invitation, onAccept, onDecline }) => {
+    const [loading, setLoading] = useState(false);
+
+    const handleAccept = async () => {
+        setLoading(true);
+        await onAccept(invitation.id, invitation.groupName);
+        setLoading(false);
+    };
+
+    const handleDecline = async () => {
+        setLoading(true);
+        await onDecline(invitation.id, invitation.groupName);
+        setLoading(false);
+    };
+
+    return (
+        <div className="p-4 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+            <div className="flex gap-3">
+                <span className="text-2xl flex-shrink-0">👥</span>
+                <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-gray-900 dark:text-white mb-1">
+                        {invitation.groupName}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                        Invited by {invitation.inviterName}
+                    </p>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleDecline}
+                            disabled={loading}
+                            className="flex-1 px-3 py-1.5 bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20 text-gray-900 dark:text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                        >
+                            Decline
+                        </button>
+                        <button
+                            onClick={handleAccept}
+                            disabled={loading}
+                            className="flex-1 px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-black rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                        >
+                            {loading ? 'Accepting...' : 'Accept'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 };
 

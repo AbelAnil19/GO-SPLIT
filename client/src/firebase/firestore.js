@@ -1,5 +1,5 @@
 import { db } from './firebaseConfig';
-import { collection, addDoc, getDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { collection, addDoc, getDoc, getDocs, doc, updateDoc, deleteDoc, setDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { getDefaultAvatar } from '../utils/avatarUtils';
 
 // ==================== USER FUNCTIONS ====================
@@ -49,6 +49,18 @@ export const updateUserDocument = async (userId, data) => {
     try {
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, data);
+
+        // If displayName is being updated, also update Firebase Auth profile
+        if (data.displayName) {
+            const { auth } = await import('./firebaseConfig');
+            const { updateProfile } = await import('firebase/auth');
+            if (auth.currentUser) {
+                await updateProfile(auth.currentUser, {
+                    displayName: data.displayName
+                });
+            }
+        }
+
         console.log('✅ User document updated successfully');
     } catch (error) {
         console.error('❌ Error updating user document:', error);
@@ -72,11 +84,14 @@ export const createGroup = async (groupName, creatorId, creatorData) => {
             createdBy: creatorId,
             createdAt: serverTimestamp(),
             totalExpenses: 0,
-            createdBy: creatorId,
-            createdAt: serverTimestamp(),
-            totalExpenses: 0,
             isSettled: false,
-            memberIds: [creatorId] // Add this primarily for permissions and querying
+            memberIds: [creatorId], // Add this primarily for permissions and querying
+            customization: {
+                icon: '💰', // Default emoji icon
+                color: '#F59E0B', // Default amber color
+                description: '',
+                category: 'Other'
+            }
         });
 
         // Add group to user's groups array
@@ -147,6 +162,273 @@ export const listenToUserGroups = (userId, callback) => {
     });
 };
 
+// Delete a group (creator only)
+export const deleteGroup = async (groupId, userId) => {
+    try {
+        // Get the group document
+        const groupRef = doc(db, 'groups', groupId);
+        const groupSnap = await getDoc(groupRef);
+
+        if (!groupSnap.exists()) {
+            throw new Error('Group not found');
+        }
+
+        const groupData = groupSnap.data();
+
+        // Check if the current user is the creator
+        if (groupData.createdBy !== userId) {
+            throw new Error('Only the group creator can delete this group');
+        }
+
+        // Delete all expenses associated with this group
+        const expensesQuery = query(
+            collection(db, 'expenses'),
+            where('groupId', '==', groupId)
+        );
+        const expensesSnapshot = await getDocs(expensesQuery);
+
+        const deletePromises = expensesSnapshot.docs.map(expenseDoc =>
+            deleteDoc(doc(db, 'expenses', expenseDoc.id))
+        );
+        await Promise.all(deletePromises);
+
+        console.log(`✅ Deleted ${expensesSnapshot.size} expenses from group`);
+
+        // Remove group from all members' groups arrays
+        const memberIds = groupData.memberIds || [];
+        const userUpdatePromises = memberIds.map(async (memberId) => {
+            const userRef = doc(db, 'users', memberId);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const currentGroups = userSnap.data()?.groups || [];
+                await updateDoc(userRef, {
+                    groups: currentGroups.filter(gId => gId !== groupId)
+                });
+            }
+        });
+        await Promise.all(userUpdatePromises);
+
+        // Delete the group document
+        await deleteDoc(groupRef);
+
+        console.log('✅ Group deleted successfully');
+
+        // Log activity
+        await createActivity({
+            type: 'group_deleted',
+            description: `You deleted group "${groupData.name}"`,
+            userId: userId,
+            relatedId: groupId,
+            involvedUserIds: memberIds,
+        });
+
+        return { success: true, message: 'Group deleted successfully' };
+    } catch (error) {
+        console.error('❌ Error deleting group:', error);
+        throw error;
+    }
+};
+
+// Update group customization (admin only)
+export const updateGroupCustomization = async (groupId, userId, customization) => {
+    try {
+        const groupRef = doc(db, 'groups', groupId);
+        const groupSnap = await getDoc(groupRef);
+
+        if (!groupSnap.exists()) {
+            throw new Error('Group not found');
+        }
+
+        const groupData = groupSnap.data();
+
+        // Check if user is admin
+        const userMember = groupData.members.find(m => m.userId === userId);
+        if (!userMember || userMember.role !== 'admin') {
+            throw new Error('Only admins can customize the group');
+        }
+
+        // Update customization
+        await updateDoc(groupRef, {
+            customization: {
+                icon: customization.icon || groupData.customization?.icon || '💰',
+                color: customization.color || groupData.customization?.color || '#F59E0B',
+                description: customization.description !== undefined ? customization.description : (groupData.customization?.description || ''),
+                category: customization.category || groupData.customization?.category || 'Other'
+            }
+        });
+
+        console.log('✅ Group customization updated');
+    } catch (error) {
+        console.error('❌ Error updating group customization:', error);
+        throw error;
+    }
+};
+
+// Remove a member from a group (creator only)
+export const removeMemberFromGroup = async (groupId, memberUserId, currentUserId) => {
+    try {
+        const groupRef = doc(db, 'groups', groupId);
+        const groupSnap = await getDoc(groupRef);
+
+        if (!groupSnap.exists()) {
+            throw new Error('Group not found');
+        }
+
+        const groupData = groupSnap.data();
+
+        // Check if current user is the group creator
+        if (groupData.createdBy !== currentUserId) {
+            throw new Error('Only the group creator can remove members');
+        }
+
+        // Prevent removing yourself
+        if (memberUserId === currentUserId) {
+            throw new Error('You cannot remove yourself from the group');
+        }
+
+        // Remove the member from the members array
+        const updatedMembers = groupData.members.filter(member => member.userId !== memberUserId);
+
+        // Remove from memberIds array (CRITICAL for permissions)
+        const updatedMemberIds = (groupData.memberIds || []).filter(id => id !== memberUserId);
+
+        await updateDoc(groupRef, {
+            members: updatedMembers,
+            memberIds: updatedMemberIds
+        });
+
+        // Update user's groups array for consistency
+        try {
+            const userRef = doc(db, 'users', memberUserId);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                const currentGroups = userData.groups || [];
+                const updatedUserGroups = currentGroups.filter(id => id !== groupId);
+
+                await updateDoc(userRef, {
+                    groups: updatedUserGroups
+                });
+            }
+        } catch (userUpdateError) {
+            console.warn('⚠️ Error updating user groups array:', userUpdateError);
+        }
+
+        // Clean up pending settlements involving this member
+        try {
+            const settlementsQuery = query(
+                collection(db, 'settlements'),
+                where('groupId', '==', groupId),
+                where('status', '==', 'pending')
+            );
+
+            const settlementsSnap = await getDocs(settlementsQuery);
+            const settlementsToDelete = settlementsSnap.docs.filter(doc => {
+                const data = doc.data();
+                return data.fromUserId === memberUserId || data.toUserId === memberUserId;
+            });
+
+            // Delete settlements in parallel
+            const deletePromises = settlementsToDelete.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deletePromises);
+
+            console.log(`✅ Cleaned up ${settlementsToDelete.length} settlements for removed member`);
+        } catch (settlementError) {
+            console.warn('⚠️ Error cleaning up settlements:', settlementError);
+            // Don't fail the whole operation if settlement cleanup fails
+        }
+
+        // Create notification for the removed member
+        await createNotification(
+            memberUserId,
+            'system',
+            'Removed from Group',
+            `You have been removed from the group "${groupData.name}" by the admin.`,
+            { groupId: groupId, groupName: groupData.name }
+        );
+
+        console.log('✅ Member removed from group successfully');
+        return { success: true, message: 'Member removed successfully' };
+    } catch (error) {
+        console.error('❌ Error removing member from group:', error);
+        throw error;
+    }
+};
+
+// Leave a group (for non-admin members)
+export const leaveGroup = async (groupId, userId) => {
+    try {
+        const groupRef = doc(db, 'groups', groupId);
+        const groupSnap = await getDoc(groupRef);
+
+        if (!groupSnap.exists()) {
+            throw new Error('Group not found');
+        }
+
+        const groupData = groupSnap.data();
+
+        // Prevent admin (creator) from leaving
+        if (groupData.createdBy === userId) {
+            throw new Error('Group admins cannot leave. You must delete the group instead.');
+        }
+
+        // Remove from members array
+        const updatedMembers = groupData.members.filter(member => member.userId !== userId);
+
+        // Remove from memberIds array
+        const updatedMemberIds = (groupData.memberIds || []).filter(id => id !== userId);
+
+        await updateDoc(groupRef, {
+            members: updatedMembers,
+            memberIds: updatedMemberIds
+        });
+
+        // Update user's groups array
+        try {
+            const userRef = doc(db, 'users', userId);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                const currentGroups = userData.groups || [];
+                const updatedUserGroups = currentGroups.filter(id => id !== groupId);
+
+                await updateDoc(userRef, {
+                    groups: updatedUserGroups
+                });
+            }
+        } catch (userUpdateError) {
+            console.warn('⚠️ Error updating user groups array:', userUpdateError);
+        }
+
+        // Clean up pending settlements involving this member
+        try {
+            const settlementsQuery = query(
+                collection(db, 'settlements'),
+                where('groupId', '==', groupId),
+                where('status', '==', 'pending')
+            );
+
+            const settlementsSnap = await getDocs(settlementsQuery);
+            const settlementsToDelete = settlementsSnap.docs.filter(doc => {
+                const data = doc.data();
+                return data.fromUserId === userId || data.toUserId === userId;
+            });
+
+            const deletePromises = settlementsToDelete.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deletePromises);
+        } catch (settlementError) {
+            console.warn('⚠️ Error cleaning up settlements:', settlementError);
+        }
+
+        console.log('✅ User left group successfully');
+        return { success: true, message: 'You have left the group' };
+    } catch (error) {
+        console.error('❌ Error leaving group:', error);
+        throw error;
+    }
+};
+
+
 // ==================== INVITATION FUNCTIONS ====================
 
 export const sendGroupInvitation = async (groupId, groupName, inviterName, memberEmail, inviterId) => {
@@ -166,11 +448,39 @@ export const sendGroupInvitation = async (groupId, groupName, inviterName, membe
         // Check if user is already a member
         const groupRef = doc(db, 'groups', groupId);
         const groupSnap = await getDoc(groupRef);
+
+        if (!groupSnap.exists()) throw new Error('Group not found');
+
         const groupData = groupSnap.data();
 
-        if (groupData.members.some(m => m.userId === userId)) {
+        if (groupData.members?.some(m => m.userId === userId)) {
             throw new Error('User is already a member of this group');
         }
+
+        // ADMIN VERIFICATION LOGIC
+        // If the inviter is NOT the admin (creator), send a request instead
+        if (groupData.createdBy !== inviterId) {
+            // Create notification for Admin
+            // Note: We skip checking for duplicates here to avoid permission errors (reading admin's notifications)
+            await createNotification(
+                groupData.createdBy,
+                'approval_request',
+                'Join Request',
+                `${inviterName} wants to add ${memberEmail} to "${groupName}"`,
+                {
+                    groupId: groupId,
+                    groupName: groupName,
+                    targetUserId: userId,
+                    targetUserEmail: memberEmail,
+                    requesterName: inviterName,
+                    requesterId: inviterId
+                }
+            );
+
+            return { success: true, message: 'Request sent to admin for approval', pendingApproval: true };
+        }
+
+        // --- DIRECT INVITATION (Admins only) ---
 
         // Check if invitation already exists
         const invitationsRef = collection(db, 'invitations');
@@ -178,6 +488,7 @@ export const sendGroupInvitation = async (groupId, groupName, inviterName, membe
             invitationsRef,
             where('groupId', '==', groupId),
             where('invitedUserId', '==', userId),
+            where('fromUserId', '==', inviterId),
             where('status', '==', 'pending')
         );
         const existingInvites = await getDocs(existingInviteQuery);
@@ -193,14 +504,49 @@ export const sendGroupInvitation = async (groupId, groupName, inviterName, membe
             invitedUserId: userId,
             invitedUserEmail: memberEmail,
             inviterName: inviterName,
-            fromUserId: inviterId, // Add this for security rules
+            fromUserId: inviterId,
             status: 'pending',
             createdAt: serverTimestamp()
         });
 
         console.log('✅ Invitation sent');
+        return { success: true, message: `Invitation sent to ${memberEmail}` };
     } catch (error) {
         console.error('❌ Error sending invitation:', error);
+        throw error;
+    }
+};
+
+export const approveJoinRequest = async (notificationId, data, adminName) => {
+    try {
+        // 1. Create the actual invitation
+        await addDoc(collection(db, 'invitations'), {
+            groupId: data.groupId,
+            groupName: data.groupName,
+            invitedUserId: data.targetUserId,
+            invitedUserEmail: data.targetUserEmail,
+            inviterName: adminName, // Admin is technically the one inviting now
+            fromUserId: data.requesterId, // Keep original requester for reference, or use admin? Let's use generic
+            status: 'pending',
+            createdAt: serverTimestamp()
+        });
+
+        // 2. Delete the request notification
+        await deleteDoc(doc(db, 'notifications', notificationId));
+
+        return { success: true };
+    } catch (error) {
+        console.error('Error approving request:', error);
+        throw error;
+    }
+};
+
+export const rejectJoinRequest = async (notificationId) => {
+    try {
+        await deleteDoc(doc(db, 'notifications', notificationId));
+        return { success: true };
+    } catch (error) {
+        console.error('Error rejecting request:', error);
         throw error;
     }
 };
@@ -221,25 +567,45 @@ export const acceptGroupInvitation = async (invitationId, userId) => {
         const groupSnap = await getDoc(groupRef);
         const groupData = groupSnap.data();
 
-        const newMember = {
-            userId: userId,
-            name: userData.displayName,
-            photoURL: userData.photoURL,
-            role: 'member'
-        };
+        // CHECK: Is user already a member?
+        const isAlreadyMember = groupData.members?.some(m => m.userId === userId);
 
-        await updateDoc(groupRef, {
-            members: [...groupData.members, newMember],
-            memberIds: [...(groupData.memberIds || []), userId] // Maintain the ID list
-        });
+        if (!isAlreadyMember) {
+            const newMember = {
+                userId: userId,
+                name: userData.displayName,
+                photoURL: userData.photoURL,
+                role: 'member'
+            };
 
-        // Add group to user's groups
-        const currentGroups = userSnap.data()?.groups || [];
-        await updateDoc(userRef, {
-            groups: [...currentGroups, inviteData.groupId]
-        });
+            await updateDoc(groupRef, {
+                members: [...groupData.members, newMember],
+                memberIds: [...(groupData.memberIds || []), userId] // Maintain the ID list
+            });
 
-        // Update invitation status
+            // Add group to user's groups
+            const currentGroups = userSnap.data()?.groups || [];
+            if (!currentGroups.includes(inviteData.groupId)) {
+                await updateDoc(userRef, {
+                    groups: [...currentGroups, inviteData.groupId]
+                });
+            }
+
+            // Send "User joined" system message ONLY if they weren't already a member
+            try {
+                await sendMessage(inviteData.groupId, `${userData?.displayName || 'A new member'} joined the group`, {
+                    uid: 'SYSTEM',
+                    displayName: 'System',
+                    photoURL: null
+                }, { type: 'system' });
+            } catch (msgError) {
+                console.warn('Failed to send join message:', msgError);
+            }
+        } else {
+            console.log('⚠️ User is already a member, skipping addition but updating invite status');
+        }
+
+        // Update invitation status (mark as accepted regardless, to clear it)
         await updateDoc(inviteRef, {
             status: 'accepted',
             acceptedAt: serverTimestamp()
@@ -327,6 +693,22 @@ export const createExpense = async (expenseData) => {
                 involvedUserIds: memberIds,
                 icon: 'receipt_long'
             });
+
+            // Send System Message to Group Chat
+            try {
+                await sendMessage(
+                    expenseData.groupId,
+                    `${expenseData.paidByName} added "${expenseData.description}" for ₹${expenseData.amount}`,
+                    {
+                        uid: 'SYSTEM',
+                        displayName: 'System',
+                        photoURL: null
+                    },
+                    { type: 'system' }
+                );
+            } catch (msgError) {
+                console.warn('Failed to send expense system message:', msgError);
+            }
 
             // Notify all group members except the creator
             const notificationPromises = memberIds
@@ -612,7 +994,7 @@ export const listenToUserActivity = (userId, callback) => {
 
 // ==================== SETTLEMENT FUNCTIONS ====================
 
-export const createSettlement = async (fromUserId, toUserId, amount, fromUserData, toUserData) => {
+export const createSettlement = async (fromUserId, toUserId, amount, fromUserData, toUserData, groupId = null) => {
     try {
         const settlement = {
             fromUserId,
@@ -622,6 +1004,7 @@ export const createSettlement = async (fromUserId, toUserId, amount, fromUserDat
             toUserName: toUserData.displayName?.split(' ')[0] || 'User',
             toUserPhoto: toUserData.photoURL,
             amount,
+            groupId, // Store groupId if provided
             status: 'pending',
             createdAt: serverTimestamp(),
             approvedAt: null,
@@ -658,14 +1041,58 @@ export const approveSettlement = async (settlementId) => {
         const settlementSnap = await getDoc(settlementRef);
         const settlementData = settlementSnap.data();
 
+        if (!settlementData) throw new Error('Settlement not found');
+
+        // 1. Update settlement status
         await updateDoc(settlementRef, {
             status: 'approved',
             approvedAt: serverTimestamp()
         });
-        console.log('✅ Settlement approved:', settlementId);
+
+        // 2. Create an offsetting expense record so the balance calculator works
+        // This effectively "cancels out" the debt in the ledger
+        const paymentExpense = {
+            description: 'Settlement Payment',
+            amount: settlementData.amount,
+            paidBy: settlementData.fromUserId, // Payer paid
+            paidByName: settlementData.fromUserName || 'User',
+            splitBetween: [{
+                userId: settlementData.toUserId, // Receiver was "paid" (so they "owe" this amount back to cancel the debt)
+                amount: settlementData.amount,
+                name: settlementData.toUserName
+            }],
+            date: serverTimestamp(),
+            category: 'settlement', // Special category
+            type: 'payment',        // Marker
+            groupId: null,          // Personal settlement
+            isSettled: false,       // MUST be false to be counted in current balance
+            relatedSettlementId: settlementId
+        };
+
+        await addDoc(collection(db, 'expenses'), paymentExpense);
+
+        console.log('✅ Settlement approved and payment recorded:', settlementId);
 
         // Notify the payer
         if (settlementData) {
+            // Send System Message to Group Chat (if group context exists)
+            if (settlementData.groupId) {
+                try {
+                    await sendMessage(
+                        settlementData.groupId,
+                        `${settlementData.toUserName} verified a payment of ₹${settlementData.amount} from ${settlementData.fromUserName}`,
+                        {
+                            uid: 'SYSTEM',
+                            displayName: 'System',
+                            photoURL: null
+                        },
+                        { type: 'system' }
+                    );
+                } catch (msgError) {
+                    console.warn('Failed to send settlement system message:', msgError);
+                }
+            }
+
             await createNotification(
                 settlementData.fromUserId,
                 'payment',
@@ -678,6 +1105,15 @@ export const approveSettlement = async (settlementId) => {
                     fromUserName: settlementData.toUserName
                 }
             );
+
+            // Create Activity Record
+            await createActivity({
+                involvedUserIds: [settlementData.fromUserId, settlementData.toUserId],
+                type: 'payment_verified',
+                description: `${settlementData.toUserName} verified a payment of ₹${settlementData.amount}`,
+                relatedId: settlementId,
+                groupId: settlementData.groupId || null // Link activity to group if possible
+            });
         }
     } catch (error) {
         console.error('❌ Error approving settlement:', error);
@@ -731,7 +1167,7 @@ export const listenToUserSettlements = (userId, callback) => {
 
 // ==================== MESSAGING FUNCTIONS ====================
 
-export const sendMessage = async (groupId, text, currentUser) => {
+export const sendMessage = async (groupId, text, currentUser, options = {}) => {
     try {
         const messagesRef = collection(db, 'groups', groupId, 'messages');
         await addDoc(messagesRef, {
@@ -740,9 +1176,12 @@ export const sendMessage = async (groupId, text, currentUser) => {
             senderName: currentUser.displayName?.split(' ')[0] || 'User',
             senderPhoto: currentUser.photoURL,
             timestamp: serverTimestamp(),
-            type: 'text'
+            type: options.type || 'text'
         });
         console.log('✅ Message sent to group:', groupId);
+
+        // Don't notify for system messages
+        if (options.type === 'system') return;
 
         // Notify all group members except the sender
         const groupRef = doc(db, 'groups', groupId);

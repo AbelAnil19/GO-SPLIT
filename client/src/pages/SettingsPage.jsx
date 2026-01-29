@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
+import { useNavigate } from 'react-router-dom';
+import { doDeleteUser } from '../firebase/auth';
 import { updateUserDocument, getUserDocument, deleteAllUserExpenses, deleteAllCreatedGroups, updateUserAvatar } from '../firebase/firestore';
 import AvatarPickerModal from '../components/AvatarPickerModal';
 
 const SettingsPage = () => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
+    const navigate = useNavigate();
     const [firstName, setFirstName] = useState(currentUser?.displayName?.split(' ')[0] || '');
     const [lastName, setLastName] = useState(currentUser?.displayName?.split(' ')[1] || '');
     const [email, setEmail] = useState(currentUser?.email || '');
@@ -91,12 +94,33 @@ const SettingsPage = () => {
                 await deleteAllUserExpenses(currentUser.uid);
                 await deleteAllCreatedGroups(currentUser.uid);
                 addToast('Your account has been reset.', 'success');
+            } else if (dangerModal.type === 'account') {
+                // Delete all user data first
+                await deleteAllUserExpenses(currentUser.uid);
+                await deleteAllCreatedGroups(currentUser.uid);
+                // Then delete the Firebase Auth account
+                await doDeleteUser();
+                addToast('Account deleted successfully.', 'success');
+                // Small delay to allow toast to show, then redirect
+                setTimeout(() => {
+                    navigate('/login');
+                }, 500);
+                return; // Exit early to prevent modal close
             }
             setDangerModal({ isOpen: false, type: null });
             setConfirmText('');
         } catch (error) {
             console.error(error);
-            addToast('Failed to delete data.', 'error');
+            // Ignore permission errors after account deletion (expected behavior)
+            if (error.code === 'permission-denied' || error.message?.includes('permission-denied')) {
+                navigate('/login');
+                return;
+            }
+            if (error.code === 'auth/requires-recent-login') {
+                addToast('Please log out and log back in before deleting your account.', 'error');
+            } else {
+                addToast('Failed to delete account.', 'error');
+            }
         }
     };
 
@@ -111,7 +135,7 @@ const SettingsPage = () => {
             <div className="flex flex-col gap-6">
                 {/* Profile Header Card */}
                 <section className="bg-white dark:bg-white/5 rounded-2xl p-6 shadow-sm border border-gray-300 dark:border-white/10 backdrop-blur-md">
-                    <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start justify-between">
+                    <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
                         <div className="flex flex-col sm:flex-row gap-5 items-center">
                             <div
                                 className="relative group cursor-pointer"
@@ -133,19 +157,9 @@ const SettingsPage = () => {
                             </div>
                             <div className="text-center sm:text-left">
                                 <h2 className="text-[#0d191b] dark:text-white text-2xl font-bold">{currentUser?.displayName || 'User'}</h2>
-                                <p className="text-[#5c6f73] dark:text-gray-400 text-sm mb-2">{currentUser?.email}</p>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-400/10 text-amber-400">
-                                    Free Plan
-                                </span>
+                                <p className="text-[#5c6f73] dark:text-gray-400 text-sm">{currentUser?.email}</p>
                             </div>
                         </div>
-                        <button
-                            onClick={() => addToast('Photo upload coming soon!', 'info')}
-                            className="bg-white/10 hover:bg-white/20 text-[#0d191b] dark:text-white text-sm font-bold py-2.5 px-5 rounded-lg transition-colors flex items-center gap-2"
-                        >
-                            <span className="material-symbols-outlined text-[18px]">upload</span>
-                            Change Photo
-                        </button>
                     </div>
                 </section>
 
@@ -217,7 +231,7 @@ const SettingsPage = () => {
                 </section>
 
                 {/* Regional Preferences */}
-                < section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md" >
+                <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
                     <div className="px-6 py-5 border-b border-gray-300 dark:border-white/10">
                         <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">Regional Preferences</h3>
                     </div>
@@ -262,7 +276,7 @@ const SettingsPage = () => {
                 </section >
 
                 {/* Notifications */}
-                < section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md" >
+                <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
                     <div className="px-6 py-5 border-b border-gray-300 dark:border-white/10">
                         <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">Notifications</h3>
                     </div>
@@ -321,71 +335,81 @@ const SettingsPage = () => {
                 </section >
 
                 {/* Danger Zone */}
-                < section className="border border-red-500/20 bg-red-500/5 rounded-2xl overflow-hidden mt-4 backdrop-blur-md" >
+                <section className="border border-red-500/20 bg-red-500/5 dark:bg-red-500/5 rounded-2xl overflow-hidden mt-4 backdrop-blur-md">
                     <div className="px-6 py-5">
-                        <h3 className="text-lg font-bold text-red-400">Danger Zone</h3>
-                        <p className="text-sm text-gray-400 mt-1">Irreversible actions. Please be certain.</p>
+                        <h3 className="text-lg font-bold text-red-600 dark:text-red-400">Danger Zone</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Irreversible actions. Please be certain.</p>
                         <div className="mt-4 flex flex-wrap gap-3 justify-end">
                             <button
                                 onClick={() => setDangerModal({ isOpen: true, type: 'expenses' })}
-                                className="px-4 py-2 bg-white/5 border border-red-500/30 text-red-400 text-sm font-bold rounded-lg hover:bg-red-500/10 transition-colors"
+                                className="px-4 py-2 bg-white dark:bg-white/5 border border-red-500/30 text-red-600 dark:text-red-400 text-sm font-bold rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                             >
                                 Delete All Expenses
                             </button>
                             <button
                                 onClick={() => setDangerModal({ isOpen: true, type: 'all' })}
-                                className="px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-bold rounded-lg hover:bg-red-500/20 transition-colors"
+                                className="px-4 py-2 bg-red-50 dark:bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-sm font-bold rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
                             >
                                 Reset Account
+                            </button>
+                            <button
+                                onClick={() => setDangerModal({ isOpen: true, type: 'account' })}
+                                className="px-4 py-2 bg-red-600 border-2 border-red-500 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20"
+                            >
+                                Delete Account Permanently
                             </button>
                         </div>
                     </div>
                 </section >
 
                 {/* Danger Modal */}
-                {dangerModal.isOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setDangerModal({ isOpen: false, type: null })}></div>
-                        <div className="relative bg-[#1a1c23] border border-red-500/30 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in-up">
-                            <div className="w-16 h-16 rounded-full bg-red-500/10 mx-auto flex items-center justify-center text-red-500 mb-4">
-                                <span className="material-symbols-outlined text-3xl">warning</span>
-                            </div>
-                            <h2 className="text-xl font-bold text-white text-center mb-2">Are you sure?</h2>
-                            <p className="text-gray-400 text-center text-sm mb-6">
-                                {dangerModal.type === 'expenses'
-                                    ? "This will permanently delete ALL expenses you have paid for. This cannot be undone."
-                                    : "This will delete ALL your expenses and groups you created. This cannot be undone."}
-                            </p>
+                {
+                    dangerModal.isOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setDangerModal({ isOpen: false, type: null })}></div>
+                            <div className="relative bg-white dark:bg-[#1a1c23] border border-red-500/30 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in-up">
+                                <div className="w-16 h-16 rounded-full bg-red-500/10 mx-auto flex items-center justify-center text-red-500 mb-4">
+                                    <span className="material-symbols-outlined text-3xl">warning</span>
+                                </div>
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-2">Are you sure?</h2>
+                                <p className="text-gray-600 dark:text-gray-400 text-center text-sm mb-6">
+                                    {dangerModal.type === 'expenses'
+                                        ? "This will permanently delete ALL expenses you have paid for. This cannot be undone."
+                                        : dangerModal.type === 'account'
+                                            ? "⚠️ This will PERMANENTLY DELETE your account, including all expenses, groups, and data. You will be logged out and cannot recover this account. This action is IRREVERSIBLE."
+                                            : "This will delete ALL your expenses and groups you created. This cannot be undone."}
+                                </p>
 
-                            <div className="mb-6">
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Type "DELETE" to confirm</label>
-                                <input
-                                    type="text"
-                                    value={confirmText}
-                                    onChange={(e) => setConfirmText(e.target.value)}
-                                    className="w-full bg-black/30 border border-red-500/30 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500 transition-colors font-mono"
-                                    placeholder="DELETE"
-                                />
-                            </div>
+                                <div className="mb-6">
+                                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-500 uppercase mb-2">Type "DELETE" to confirm</label>
+                                    <input
+                                        type="text"
+                                        value={confirmText}
+                                        onChange={(e) => setConfirmText(e.target.value)}
+                                        className="w-full bg-gray-100 dark:bg-black/30 border border-red-500/30 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:border-red-500 transition-colors font-mono"
+                                        placeholder="DELETE"
+                                    />
+                                </div>
 
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setDangerModal({ isOpen: false, type: null })}
-                                    className="flex-1 px-4 py-2 text-gray-400 font-bold hover:text-white transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleConfirmDelete}
-                                    disabled={confirmText !== 'DELETE'}
-                                    className="flex-1 px-4 py-2 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Confirm Delete
-                                </button>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setDangerModal({ isOpen: false, type: null })}
+                                        className="flex-1 px-4 py-2 text-gray-600 dark:text-gray-400 font-bold hover:text-gray-900 dark:hover:text-white transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleConfirmDelete}
+                                        disabled={confirmText !== 'DELETE'}
+                                        className="flex-1 px-4 py-2 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Confirm Delete
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
                 {/* Action Bar */}
                 < div className="sticky bottom-4 z-40 bg-white/5 backdrop-blur-md p-4 rounded-xl border border-white/10 shadow-lg flex justify-end gap-3" >
@@ -402,17 +426,17 @@ const SettingsPage = () => {
                         Save Changes
                     </button>
                 </div>
-            </div>
+            </div >
 
             {/* Avatar Picker Modal */}
-            <AvatarPickerModal
+            < AvatarPickerModal
                 isOpen={isAvatarPickerOpen}
                 currentPhotoURL={userAvatar || currentUser?.photoURL}
                 userId={currentUser?.uid}
                 onClose={() => setIsAvatarPickerOpen(false)}
                 onSave={handleAvatarSave}
             />
-        </div>
+        </div >
     );
 };
 

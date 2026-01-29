@@ -85,7 +85,7 @@ const ExpensesPage = () => {
         const now = new Date();
 
         expenses.forEach(expense => {
-            const date = expense.date?.toDate ? expense.date.toDate() : new Date(expense.date);
+            const date = (expense.date && expense.date.toDate) ? expense.date.toDate() : new Date(expense.date || Date.now());
             const dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
             // Determine label (Today, Yesterday, or date)
@@ -133,6 +133,7 @@ const ExpensesPage = () => {
             shopping: { icon: 'shopping_bag', color: 'purple' },
             entertainment: { icon: 'movie', color: 'pink' },
             bills: { icon: 'receipt_long', color: 'orange' },
+            settlement: { icon: 'payments', color: 'green' },
             other: { icon: 'category', color: 'gray' }
         };
         return styles[category] || styles.other;

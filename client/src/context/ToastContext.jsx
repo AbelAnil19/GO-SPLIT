@@ -9,14 +9,17 @@ export const useToast = () => useContext(ToastContext);
 export const ToastProvider = ({ children }) => {
     const [toasts, setToasts] = useState([]);
 
-    const addToast = useCallback((message, type = 'info') => {
+    const addToast = useCallback((message, type = 'info', options = {}) => {
         const id = Date.now();
-        setToasts((prev) => [...prev, { id, message, type }]);
+        const duration = options.duration || 5000;
+        const onClick = options.onClick;
 
-        // Auto remove after 3 seconds
+        setToasts((prev) => [...prev, { id, message, type, duration, onClick }]);
+
+        // Auto remove after duration
         setTimeout(() => {
             removeToast(id);
-        }, 5000);
+        }, duration);
     }, []);
 
     const removeToast = useCallback((id) => {
@@ -37,7 +40,14 @@ export const ToastProvider = ({ children }) => {
                             ${toast.type === 'error' ? 'bg-red-500/20 dark:bg-red-500/20 text-red-800 dark:text-red-200 border-red-500/30' : ''}
                             ${toast.type === 'info' ? 'bg-blue-500/20 dark:bg-blue-500/20 text-blue-900 dark:text-blue-200 border-blue-500/30' : ''}
                             ${toast.type === 'warning' ? 'bg-amber-500/20 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/30' : ''}
+                            ${toast.onClick ? 'cursor-pointer hover:scale-105 active:scale-95 ring-2 ring-offset-2 ring-transparent hover:ring-white/20' : ''}
                         `}
+                        onClick={() => {
+                            if (toast.onClick) {
+                                toast.onClick();
+                                removeToast(toast.id);
+                            }
+                        }}
                     >
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
@@ -59,7 +69,7 @@ export const ToastProvider = ({ children }) => {
                                 ${toast.type === 'error' ? 'bg-red-500' : ''}
                                 ${toast.type === 'info' ? 'bg-blue-500' : ''}
                                 ${toast.type === 'warning' ? 'bg-amber-500' : ''}
-                             `}></div>
+                             `} style={{ animationDuration: `${toast.duration}ms` }}></div>
                         </div>
                     </div>
                 ))}

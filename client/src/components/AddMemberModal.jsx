@@ -24,14 +24,20 @@ const AddMemberModal = ({ isOpen, onClose, groupId, groupName, currentMembers = 
 
         setLoading(true);
         try {
-            await sendGroupInvitation(
+            const result = await sendGroupInvitation(
                 groupId,
                 groupName,
                 currentUser.displayName,
                 email,
-                currentUser.uid // Pass inviterId for permissions
+                currentUser.uid
             );
-            addToast(`Invitation sent to ${email}!`, 'success');
+
+            if (result.pendingApproval) {
+                addToast('Request sent to admin for approval', 'info');
+            } else {
+                addToast(`Invitation sent to ${email}!`, 'success');
+            }
+
             setEmail('');
             onClose();
         } catch (error) {
@@ -56,11 +62,11 @@ const AddMemberModal = ({ isOpen, onClose, groupId, groupName, currentMembers = 
                 </div>
 
                 <div className="mb-6">
-                    <p className="text-gray-400 text-sm mb-4">
-                        Add a member to <span className="text-white font-semibold">{groupName}</span> by entering their email address.
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                        Add a member to <span className="text-gray-900 dark:text-white font-semibold">{groupName}</span> by entering their email address.
                     </p>
 
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Email Address
                     </label>
                     <input
@@ -75,18 +81,18 @@ const AddMemberModal = ({ isOpen, onClose, groupId, groupName, currentMembers = 
                     />
 
                     {currentMembers.length > 0 && (
-                        <div className="mt-4 p-3 bg-white/5 rounded-xl">
-                            <p className="text-xs text-gray-400 mb-2">Current members:</p>
+                        <div className="mt-4 p-3 bg-gray-100 dark:bg-white/5 rounded-xl">
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Current members:</p>
                             <div className="flex flex-wrap gap-2">
                                 {currentMembers.map((member, idx) => (
                                     <div
                                         key={idx}
-                                        className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-lg"
+                                        className="flex items-center gap-2 bg-gray-200 dark:bg-white/5 px-2 py-1 rounded-lg"
                                     >
                                         <div className="size-6 rounded-full bg-amber-400 flex items-center justify-center text-xs font-bold text-black">
                                             {member.name?.charAt(0)}
                                         </div>
-                                        <span className="text-xs text-white">{member.name}</span>
+                                        <span className="text-xs text-gray-900 dark:text-white">{member.name}</span>
                                         {member.role === 'admin' && (
                                             <span className="text-xs text-amber-400">★</span>
                                         )}
@@ -111,7 +117,7 @@ const AddMemberModal = ({ isOpen, onClose, groupId, groupName, currentMembers = 
                     <button
                         onClick={onClose}
                         disabled={loading}
-                        className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
+                        className="flex-1 px-4 py-3 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-900 dark:text-white rounded-xl font-semibold transition-colors disabled:opacity-50"
                     >
                         Cancel
                     </button>

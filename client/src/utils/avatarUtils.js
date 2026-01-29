@@ -66,6 +66,20 @@ export const getStyleFromUrl = (url) => {
 };
 
 /**
+ * Extract seed from DiceBear URL
+ * @param {string} url - Avatar URL
+ * @returns {string|null} Seed value or null
+ */
+export const getSeedFromUrl = (url) => {
+    if (!url || !url.includes('dicebear.com')) {
+        return null;
+    }
+
+    const match = url.match(/seed=([^&]+)/);
+    return match ? match[1] : null;
+};
+
+/**
  * Get default avatar URL for new users
  * @param {string} userId - User ID to use as seed
  * @returns {string} Default avatar URL
@@ -73,3 +87,4 @@ export const getStyleFromUrl = (url) => {
 export const getDefaultAvatar = (userId) => {
     return getAvatarUrl('avataaars', userId);
 };
+
