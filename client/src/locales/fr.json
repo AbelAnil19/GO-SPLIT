@@ -1,0 +1,60 @@
+{
+    "sidebar": {
+        "dashboard": "Tableau de Bord",
+        "groups": "Groupes",
+        "expenses": "Dépenses",
+        "travelBudget": "Budget Voyage",
+        "history": "Historique",
+        "settings": "Paramètres",
+        "logout": "Déconnexion"
+    },
+    "common": {
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "delete": "Supprimer",
+        "edit": "Modifier",
+        "add": "Ajouter",
+        "loading": "Chargement...",
+        "search": "Rechercher",
+        "confirm": "Confirmer",
+        "warning": "Attention",
+        "error": "Erreur",
+        "success": "Succès"
+    },
+    "settings": {
+        "title": "Paramètres",
+        "subtitle": "Gérez votre profil, vos préférences de devise et vos paramètres de sécurité.",
+        "personalInfo": "Informations Personnelles",
+        "firstName": "Prénom",
+        "lastName": "Nom",
+        "email": "Adresse Email",
+        "phone": "Numéro de Téléphone",
+        "upi": "ID UPI (pour les paiements)",
+        "regional": "Préférences Régionales",
+        "currency": "Devise par Défaut",
+        "currencyHelp": "Ce sera la devise par défaut pour les nouvelles dépenses.",
+        "language": "Langue",
+        "notifications": "Notifications",
+        "notifExpense": "Dépense Ajoutée",
+        "notifExpenseDesc": "Soyez notifié quand quelqu'un ajoute une dépense à un groupe.",
+        "notifSettlement": "Rappels de Règlement",
+        "notifSettlementDesc": "Recevez des résumés hebdomadaires des soldes impayés.",
+        "notifMarketing": "Emails Marketing",
+        "notifMarketingDesc": "Recevez des nouvelles, mises à jour et offres de GoSplit.",
+        "dangerZone": "Zone de Danger",
+        "dangerZoneDesc": "Actions irréversibles. Soyez certain.",
+        "deleteExpenses": "Supprimer Toutes les Dépenses",
+        "resetAccount": "Réinitialiser le Compte",
+        "deleteAccount": "Supprimer le Compte Définitivement"
+    },
+    "dashboard": {
+        "welcome": "Bon retour,",
+        "totalOwed": "Total dû",
+        "totalOwe": "Total à payer",
+        "recentActivity": "Activité Récente",
+        "yourGroups": "Vos Groupes",
+        "createGroup": "Créer un Groupe",
+        "pendingSettlements": "Règlements en Attente",
+        "settleUp": "Régler"
+    }
+}

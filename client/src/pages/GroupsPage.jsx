@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
-import { listenToUserGroups, createGroup, deleteGroup } from '../firebase/firestore';
+import { listenToUserGroups, createGroup, deleteGroup, getUserDocument } from '../firebase/firestore';
 import AddMemberModal from '../components/AddMemberModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import GroupInvitations from '../components/GroupInvitations';
@@ -18,6 +18,7 @@ const GroupsPage = () => {
     const [loading, setLoading] = useState(true);
     const [selectedGroup, setSelectedGroup] = useState(null);
     const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, group: null });
+    const [memberAvatars, setMemberAvatars] = useState({}); // Map userId to fresh photoURL
 
     // Fetch user's groups with real-time listener
     useEffect(() => {
@@ -31,6 +32,47 @@ const GroupsPage = () => {
 
         return () => unsubscribe();
     }, [currentUser]);
+
+    // Fetch fresh avatars for visible members
+    useEffect(() => {
+        const fetchAvatars = async () => {
+            if (groups.length === 0) return;
+
+            // Collect all unique user IDs from top 3 members of each group
+            const userIds = new Set();
+            groups.forEach(group => {
+                group.members?.slice(0, 3).forEach(member => {
+                    userIds.add(member.userId);
+                });
+            });
+
+            // Filter out IDs we already have
+            const idsToFetch = [...userIds].filter(id => !memberAvatars[id]);
+
+            if (idsToFetch.length === 0) return;
+
+            // Fetch in parallel
+            try {
+                const userDocsPromises = idsToFetch.map(uid => getUserDocument(uid));
+                const userDocs = await Promise.all(userDocsPromises);
+
+                setMemberAvatars(prev => {
+                    const newMap = { ...prev };
+                    userDocs.forEach((doc, index) => {
+                        const uid = idsToFetch[index];
+                        if (doc) {
+                            newMap[uid] = doc.photoURL;
+                        }
+                    });
+                    return newMap;
+                });
+            } catch (error) {
+                console.error("Error fetching group member avatars:", error);
+            }
+        };
+
+        fetchAvatars();
+    }, [groups]);
 
     const handleCreateGroup = async () => {
         if (!newGroupName.trim()) {
@@ -140,71 +182,89 @@ const GroupsPage = () => {
                 )}
 
                 {/* Real Group Cards */}
-                {!loading && filteredGroups.map((group) => (
-                    <div
-                        key={group.id}
-                        onClick={() => navigate(`/dashboard/groups/${group.id}`)}
-                        className="group flex flex-col justify-between bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] p-5 rounded-2xl border-2 border-gray-200 dark:border-white/10 hover:border-amber-400/50 hover:shadow-xl transition-all duration-300 shadow-md dark:shadow-none backdrop-blur-[2px] cursor-pointer"
-                    >
-                        <div>
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="size-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400">
-                                    <span className="material-symbols-outlined">{group.icon || 'groups'}</span>
+                {!loading && filteredGroups.map((group) => {
+                    // Customization logic
+                    const icon = group.customization?.icon || 'groups';
+                    const color = group.customization?.color || '#F59E0B'; // Default Amber
+
+                    return (
+                        <div
+                            key={group.id}
+                            onClick={() => navigate(`/dashboard/groups/${group.id}`)}
+                            className="group flex flex-col justify-between bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] p-5 rounded-2xl border-2 border-gray-200 dark:border-white/10 hover:border-amber-400/50 hover:shadow-xl transition-all duration-300 shadow-md dark:shadow-none backdrop-blur-[2px] cursor-pointer"
+                        >
+                            <div>
+                                <div className="flex justify-between items-start mb-4">
+                                    <div
+                                        className="size-12 rounded-xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform duration-300"
+                                        style={{
+                                            background: `linear-gradient(135deg, ${color}33, ${color}11)`,
+                                            color: color,
+                                            boxShadow: `0 4px 12px ${color}22`
+                                        }}
+                                    >
+                                        <span className="text-2xl" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}>
+                                            {icon}
+                                        </span>
+                                    </div>
+                                </div>
+                                <h3 className="text-lg font-bold text-[#0d191b] dark:text-white mb-1">{group.name}</h3>
+                                <p className="text-sm text-[#5c6f73] dark:text-gray-400 mb-4 line-clamp-2">
+                                    {group.customization?.description || `${group.members?.length || 0} member${(group.members?.length || 0) !== 1 ? 's' : ''}`}
+                                </p>
+                                <div className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Expenses</p>
+                                    <p className="text-xl font-bold text-[#0d191b] dark:text-white">₹{group.totalExpenses || 0}</p>
                                 </div>
                             </div>
-                            <h3 className="text-lg font-bold text-[#0d191b] dark:text-white mb-1">{group.name}</h3>
-                            <p className="text-sm text-[#5c6f73] dark:text-gray-400 mb-4">
-                                {group.members?.length || 0} member{(group.members?.length || 0) !== 1 ? 's' : ''}
-                            </p>
-                            <div className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Expenses</p>
-                                <p className="text-xl font-bold text-[#0d191b] dark:text-white">₹{group.totalExpenses || 0}</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200 dark:border-white/5">
-                            <div className="flex items-center -space-x-2">
-                                {group.members?.slice(0, 3).map((member, idx) => (
-                                    member.photoURL ? (
-                                        <img
-                                            key={idx}
-                                            src={member.photoURL}
-                                            alt={member.name}
-                                            className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] object-cover"
-                                            title={member.name}
-                                        />
-                                    ) : (
-                                        <div
-                                            key={idx}
-                                            className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-bold text-black"
-                                            title={member.name}
-                                        >
-                                            {member.name?.charAt(0)}
+                            <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200 dark:border-white/5">
+                                <div className="flex items-center -space-x-2">
+                                    {group.members?.slice(0, 3).map((member, idx) => {
+                                        // Use fresh avatar if available, otherwise fallback to group data
+                                        const photoURL = memberAvatars[member.userId] || member.photoURL;
+
+                                        return photoURL ? (
+                                            <img
+                                                key={idx}
+                                                src={photoURL}
+                                                alt={member.name}
+                                                className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] object-cover"
+                                                title={member.name}
+                                            />
+                                        ) : (
+                                            <div
+                                                key={idx}
+                                                className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-bold text-black"
+                                                title={member.name}
+                                            >
+                                                {member.name?.charAt(0)}
+                                            </div>
+                                        );
+                                    })}
+                                    {(group.members?.length || 0) > 3 && (
+                                        <div className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-[#5c6f73] dark:text-gray-400">
+                                            +{(group.members?.length || 0) - 3}
                                         </div>
-                                    )
-                                ))}
-                                {(group.members?.length || 0) > 3 && (
-                                    <div className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-[#5c6f73] dark:text-gray-400">
-                                        +{(group.members?.length || 0) - 3}
-                                    </div>
+                                    )}
+                                </div>
+                                {/* Only show delete button if current user is the creator */}
+                                {group.createdBy === currentUser.uid && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeleteConfirmation({ isOpen: true, group });
+                                        }}
+                                        className="text-xs font-semibold text-red-500 hover:text-red-400 transition-colors flex items-center gap-1"
+                                        title="Delete Group"
+                                    >
+                                        <span className="material-symbols-outlined text-sm">delete</span>
+                                        Delete
+                                    </button>
                                 )}
                             </div>
-                            {/* Only show delete button if current user is the creator */}
-                            {group.createdBy === currentUser.uid && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDeleteConfirmation({ isOpen: true, group });
-                                    }}
-                                    className="text-xs font-semibold text-red-500 hover:text-red-400 transition-colors flex items-center gap-1"
-                                    title="Delete Group"
-                                >
-                                    <span className="material-symbols-outlined text-sm">delete</span>
-                                    Delete
-                                </button>
-                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
 
                 {/* Create New Group Card */}
                 {!loading && (
@@ -224,39 +284,41 @@ const GroupsPage = () => {
             </div>
 
             {/* Create Group Modal */}
-            {isCreateModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl border-2 border-gray-300 dark:border-white/10">
-                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Create New Group</h3>
-                        <input
-                            type="text"
-                            value={newGroupName}
-                            onChange={(e) => setNewGroupName(e.target.value)}
-                            placeholder="Enter group name..."
-                            className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent mb-6"
-                            onKeyPress={(e) => e.key === 'Enter' && handleCreateGroup()}
-                            autoFocus
-                        />
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => {
-                                    setIsCreateModalOpen(false);
-                                    setNewGroupName('');
-                                }}
-                                className="flex-1 px-4 py-3 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-900 dark:text-white rounded-xl font-semibold transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleCreateGroup}
-                                className="flex-1 px-4 py-3 bg-amber-400 hover:bg-amber-300 text-black rounded-xl font-semibold transition-colors"
-                            >
-                                Create Group
-                            </button>
+            {
+                isCreateModalOpen && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl border-2 border-gray-300 dark:border-white/10">
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Create New Group</h3>
+                            <input
+                                type="text"
+                                value={newGroupName}
+                                onChange={(e) => setNewGroupName(e.target.value)}
+                                placeholder="Enter group name..."
+                                className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent mb-6"
+                                onKeyPress={(e) => e.key === 'Enter' && handleCreateGroup()}
+                                autoFocus
+                            />
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setIsCreateModalOpen(false);
+                                        setNewGroupName('');
+                                    }}
+                                    className="flex-1 px-4 py-3 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-900 dark:text-white rounded-xl font-semibold transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleCreateGroup}
+                                    className="flex-1 px-4 py-3 bg-amber-400 hover:bg-amber-300 text-black rounded-xl font-semibold transition-colors"
+                                >
+                                    Create Group
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Add Member Modal */}
             <AddMemberModal

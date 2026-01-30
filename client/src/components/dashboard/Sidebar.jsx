@@ -12,10 +12,13 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { doSignOut } from '../../firebase/auth';
 
+import { useTranslation } from 'react-i18next';
+
 const Sidebar = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { addToast } = useToast();
+    const { t } = useTranslation();
     const dashboardIconRef = useRef(null);
     const groupsIconRef = useRef(null);
     const expensesIconRef = useRef(null);
@@ -25,12 +28,12 @@ const Sidebar = () => {
     const logoutIconRef = useRef(null);
 
     const navItems = [
-        { icon: 'dashboard', label: 'Dashboard', path: '/dashboard' },
-        { icon: 'groups', label: 'Groups', path: '/dashboard/groups' },
-        { icon: 'receipt_long', label: 'Expenses', path: '/dashboard/expenses' },
-        { icon: 'flight_takeoff', label: 'Travel Budget', path: '/dashboard/trip-planner' },
-        { icon: 'history', label: 'History', path: '/dashboard/history' },
-        { icon: 'settings', label: 'Settings', path: '/dashboard/settings' }
+        { icon: 'dashboard', label: t('sidebar.dashboard'), path: '/dashboard' },
+        { icon: 'groups', label: t('sidebar.groups'), path: '/dashboard/groups' },
+        { icon: 'receipt_long', label: t('sidebar.expenses'), path: '/dashboard/expenses' },
+        { icon: 'flight_takeoff', label: t('sidebar.travelBudget'), path: '/dashboard/trip-planner' },
+        { icon: 'history', label: t('sidebar.history'), path: '/dashboard/history' },
+        { icon: 'settings', label: t('sidebar.settings'), path: '/dashboard/settings' }
     ];
 
     const isActive = (path) => {
@@ -109,7 +112,7 @@ const Sidebar = () => {
                     className="flex items-center gap-3 px-4 py-3 rounded-xl text-[#5c6f73] dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-all duration-300 w-full group"
                 >
                     <LogoutIcon ref={logoutIconRef} size={20} duration={0.8} isAnimated={false} />
-                    <span className="font-medium text-sm">Logout</span>
+                    <span className="font-medium text-sm">{t('sidebar.logout')}</span>
                 </button>
             </div>
         </aside>

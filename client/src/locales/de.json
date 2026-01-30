@@ -1,0 +1,60 @@
+{
+    "sidebar": {
+        "dashboard": "Dashboard",
+        "groups": "Gruppen",
+        "expenses": "Ausgaben",
+        "travelBudget": "Reisebudget",
+        "history": "Verlauf",
+        "settings": "Einstellungen",
+        "logout": "Abmelden"
+    },
+    "common": {
+        "save": "Änderungen Speichern",
+        "cancel": "Abbrechen",
+        "delete": "Löschen",
+        "edit": "Bearbeiten",
+        "add": "Hinzufügen",
+        "loading": "Laden...",
+        "search": "Suchen",
+        "confirm": "Bestätigen",
+        "warning": "Warnung",
+        "error": "Fehler",
+        "success": "Erfolg"
+    },
+    "settings": {
+        "title": "Einstellungen",
+        "subtitle": "Verwalten Sie Ihre Profildetails, Währungseinstellungen und Sicherheitseinstellungen.",
+        "personalInfo": "Persönliche Informationen",
+        "firstName": "Vorname",
+        "lastName": "Nachname",
+        "email": "E-Mail-Adresse",
+        "phone": "Telefonnummer",
+        "upi": "UPI-ID (für Zahlungen)",
+        "regional": "Regionale Einstellungen",
+        "currency": "Standardwährung",
+        "currencyHelp": "Dies ist die Standardwährung für neue Ausgaben.",
+        "language": "Sprache",
+        "notifications": "Benachrichtigungen",
+        "notifExpense": "Ausgabe Hinzugefügt",
+        "notifExpenseDesc": "Werden Sie benachrichtigt, wenn jemand eine Ausgabe zu einer Gruppe hinzufügt.",
+        "notifSettlement": "Abrechnungserinnerungen",
+        "notifSettlementDesc": "Erhalten Sie wöchentliche Zusammenfassungen offener Salden.",
+        "notifMarketing": "Marketing-E-Mails",
+        "notifMarketingDesc": "Erhalten Sie Neuigkeiten, Updates und Angebote von GoSplit.",
+        "dangerZone": "Gefahrenzone",
+        "dangerZoneDesc": "Irreversible Aktionen. Bitte seien Sie sicher.",
+        "deleteExpenses": "Alle Ausgaben Löschen",
+        "resetAccount": "Konto Zurücksetzen",
+        "deleteAccount": "Konto Dauerhaft Löschen"
+    },
+    "dashboard": {
+        "welcome": "Willkommen zurück,",
+        "totalOwed": "Gesamtbetrag, den Sie erhalten",
+        "totalOwe": "Gesamtbetrag, den Sie schulden",
+        "recentActivity": "Letzte Aktivität",
+        "yourGroups": "Ihre Gruppen",
+        "createGroup": "Gruppe Erstellen",
+        "pendingSettlements": "Ausstehende Abrechnungen",
+        "settleUp": "Begleichen"
+    }
+}

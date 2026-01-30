@@ -1,0 +1,60 @@
+{
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "groups": "Groups",
+    "expenses": "Expenses",
+    "travelBudget": "Travel Budget",
+    "history": "History",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "common": {
+    "save": "Save Changes",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "loading": "Loading...",
+    "search": "Search",
+    "confirm": "Confirm",
+    "warning": "Warning",
+    "error": "Error",
+    "success": "Success"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your profile details, currency preferences, and security settings.",
+    "personalInfo": "Personal Information",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "email": "Email Address",
+    "phone": "Phone Number",
+    "upi": "UPI ID (for payments)",
+    "regional": "Regional Preferences",
+    "currency": "Default Currency",
+    "currencyHelp": "This will be the default currency for new expenses.",
+    "language": "Language",
+    "notifications": "Notifications",
+    "notifExpense": "Expense Added",
+    "notifExpenseDesc": "Get notified when someone adds an expense to a group.",
+    "notifSettlement": "Settlement Reminders",
+    "notifSettlementDesc": "Receive weekly summaries of outstanding balances.",
+    "notifMarketing": "Marketing Emails",
+    "notifMarketingDesc": "Receive news, updates, and offers from GoSplit.",
+    "dangerZone": "Danger Zone",
+    "dangerZoneDesc": "Irreversible actions. Please be certain.",
+    "deleteExpenses": "Delete All Expenses",
+    "resetAccount": "Reset Account",
+    "deleteAccount": "Delete Account Permanently"
+  },
+  "dashboard": {
+    "welcome": "Welcome back,",
+    "totalOwed": "Total you are owed",
+    "totalOwe": "Total you owe",
+    "recentActivity": "Recent Activity",
+    "yourGroups": "Your Groups",
+    "createGroup": "Create Group",
+    "pendingSettlements": "Pending Settlements",
+    "settleUp": "Settle Up"
+  }
+}

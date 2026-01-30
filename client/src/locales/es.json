@@ -1,0 +1,60 @@
+{
+    "sidebar": {
+        "dashboard": "Panel de Control",
+        "groups": "Grupos",
+        "expenses": "Gastos",
+        "travelBudget": "Presupuesto de Viaje",
+        "history": "Historial",
+        "settings": "Configuración",
+        "logout": "Cerrar Sesión"
+    },
+    "common": {
+        "save": "Guardar Cambios",
+        "cancel": "Cancelar",
+        "delete": "Eliminar",
+        "edit": "Editar",
+        "add": "Añadir",
+        "loading": "Cargando...",
+        "search": "Buscar",
+        "confirm": "Confirmar",
+        "warning": "Advertencia",
+        "error": "Error",
+        "success": "Éxito"
+    },
+    "settings": {
+        "title": "Configuración",
+        "subtitle": "Administra los detalles de tu perfil, preferencias de moneda y seguridad.",
+        "personalInfo": "Información Personal",
+        "firstName": "Nombre",
+        "lastName": "Apellido",
+        "email": "Correo Electrónico",
+        "phone": "Número de Teléfono",
+        "upi": "ID UPI (para pagos)",
+        "regional": "Preferencias Regionales",
+        "currency": "Moneda Predeterminada",
+        "currencyHelp": "Esta será la moneda predeterminada para nuevos gastos.",
+        "language": "Idioma",
+        "notifications": "Notificaciones",
+        "notifExpense": "Gasto Añadido",
+        "notifExpenseDesc": "Recibe una notificación cuando alguien añade un gasto a un grupo.",
+        "notifSettlement": "Recordatorios de Liquidación",
+        "notifSettlementDesc": "Recibe resúmenes semanales de saldos pendientes.",
+        "notifMarketing": "Correos de Marketing",
+        "notifMarketingDesc": "Recibe noticias, actualizaciones y ofertas de GoSplit.",
+        "dangerZone": "Zona de Peligro",
+        "dangerZoneDesc": "Acciones irreversibles. Por favor, asegúrate.",
+        "deleteExpenses": "Eliminar Todos los Gastos",
+        "resetAccount": "Restablecer Cuenta",
+        "deleteAccount": "Eliminar Cuenta Permanentemente"
+    },
+    "dashboard": {
+        "welcome": "Bienvenido de nuevo,",
+        "totalOwed": "Total que te deben",
+        "totalOwe": "Total que debes",
+        "recentActivity": "Actividad Reciente",
+        "yourGroups": "Tus Grupos",
+        "createGroup": "Crear Grupo",
+        "pendingSettlements": "Liquidaciones Pendientes",
+        "settleUp": "Liquidar"
+    }
+}

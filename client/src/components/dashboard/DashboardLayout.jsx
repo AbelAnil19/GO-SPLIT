@@ -22,17 +22,24 @@ const DashboardLayout = () => {
 
             if (!currentUser) return;
 
-            // Reload user to get latest emailVerified status
-            try {
-                await currentUser.reload();
-            } catch (error) {
-                console.error('Error reloading user:', error);
-            }
-
             // Check if email is verified (skip for Google users)
             const isGoogleUser = currentUser.providerData?.some(
                 provider => provider.providerId === 'google.com'
             );
+
+            // Optimization: If already verified, no need to reload!
+            // This prevents "503 Service Unavailable" errors from spamming the API
+            if (currentUser.emailVerified || isGoogleUser) {
+                return;
+            }
+
+            // Reload user to get latest emailVerified status
+            try {
+                await currentUser.reload();
+            } catch (error) {
+                console.warn('⚠️ Skipping user reload due to network/service error:', error);
+                // Continue execution - don't crash the app
+            }
 
             if (!currentUser.emailVerified && !isGoogleUser) {
                 // Only show toast once per mount

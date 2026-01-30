@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { doDeleteUser } from '../firebase/auth';
-import { updateUserDocument, getUserDocument, deleteAllUserExpenses, deleteAllCreatedGroups, updateUserAvatar } from '../firebase/firestore';
+import { updateUserDocument, getUserDocument, softDeleteUserAccount, updateUserAvatar } from '../firebase/firestore';
+import ConfirmationModal from '../components/ConfirmationModal';
+import BalanceCheckModal from '../components/BalanceCheckModal';
 import AvatarPickerModal from '../components/AvatarPickerModal';
 
 const SettingsPage = () => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
     const navigate = useNavigate();
+    const { t, i18n } = useTranslation();
+
     const [firstName, setFirstName] = useState(currentUser?.displayName?.split(' ')[0] || '');
     const [lastName, setLastName] = useState(currentUser?.displayName?.split(' ')[1] || '');
     const [email, setEmail] = useState(currentUser?.email || '');
@@ -23,7 +28,11 @@ const SettingsPage = () => {
     const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
     const [userAvatar, setUserAvatar] = useState(currentUser?.photoURL || '');
 
-    // Fetch user details from Firestore
+    // Phase 2: Balance check modal state
+    const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
+    const [isFinalDeleteModalOpen, setIsFinalDeleteModalOpen] = useState(false);
+
+    // Fetch user details from Firestore and sync i18n
     React.useEffect(() => {
         const fetchUserData = async () => {
             if (currentUser?.uid) {
@@ -33,7 +42,13 @@ const SettingsPage = () => {
                         if (userData.phone) setPhone(userData.phone);
                         if (userData.upiId) setUpiId(userData.upiId);
                         if (userData.currency) setCurrency(userData.currency);
-                        if (userData.language) setLanguage(userData.language);
+                        if (userData.language) {
+                            setLanguage(userData.language);
+                            i18n.changeLanguage(userData.language);
+                        } else if (i18n.language) {
+                            // If no DB preference, sync state with current i18n language
+                            setLanguage(i18n.language.split('-')[0]);
+                        }
                         if (userData.photoURL) setUserAvatar(userData.photoURL);
                     }
                 } catch (error) {
@@ -43,6 +58,13 @@ const SettingsPage = () => {
         };
         fetchUserData();
     }, [currentUser]);
+
+    // Handle language change
+    const handleLanguageChange = (e) => {
+        const newLang = e.target.value;
+        setLanguage(newLang);
+        i18n.changeLanguage(newLang);
+    };
 
     const handleSave = async () => {
         try {
@@ -58,10 +80,14 @@ const SettingsPage = () => {
                     marketing: notifMarketing
                 }
             });
-            addToast('Settings saved successfully!', 'success');
+            // Ensure i18n stays in sync if saved
+            if (language !== i18n.language) {
+                i18n.changeLanguage(language);
+            }
+            addToast(t('common.save'), 'success');
         } catch (error) {
             console.error("Error saving settings:", error);
-            addToast('Failed to save settings', 'error');
+            addToast(t('common.error'), 'error');
         }
     };
 
@@ -69,15 +95,15 @@ const SettingsPage = () => {
         try {
             await updateUserAvatar(currentUser.uid, newPhotoURL, avatarStyle);
             setUserAvatar(newPhotoURL);
-            addToast('Avatar updated successfully!', 'success');
+            addToast(t('common.success'), 'success');
         } catch (error) {
             console.error("Error updating avatar:", error);
-            addToast('Failed to update avatar', 'error');
+            addToast(t('common.error'), 'error');
         }
     };
 
     const handleCancel = () => {
-        addToast('Changes cancelled', 'info');
+        addToast(t('common.cancel'), 'info');
     };
 
     const [dangerModal, setDangerModal] = useState({ isOpen: false, type: null });
@@ -89,18 +115,18 @@ const SettingsPage = () => {
         try {
             if (dangerModal.type === 'expenses') {
                 await deleteAllUserExpenses(currentUser.uid);
-                addToast('All your expenses have been deleted.', 'success');
+                addToast(t('common.success'), 'success');
             } else if (dangerModal.type === 'all') {
                 await deleteAllUserExpenses(currentUser.uid);
                 await deleteAllCreatedGroups(currentUser.uid);
-                addToast('Your account has been reset.', 'success');
+                addToast(t('common.success'), 'success');
             } else if (dangerModal.type === 'account') {
-                // Delete all user data first
-                await deleteAllUserExpenses(currentUser.uid);
-                await deleteAllCreatedGroups(currentUser.uid);
-                // Then delete the Firebase Auth account
+                // Soft delete user data (preserves history, transfers groups)
+                await softDeleteUserAccount(currentUser.uid);
+
+                // Then delete the Firebase Auth account (signs out)
                 await doDeleteUser();
-                addToast('Account deleted successfully.', 'success');
+                addToast(t('common.success'), 'success');
                 // Small delay to allow toast to show, then redirect
                 setTimeout(() => {
                     navigate('/login');
@@ -117,9 +143,9 @@ const SettingsPage = () => {
                 return;
             }
             if (error.code === 'auth/requires-recent-login') {
-                addToast('Please log out and log back in before deleting your account.', 'error');
+                addToast(t('common.error'), 'error');
             } else {
-                addToast('Failed to delete account.', 'error');
+                addToast(t('common.error'), 'error');
             }
         }
     };
@@ -128,8 +154,8 @@ const SettingsPage = () => {
         <div className="flex flex-col gap-8 pb-20 max-w-7xl mx-auto">
             {/* Page Heading */}
             <div className="flex flex-col gap-3">
-                <h1 className="text-[#0d191b] dark:text-white text-4xl font-black tracking-tight">Settings</h1>
-                <p className="text-[#5c6f73] dark:text-gray-400 text-base font-normal">Manage your profile details, currency preferences, and security settings.</p>
+                <h1 className="text-[#0d191b] dark:text-white text-4xl font-black tracking-tight">{t('settings.title')}</h1>
+                <p className="text-[#5c6f73] dark:text-gray-400 text-base font-normal">{t('settings.subtitle')}</p>
             </div>
 
             <div className="flex flex-col gap-6">
@@ -166,12 +192,12 @@ const SettingsPage = () => {
                 {/* Personal Information */}
                 <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
                     <div className="px-6 py-5 border-b border-gray-300 dark:border-white/10">
-                        <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">Personal Information</h3>
+                        <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">{t('settings.personalInfo')}</h3>
                     </div>
                     <div className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-gray-300">First Name</label>
+                                <label className="text-sm font-medium text-gray-300">{t('settings.firstName')}</label>
                                 <input
                                     className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
                                     type="text"
@@ -180,7 +206,7 @@ const SettingsPage = () => {
                                 />
                             </div>
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-gray-300">Last Name</label>
+                                <label className="text-sm font-medium text-gray-300">{t('settings.lastName')}</label>
                                 <input
                                     className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
                                     type="text"
@@ -189,7 +215,7 @@ const SettingsPage = () => {
                                 />
                             </div>
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-gray-300">Email Address</label>
+                                <label className="text-sm font-medium text-gray-300">{t('settings.email')}</label>
                                 <div className="relative">
                                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 text-[20px]">mail</span>
                                     <input
@@ -201,7 +227,7 @@ const SettingsPage = () => {
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-gray-300">Phone Number</label>
+                                <label className="text-sm font-medium text-gray-300">{t('settings.phone')}</label>
                                 <div className="relative">
                                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 text-[20px]">phone</span>
                                     <input
@@ -214,7 +240,7 @@ const SettingsPage = () => {
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-gray-300">UPI ID (for payments)</label>
+                                <label className="text-sm font-medium text-gray-300">{t('settings.upi')}</label>
                                 <div className="relative">
                                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 text-[20px]">account_balance_wallet</span>
                                     <input
@@ -233,12 +259,12 @@ const SettingsPage = () => {
                 {/* Regional Preferences */}
                 <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
                     <div className="px-6 py-5 border-b border-gray-300 dark:border-white/10">
-                        <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">Regional Preferences</h3>
+                        <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">{t('settings.regional')}</h3>
                     </div>
                     <div className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-gray-300">Default Currency</label>
+                                <label className="text-sm font-medium text-gray-300">{t('settings.currency')}</label>
                                 <div className="relative">
                                     <select
                                         className="w-full appearance-none rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer"
@@ -253,15 +279,15 @@ const SettingsPage = () => {
                                     </select>
                                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 pointer-events-none">expand_more</span>
                                 </div>
-                                <p className="text-xs text-gray-500">This will be the default currency for new expenses.</p>
+                                <p className="text-xs text-gray-500">{t('settings.currencyHelp')}</p>
                             </div>
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-gray-300">Language</label>
+                                <label className="text-sm font-medium text-gray-300">{t('settings.language')}</label>
                                 <div className="relative">
                                     <select
                                         className="w-full appearance-none rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer"
                                         value={language}
-                                        onChange={(e) => setLanguage(e.target.value)}
+                                        onChange={handleLanguageChange}
                                     >
                                         <option value="en" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">English (US)</option>
                                         <option value="es" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">Spanish</option>
@@ -278,14 +304,14 @@ const SettingsPage = () => {
                 {/* Notifications */}
                 <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
                     <div className="px-6 py-5 border-b border-gray-300 dark:border-white/10">
-                        <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">Notifications</h3>
+                        <h3 className="text-lg font-bold text-[#0d191b] dark:text-white">{t('settings.notifications')}</h3>
                     </div>
                     <div className="p-6 flex flex-col gap-6">
                         {/* Toggle 1 */}
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col gap-0.5">
-                                <p className="text-sm font-bold text-[#0d191b] dark:text-white">Expense Added</p>
-                                <p className="text-sm text-[#5c6f73] dark:text-gray-400">Get notified when someone adds an expense to a group.</p>
+                                <p className="text-sm font-bold text-[#0d191b] dark:text-white">{t('settings.notifExpense')}</p>
+                                <p className="text-sm text-[#5c6f73] dark:text-gray-400">{t('settings.notifExpenseDesc')}</p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input
@@ -301,8 +327,8 @@ const SettingsPage = () => {
                         {/* Toggle 2 */}
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col gap-0.5">
-                                <p className="text-sm font-bold text-[#0d191b] dark:text-white">Settlement Reminders</p>
-                                <p className="text-sm text-gray-400">Receive weekly summaries of outstanding balances.</p>
+                                <p className="text-sm font-bold text-[#0d191b] dark:text-white">{t('settings.notifSettlement')}</p>
+                                <p className="text-sm text-gray-400">{t('settings.notifSettlementDesc')}</p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input
@@ -318,8 +344,8 @@ const SettingsPage = () => {
                         {/* Toggle 3 */}
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col gap-0.5">
-                                <p className="text-sm font-bold text-white">Marketing Emails</p>
-                                <p className="text-sm text-gray-400">Receive news, updates, and offers from GoSplit.</p>
+                                <p className="text-sm font-bold text-white">{t('settings.notifMarketing')}</p>
+                                <p className="text-sm text-gray-400">{t('settings.notifMarketingDesc')}</p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input
@@ -337,26 +363,27 @@ const SettingsPage = () => {
                 {/* Danger Zone */}
                 <section className="border border-red-500/20 bg-red-500/5 dark:bg-red-500/5 rounded-2xl overflow-hidden mt-4 backdrop-blur-md">
                     <div className="px-6 py-5">
-                        <h3 className="text-lg font-bold text-red-600 dark:text-red-400">Danger Zone</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Irreversible actions. Please be certain.</p>
+                        <h3 className="text-lg font-bold text-red-600 dark:text-red-400">{t('settings.dangerZone')}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('settings.dangerZoneDesc')}</p>
                         <div className="mt-4 flex flex-wrap gap-3 justify-end">
                             <button
                                 onClick={() => setDangerModal({ isOpen: true, type: 'expenses' })}
                                 className="px-4 py-2 bg-white dark:bg-white/5 border border-red-500/30 text-red-600 dark:text-red-400 text-sm font-bold rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                             >
-                                Delete All Expenses
+                                {t('settings.deleteExpenses')}
                             </button>
                             <button
                                 onClick={() => setDangerModal({ isOpen: true, type: 'all' })}
                                 className="px-4 py-2 bg-red-50 dark:bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-sm font-bold rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
                             >
-                                Reset Account
+                                {t('settings.resetAccount')}
                             </button>
                             <button
-                                onClick={() => setDangerModal({ isOpen: true, type: 'account' })}
+                                onClick={() => setIsBalanceModalOpen(true)}
                                 className="px-4 py-2 bg-red-600 border-2 border-red-500 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20"
+                                title="Check your balance before deletion"
                             >
-                                Delete Account Permanently
+                                {t('settings.deleteAccount')}
                             </button>
                         </div>
                     </div>
@@ -371,7 +398,7 @@ const SettingsPage = () => {
                                 <div className="w-16 h-16 rounded-full bg-red-500/10 mx-auto flex items-center justify-center text-red-500 mb-4">
                                     <span className="material-symbols-outlined text-3xl">warning</span>
                                 </div>
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-2">Are you sure?</h2>
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-2">{t('common.confirm')}?</h2>
                                 <p className="text-gray-600 dark:text-gray-400 text-center text-sm mb-6">
                                     {dangerModal.type === 'expenses'
                                         ? "This will permanently delete ALL expenses you have paid for. This cannot be undone."
@@ -396,14 +423,14 @@ const SettingsPage = () => {
                                         onClick={() => setDangerModal({ isOpen: false, type: null })}
                                         className="flex-1 px-4 py-2 text-gray-600 dark:text-gray-400 font-bold hover:text-gray-900 dark:hover:text-white transition-colors"
                                     >
-                                        Cancel
+                                        {t('common.cancel')}
                                     </button>
                                     <button
                                         onClick={handleConfirmDelete}
                                         disabled={confirmText !== 'DELETE'}
                                         className="flex-1 px-4 py-2 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        Confirm Delete
+                                        {t('common.delete')}
                                     </button>
                                 </div>
                             </div>
@@ -417,16 +444,24 @@ const SettingsPage = () => {
                         onClick={handleCancel}
                         className="px-6 py-2.5 rounded-lg font-bold text-sm text-white hover:bg-white/10 transition-colors"
                     >
-                        Cancel
+                        {t('common.cancel')}
                     </button>
                     <button
                         onClick={handleSave}
                         className="px-6 py-2.5 rounded-lg bg-amber-400 text-black font-bold text-sm hover:bg-amber-300 shadow-md shadow-amber-900/20 transition-all transform active:scale-95"
                     >
-                        Save Changes
+                        {t('common.save')}
                     </button>
                 </div>
             </div >
+
+            {/* Phase 2: Balance Check Modal (NEW - Non-breaking) */}
+            <BalanceCheckModal
+                isOpen={isBalanceModalOpen}
+                userId={currentUser?.uid}
+                onClose={() => setIsBalanceModalOpen(false)}
+                onProceedToDelete={() => setDangerModal({ isOpen: true, type: 'account' })}
+            />
 
             {/* Avatar Picker Modal */}
             < AvatarPickerModal

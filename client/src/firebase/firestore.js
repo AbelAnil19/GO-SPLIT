@@ -68,6 +68,307 @@ export const updateUserDocument = async (userId, data) => {
     }
 };
 
+// ==================== USER DELETION FUNCTIONS (PHASE 1) ====================
+
+/**
+ * Calculate user's net balance across all expenses
+ * Returns: { netBalance, totalPaid, totalReceived, breakdown }
+ */
+export const calculateUserNetBalance = async (userId) => {
+    try {
+        // Get ALL expenses in groups where user is a member
+        // Since we can't query nested arrays directly, we fetch expenses from user's groups
+        const userGroupsQuery = query(
+            collection(db, 'groups'),
+            where('memberIds', 'array-contains', userId)
+        );
+        const groupsSnapshot = await getDocs(userGroupsQuery);
+        const userGroupIds = groupsSnapshot.docs.map(doc => doc.id);
+
+        console.log('🔍 DEBUG: User is in', userGroupIds.length, 'groups');
+
+        // Fetch all expenses from these groups
+        let allExpenses = [];
+        for (const groupId of userGroupIds) {
+            const expensesQuery = query(
+                collection(db, 'expenses'),
+                where('groupId', '==', groupId)
+            );
+            const expensesSnapshot = await getDocs(expensesQuery);
+            const groupExpenses = expensesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            allExpenses = allExpenses.concat(groupExpenses);
+        }
+
+        // Filter to only expenses where user is involved (paid or in splitBetween)
+        const userExpenses = allExpenses.filter(expense => {
+            const isPayer = expense.paidBy === userId;
+            const isParticipant = expense.splitBetween?.some(split => split.userId === userId);
+            return isPayer || isParticipant;
+        });
+
+        // Use the existing getPendingSettlements utility (it's already correct!)
+        const { getPendingSettlements } = await import('../utils/expenseCalculator');
+        const pendingSettlements = getPendingSettlements(userExpenses, userId);
+
+        // Calculate totals from settlements
+        let totalOwed = 0;  // Others owe you
+        let totalOwe = 0;   // You owe others
+
+        pendingSettlements.forEach(settlement => {
+            if (settlement.type === 'owed') {
+                totalOwed += settlement.amount;
+            } else {
+                totalOwe += settlement.amount;
+            }
+        });
+
+        const netBalance = totalOwed - totalOwe;
+
+        return {
+            netBalance: parseFloat(netBalance.toFixed(2)),
+            totalOwed: parseFloat(totalOwed.toFixed(2)),
+            totalOwe: parseFloat(totalOwe.toFixed(2)),
+            pendingSettlements, // Include individual settlements for detailed view
+            totalExpenses: userExpenses.length
+        };
+    } catch (error) {
+        console.error('❌ Error calculating user balance:', error);
+        throw error;
+    }
+};
+
+/**
+ * Check if user can be safely deleted
+ * Returns: { canDelete, blockers, netBalance, adminGroups }
+ */
+export const checkUserCanDelete = async (userId) => {
+    try {
+        const blockers = [];
+
+        // 1. Check net balance
+        const { netBalance } = await calculateUserNetBalance(userId);
+        if (Math.abs(netBalance) > 0.01) { // Allow 1 paisa tolerance for floating point
+            blockers.push(`Unsettled balance: ₹${netBalance.toFixed(2)}`);
+        }
+
+        // 2. Check if user is admin of any groups
+        const groupsQuery = query(
+            collection(db, 'groups'),
+            where('createdBy', '==', userId)
+        );
+        const groupsSnapshot = await getDocs(groupsQuery);
+        const adminGroups = [];
+
+        groupsSnapshot.forEach((docSnap) => {
+            const group = { id: docSnap.id, ...docSnap.data() };
+            adminGroups.push(group);
+        });
+
+        if (adminGroups.length > 0) {
+            blockers.push(`Admin of ${adminGroups.length} group(s) - ownership must be transferred`);
+        }
+
+        const canDelete = blockers.length === 0;
+
+        console.log(`✅ Deletion check for user ${userId}: ${canDelete ? 'ALLOWED' : 'BLOCKED'}`);
+
+        return {
+            canDelete,
+            blockers,
+            netBalance,
+            adminGroups
+        };
+    } catch (error) {
+        console.error('❌ Error checking user deletion eligibility:', error);
+        throw error;
+    }
+};
+
+/**
+ * Create a snapshot of user data before deletion
+ * Stores backup in user document and separate deletedUsers collection
+ */
+export const createDeletionSnapshot = async (userId) => {
+    try {
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) {
+            throw new Error('User not found');
+        }
+
+        const userData = userSnap.data();
+        const balanceData = await calculateUserNetBalance(userId);
+
+        // Get user's groups
+        const groupsQuery = query(
+            collection(db, 'groups'),
+            where('memberIds', 'array-contains', userId)
+        );
+        const groupsSnapshot = await getDocs(groupsQuery);
+        const groups = groupsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            name: doc.data().name
+        }));
+
+        const snapshot = {
+            userId,
+            displayName: userData.displayName,
+            email: userData.email,
+            balance: balanceData,
+            groups,
+            deletedAt: new Date().toISOString(),
+            originalData: userData
+        };
+
+        // Store in user's preDeleteSnapshot field
+        await updateDoc(userRef, {
+            preDeleteSnapshot: snapshot
+        });
+
+        // Also store in separate deletedUsers collection for admin audit
+        await setDoc(doc(db, 'deletedUsers', userId), snapshot);
+
+        console.log('✅ Deletion snapshot created for user:', userId);
+        return snapshot;
+    } catch (error) {
+        console.error('❌ Error creating deletion snapshot:', error);
+        throw error;
+    }
+};
+
+/**
+ * Transfer ownership of groups where user is admin
+ * Assigns to next available member or marks group for deletion
+ */
+export const transferGroupOwnership = async (userId) => {
+    try {
+        const groupsQuery = query(
+            collection(db, 'groups'),
+            where('createdBy', '==', userId)
+        );
+        const groupsSnapshot = await getDocs(groupsQuery);
+
+        const transfers = [];
+
+        for (const docSnap of groupsSnapshot.docs) {
+            const groupId = docSnap.id;
+            const groupData = docSnap.data();
+            const members = groupData.members || [];
+
+            // Find another active member to transfer to
+            const otherMembers = members.filter(m => m.userId !== userId);
+
+            if (otherMembers.length > 0) {
+                // Transfer to first available member
+                const newAdmin = otherMembers[0];
+
+                await updateDoc(doc(db, 'groups', groupId), {
+                    createdBy: newAdmin.userId,
+                    // Update role in members array
+                    members: members.map(m => ({
+                        ...m,
+                        role: m.userId === newAdmin.userId ? 'admin' :
+                            m.userId === userId ? 'member' : m.role
+                    }))
+                });
+
+                transfers.push({
+                    groupId,
+                    groupName: groupData.name,
+                    newAdmin: newAdmin.name,
+                    action: 'transferred'
+                });
+
+                console.log(`✅ Transferred group "${groupData.name}" to ${newAdmin.name}`);
+            } else {
+                // Solo admin - mark group for deletion or leave as-is
+                // (You might want different logic here)
+                transfers.push({
+                    groupId,
+                    groupName: groupData.name,
+                    action: 'marked_for_cleanup'
+                });
+
+                console.log(`⚠️ Group "${groupData.name}" has no other members`);
+            }
+        }
+
+        console.log(`✅ Transferred ownership of ${transfers.length} groups`);
+        return transfers;
+    } catch (error) {
+        console.error('❌ Error transferring group ownership:', error);
+        throw error;
+    }
+};
+
+/**
+ * Perform soft delete of user account
+ * Preserves data but marks user as deleted
+ */
+export const softDeleteUserAccount = async (userId, options = {}) => {
+    try {
+        console.log(`Starting soft delete for user ${userId}...`);
+
+        // 1. Final Safety Check
+        const check = await checkUserCanDelete(userId);
+        if (!check.canDelete && !options.force) {
+            throw new Error(`Cannot delete: ${check.blockers.join(', ')}`);
+        }
+
+        // 2. Create Data Snapshot (Backup)
+        await createDeletionSnapshot(userId);
+
+        // 3. Transfer Group Ownerships
+        await transferGroupOwnership(userId);
+
+        // 4. Anonymize user in ALL groups (so they appear as "User (deleted)")
+        const userGroupsQuery = query(
+            collection(db, 'groups'),
+            where('memberIds', 'array-contains', userId)
+        );
+        const userGroupsSnap = await getDocs(userGroupsQuery);
+
+        const anonymizePromises = userGroupsSnap.docs.map(docSnap => {
+            const groupData = docSnap.data();
+            const updatedMembers = groupData.members.map(m => {
+                if (m.userId === userId) {
+                    return {
+                        ...m,
+                        name: 'User (deleted)',
+                        photoURL: null,
+                        email: null // Remove PII
+                    };
+                }
+                return m;
+            });
+            return updateDoc(doc(db, 'groups', docSnap.id), { members: updatedMembers });
+        });
+        await Promise.all(anonymizePromises);
+        console.log(`✅ Anonymized user in ${anonymizePromises.length} groups`);
+
+        // 5. Mark User as Deleted (Soft Delete)
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+            deleted: true,
+            deletedAt: serverTimestamp(),
+            deletionReason: options.reason || 'User requested deletion',
+            // We keep the original display name in the snapshot, 
+            // but update the main doc to indicate deletion
+            displayName: 'User (deleted)',
+            photoURL: null,
+            previousDisplayName: check.adminGroups?.[0]?.members?.find(m => m.userId === userId)?.name || 'Unknown'
+        });
+
+        console.log('✅ User soft deleted successfully');
+        return true;
+
+    } catch (error) {
+        console.error('❌ Error in soft delete:', error);
+        throw error;
+    }
+};
+
 // ==================== GROUP FUNCTIONS ====================
 
 export const createGroup = async (groupName, creatorId, creatorData) => {

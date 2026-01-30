@@ -41,35 +41,68 @@ const StatCard = ({ IconComponent, label, value, trend, trendLabel, trendUp, col
     );
 };
 
-const GroupCard = ({ name, lastActive, settled, oweAmount, onOpen }) => (
-    <div
-        onClick={onOpen}
-        className="p-5 rounded-2xl bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] border-2 border-gray-200 dark:border-white/10 hover:border-amber-400/30 transition-all cursor-pointer group shadow-md dark:shadow-none backdrop-blur-[2px] hover:shadow-xl"
-    >
-        <div className="flex justify-between items-start mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400/10 to-orange-500/10 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined">flight</span>
+const GroupCard = ({ name, lastActive, settled, oweAmount, onOpen, customization, members = [] }) => {
+    // Default values if no customization exists
+    const icon = customization?.icon || 'groups';
+    const color = customization?.color || '#F59E0B'; // Amber default
+    const isEmoji = true; // All new icons are emojis
+
+    return (
+        <div
+            onClick={onOpen}
+            className="p-5 rounded-2xl bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] border-2 border-gray-200 dark:border-white/10 hover:border-amber-400/30 transition-all cursor-pointer group shadow-md dark:shadow-none backdrop-blur-[2px] hover:shadow-xl"
+        >
+            <div className="flex justify-between items-start mb-4">
+                <div
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg"
+                    style={{
+                        background: `linear-gradient(135deg, ${color}33, ${color}11)`,
+                        color: color,
+                        boxShadow: `0 4px 12px ${color}22`
+                    }}
+                >
+                    <span className="text-2xl" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}>
+                        {icon}
+                    </span>
+                </div>
+                {settled ? (
+                    <span className="px-2 py-1 bg-green-500/10 text-green-400 rounded-lg text-xs font-bold border border-green-500/20">Settled</span>
+                ) : (
+                    <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20">You owe ${oweAmount}</span>
+                )}
             </div>
-            {settled ? (
-                <span className="px-2 py-1 bg-green-500/10 text-green-400 rounded-lg text-xs font-bold border border-green-500/20">Settled</span>
-            ) : (
-                <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20">You owe ${oweAmount}</span>
-            )}
-        </div>
-        <h3 className="font-bold text-lg text-[#0d191b] dark:text-white mb-1 group-hover:text-amber-500 transition-colors">{name}</h3>
-        <p className="text-xs text-[#5c6f73] dark:text-gray-500 mb-4">Last activity: {lastActive}</p>
-        <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-200 dark:border-white/5">
-            <div className="flex -space-x-2">
-                {[1, 2, 3].map((i) => (
-                    <div key={i} className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-[#1a1a1a] flex items-center justify-center text-xs text-[#5c6f73] dark:text-gray-400">
-                        {i}
-                    </div>
-                ))}
+            <h3 className="font-bold text-lg text-[#0d191b] dark:text-white mb-1 group-hover:text-amber-500 transition-colors">{name}</h3>
+            <p className="text-xs text-[#5c6f73] dark:text-gray-500 mb-4 line-clamp-1">
+                {customization?.description || `Last activity: ${lastActive}`}
+            </p>
+            <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-200 dark:border-white/5">
+                <div className="flex -space-x-2">
+                    {members && members.slice(0, 4).map((member, i) => (
+                        <div key={member.userId || i} className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 border-2 border-white dark:border-[#1a1c23] flex items-center justify-center overflow-hidden">
+                            {member.photoURL ? (
+                                <img
+                                    src={member.photoURL}
+                                    alt={member.displayName || 'Member'}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <span className="text-xs font-bold text-[#5c6f73] dark:text-gray-400">
+                                    {(member.displayName || 'U').charAt(0).toUpperCase()}
+                                </span>
+                            )}
+                        </div>
+                    ))}
+                    {(members?.length || 0) > 4 && (
+                        <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 border-2 border-white dark:border-[#1a1c23] flex items-center justify-center text-xs font-bold text-gray-500 dark:text-gray-400">
+                            +{members.length - 4}
+                        </div>
+                    )}
+                </div>
+                <button className="text-sm font-bold text-amber-400 hover:text-amber-300 transition-colors">View Ledger</button>
             </div>
-            <button className="text-sm font-bold text-amber-400 hover:text-amber-300 transition-colors">View Ledger</button>
         </div>
-    </div>
-);
+    );
+};
 
 const CreateGroupModal = ({ isOpen, onClose, onCreate }) => {
     const [groupName, setGroupName] = useState('');
@@ -168,6 +201,9 @@ const DashboardPage = () => {
     const [recentActivity, setRecentActivity] = useState([]);
     const [paymentModal, setPaymentModal] = useState({ isOpen: false, data: null });
 
+    // Cache for enriched profiles to prevent flickering on re-renders
+    const enrichedProfilesRef = React.useRef({});
+
     // Get user's first name
     const userFirstName = currentUser?.displayName?.split(' ')[0] || 'You';
 
@@ -239,7 +275,58 @@ const DashboardPage = () => {
 
         // Calculate pending settlements (from expenses only, not settlement collection)
         const settlementSuggestions = getPendingSettlements(expenses, currentUser.uid, userMap);
-        setPendingSettlements(settlementSuggestions);
+
+        // IMMEDIATE UPDATE: Merge with CACHED profiles to prevent flicker
+        // This ensures we don't revert to stale/placeholder data if we already fetched it once
+        const initialWithCache = settlementSuggestions.map(s => ({
+            ...s,
+            name: enrichedProfilesRef.current[s.personId]?.displayName || s.name,
+            photoURL: enrichedProfilesRef.current[s.personId]?.photoURL || s.photoURL
+        }));
+
+        setPendingSettlements(initialWithCache);
+
+        // Enrich with fresh user data from Firestore (to handle stale group member data)
+        const enrichSettlements = async () => {
+            if (settlementSuggestions.length === 0) return;
+
+            // Get unique user IDs to fetch
+            const userIdsToFetch = [...new Set(settlementSuggestions.map(s => s.personId))];
+
+            try {
+                // Fetch fresh profiles
+                const userDocsPromises = userIdsToFetch.map(uid => getUserDocument(uid));
+                const userDocs = await Promise.all(userDocsPromises);
+
+                // Update Cache & Create map
+                const freshUserMap = {};
+                userDocs.forEach((doc, index) => {
+                    const uid = userIdsToFetch[index];
+                    if (doc) {
+                        freshUserMap[uid] = doc;
+                        // Update cache for future renders
+                        enrichedProfilesRef.current[uid] = doc;
+                    }
+                });
+
+                // Update settlements with fresh data
+                const enrichedSettlements = settlementSuggestions.map(s => ({
+                    ...s,
+                    name: freshUserMap[s.personId]?.displayName || s.name,
+                    photoURL: freshUserMap[s.personId]?.photoURL || s.photoURL
+                }));
+
+                // Only update state if data actually changed (deep comparison optimization)
+                const hasChanged = JSON.stringify(enrichedSettlements) !== JSON.stringify(initialWithCache);
+                if (hasChanged) {
+                    setPendingSettlements(enrichedSettlements);
+                }
+            } catch (error) {
+                console.error("Error fetching fresh user data for settlements:", error);
+            }
+        };
+
+        enrichSettlements();
 
         // Calculate pending approvals from settlements collection (handled by separate effect)
     }, [expenses, groups, currentUser, settlements]);
@@ -566,6 +653,8 @@ const DashboardPage = () => {
                                     lastActive="Active"
                                     settled={group.isSettled || false}
                                     onOpen={() => navigate('/dashboard/groups')}
+                                    customization={group.customization}
+                                    members={group.members}
                                 />
                             ))}
                         </div>
