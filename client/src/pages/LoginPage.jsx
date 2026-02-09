@@ -6,6 +6,7 @@ import { createUserDocument } from '../firebase/firestore';
 import { EyeIcon } from '../components/icons/EyeOpenIcon';
 import { EyeOffIcon } from '../components/icons/EyeCloseIcon';
 import { LoaderIcon } from '../components/Loader';
+import MinimalToast from '../components/ui/MinimalToast';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
@@ -15,6 +16,24 @@ const LoginPage = () => {
     const [isSigningIn, setIsSigningIn] = useState(false);
     const { addToast } = useToast();
     const navigate = useNavigate();
+
+    // MinimalToast state for validation
+    const [validationToast, setValidationToast] = useState({
+        open: false,
+        message: '',
+        type: 'error'
+    });
+
+    const showValidationError = (message) => {
+        setValidationToast({
+            open: true,
+            message,
+            type: 'error'
+        });
+        setTimeout(() => {
+            setValidationToast(prev => ({ ...prev, open: false }));
+        }, 3000);
+    };
 
     const handleGoogleSignIn = async (e) => {
         e.preventDefault();
@@ -60,20 +79,17 @@ const LoginPage = () => {
 
             // Validation
             if (!email || !password) {
-                setError('Please fill in all fields');
-                addToast('Please fill in all fields', 'error');
+                showValidationError('Please fill in all fields');
                 return;
             }
 
             if (!validateEmail(email)) {
-                setError('Please enter a valid email address');
-                addToast('Please enter a valid email address', 'error');
+                showValidationError('Please enter a valid email address');
                 return;
             }
 
             if (password.length < 6) {
-                setError('Password must be at least 6 characters');
-                addToast('Password must be at least 6 characters', 'error');
+                showValidationError('Password must be at least 6 characters');
                 return;
             }
 
@@ -83,13 +99,22 @@ const LoginPage = () => {
                 addToast('Welcome back!', 'success');
                 navigate('/dashboard');
             } catch (err) {
-                const errorMessage = err.message.includes('user-not-found')
-                    ? 'No account found with this email'
-                    : err.message.includes('wrong-password')
-                        ? 'Incorrect password'
-                        : err.message;
-                setError(errorMessage);
-                addToast(errorMessage, 'error');
+                let errorMessage = 'Failed to sign in. Please try again.';
+
+                // Handle specific Firebase error codes with user-friendly messages
+                if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+                    errorMessage = 'Invalid email or password';
+                } else if (err.code === 'auth/user-not-found') {
+                    errorMessage = 'No account found with this email';
+                } else if (err.code === 'auth/user-disabled') {
+                    errorMessage = 'This account has been disabled';
+                } else if (err.code === 'auth/too-many-requests') {
+                    errorMessage = 'Too many failed attempts. Please try again later';
+                } else if (err.code === 'auth/network-request-failed') {
+                    errorMessage = 'Network error. Please check your connection';
+                }
+
+                showValidationError(errorMessage);
                 setIsSigningIn(false);
             }
         }
@@ -107,8 +132,6 @@ const LoginPage = () => {
                 <p className="text-center text-gray-500 mb-8">
                     Don't have an account? <Link to="/register" className="text-gray-700 underline hover:text-gray-900">Sign up</Link>
                 </p>
-
-                {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
 
                 <button
                     onClick={handleGoogleSignIn}
@@ -180,6 +203,14 @@ const LoginPage = () => {
                     </button>
                 </form>
             </div>
+
+            {/* Validation Toast */}
+            <MinimalToast
+                open={validationToast.open}
+                onClose={() => setValidationToast(prev => ({ ...prev, open: false }))}
+                message={validationToast.message}
+                type={validationToast.type}
+            />
         </div>
     );
 };

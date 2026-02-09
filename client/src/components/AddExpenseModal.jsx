@@ -4,6 +4,7 @@ import { useToast } from '../context/ToastContext';
 import { getUserGroups } from '../firebase/firestore';
 import { createExpense } from '../firebase/firestore';
 import { calculateSplit } from '../utils/expenseCalculator';
+import MinimalToast from './ui/MinimalToast';
 
 const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
     const { currentUser } = useAuth();
@@ -19,6 +20,26 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
     const [paidBy, setPaidBy] = useState('');
     const [splitWith, setSplitWith] = useState([]);
     const [splitPreview, setSplitPreview] = useState([]);
+    const [splitType, setSplitType] = useState('equal'); // 'equal' or 'custom'
+    const [customAmounts, setCustomAmounts] = useState({}); // { userId: amount }
+
+    // MinimalToast state for validation
+    const [validationToast, setValidationToast] = useState({
+        open: false,
+        message: '',
+        type: 'error'
+    });
+
+    const showValidationError = (message) => {
+        setValidationToast({
+            open: true,
+            message,
+            type: 'error'
+        });
+        setTimeout(() => {
+            setValidationToast(prev => ({ ...prev, open: false }));
+        }, 3000);
+    };
 
     const categories = [
         { value: 'food', label: '🍔 Food & Dining', icon: 'restaurant' },
@@ -43,9 +64,9 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
         }
     }, [currentUser]);
 
-    // Calculate split preview whenever amount or splitWith changes
+    // Calculate split preview when amount or splitWith changes
     useEffect(() => {
-        if (amount && splitWith.length > 0) {
+        if (splitType === 'equal' && amount && splitWith.length > 0) {
             const participants = splitWith.map(m => m.userId);
             const splits = calculateSplit(parseFloat(amount), participants);
 
@@ -61,7 +82,17 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
         } else {
             setSplitPreview([]);
         }
-    }, [amount, splitWith]);
+    }, [amount, splitWith, splitType]);
+
+    // Auto-calculate amount from custom splits
+    useEffect(() => {
+        if (splitType === 'custom' && Object.keys(customAmounts).length > 0) {
+            const total = Object.values(customAmounts).reduce((sum, amt) => sum + (parseFloat(amt) || 0), 0);
+            if (total > 0) {
+                setAmount(total.toString());
+            }
+        }
+    }, [customAmounts, splitType]);
 
     const fetchGroups = async () => {
         try {
@@ -107,23 +138,43 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
 
         // Validation
         if (!description.trim()) {
-            addToast('Please enter a description', 'error');
+            showValidationError('Please enter a description');
             return;
         }
 
         if (!amount || parseFloat(amount) <= 0) {
-            addToast('Please enter a valid amount', 'error');
+            showValidationError('Please enter a valid amount');
             return;
         }
 
         if (!selectedGroup) {
-            addToast('Please select a group', 'error');
+            showValidationError('Please select a group');
             return;
         }
 
         if (splitWith.length === 0) {
-            addToast('Please select at least one person to split with', 'error');
+            showValidationError('Please select at least one person to split with');
             return;
+        }
+
+        // Validate custom splits if custom type is selected
+        if (splitType === 'custom') {
+            const totalCustom = Object.values(customAmounts).reduce((sum, amt) => sum + (parseFloat(amt) || 0), 0);
+            const expenseAmount = parseFloat(amount);
+
+            // More lenient tolerance since amount may be auto-calculated
+            if (Math.abs(totalCustom - expenseAmount) > 0.1) {
+                showValidationError(`Custom amounts (₹${totalCustom.toFixed(2)}) must equal total expense (₹${expenseAmount.toFixed(2)})`);
+                return;
+            }
+
+            // Check all participants have amounts
+            for (const member of splitWith) {
+                if (!customAmounts[member.userId] || parseFloat(customAmounts[member.userId]) <= 0) {
+                    showValidationError(`Please enter a valid amount for ${member.name}`);
+                    return;
+                }
+            }
         }
 
         setLoading(true);
@@ -131,7 +182,15 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
         try {
             const paidByMember = selectedGroup.members.find(m => m.userId === paidBy);
             const participants = splitWith.map(m => m.userId);
-            const splits = calculateSplit(parseFloat(amount), participants);
+
+            // Use custom splits if custom type, otherwise equal split
+            const customSplitData = splitType === 'custom'
+                ? Object.fromEntries(
+                    Object.entries(customAmounts).map(([userId, amt]) => [userId, parseFloat(amt)])
+                )
+                : null;
+
+            const splits = calculateSplit(parseFloat(amount), participants, customSplitData);
 
             const expenseData = {
                 groupId: selectedGroup.id,
@@ -307,8 +366,102 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                         </div>
                     </div>
 
-                    {/* Split Preview */}
-                    {splitPreview.length > 0 && (
+                    {/* Split Type Selector */}
+                    <div>
+                        <label className="block text-sm font-medium text-[#5c6f73] dark:text-gray-300 mb-3">
+                            Split Method
+                        </label>
+                        <div className="flex gap-4">
+                            <label className="flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all hover:bg-gray-50 dark:hover:bg-white/5"
+                                style={{
+                                    borderColor: splitType === 'equal' ? '#f59e0b' : 'rgba(156, 163, 175, 0.3)',
+                                    backgroundColor: splitType === 'equal' ? 'rgba(245, 158, 11, 0.1)' : 'transparent'
+                                }}>
+                                <input
+                                    type="radio"
+                                    name="splitType"
+                                    value="equal"
+                                    checked={splitType === 'equal'}
+                                    onChange={(e) => {
+                                        setSplitType(e.target.value);
+                                        setCustomAmounts({});
+                                    }}
+                                    className="w-5 h-5 text-amber-400 focus:ring-amber-400"
+                                />
+                                <div>
+                                    <div className="font-medium text-gray-900 dark:text-white">Equal Split</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">Split amount equally</div>
+                                </div>
+                            </label>
+                            <label className="flex-1 flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all hover:bg-gray-50 dark:hover:bg-white/5"
+                                style={{
+                                    borderColor: splitType === 'custom' ? '#f59e0b' : 'rgba(156, 163, 175, 0.3)',
+                                    backgroundColor: splitType === 'custom' ? 'rgba(245, 158, 11, 0.1)' : 'transparent'
+                                }}>
+                                <input
+                                    type="radio"
+                                    name="splitType"
+                                    value="custom"
+                                    checked={splitType === 'custom'}
+                                    onChange={(e) => setSplitType(e.target.value)}
+                                    className="w-5 h-5 text-amber-400 focus:ring-amber-400"
+                                />
+                                <div>
+                                    <div className="font-medium text-gray-900 dark:text-white">Custom Split</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">Enter different amounts</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* Custom Amount Inputs */}
+                    {splitType === 'custom' && splitWith.length > 0 && (
+                        <div>
+                            <label className="block text-sm font-medium text-[#5c6f73] dark:text-gray-300 mb-3">
+                                Custom Amounts
+                            </label>
+                            <div className="space-y-3 p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
+                                {splitWith.map(member => (
+                                    <div key={member.userId} className="flex items-center gap-3">
+                                        <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">
+                                            {member.name}
+                                        </span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="0.00"
+                                            value={customAmounts[member.userId] || ''}
+                                            onChange={(e) => setCustomAmounts(prev => ({
+                                                ...prev,
+                                                [member.userId]: e.target.value
+                                            }))}
+                                            className="w-28 px-3 py-2 rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none"
+                                        />
+                                        <span className="text-gray-500 dark:text-gray-400">₹</span>
+                                    </div>
+                                ))}
+                                <div className="pt-3 border-t border-gray-300 dark:border-white/10 flex justify-between items-center">
+                                    <span className="text-sm font-medium text-gray-900 dark:text-white">Total:</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-lg font-bold ${Math.abs((Object.values(customAmounts).reduce((sum, amt) => sum + (parseFloat(amt) || 0), 0)) - (parseFloat(amount) || 0)) < 0.01 && amount
+                                            ? 'text-green-600 dark:text-green-400'
+                                            : 'text-red-600 dark:text-red-400'
+                                            }`}>
+                                            ₹{Object.values(customAmounts).reduce((sum, amt) => sum + (parseFloat(amt) || 0), 0).toFixed(2)}
+                                        </span>
+                                        <span className="text-gray-500 dark:text-gray-400">/ ₹{parseFloat(amount || 0).toFixed(2)}</span>
+                                        {Math.abs((Object.values(customAmounts).reduce((sum, amt) => sum + (parseFloat(amt) || 0), 0)) - (parseFloat(amount) || 0)) < 0.01 && amount && (
+                                            <span className="text-green-600 dark:text-green-400">✓</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Split Preview - Only for Equal Split */}
+                    {splitType === 'equal' && splitPreview.length > 0 && (
                         <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
                             <h4 className="text-sm font-bold text-amber-900 dark:text-amber-400 mb-3">Split Preview</h4>
                             <div className="space-y-2">
@@ -344,8 +497,17 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                     </div>
                 </form>
             </div>
+
+            {/* Validation Toast */}
+            <MinimalToast
+                open={validationToast.open}
+                onClose={() => setValidationToast(prev => ({ ...prev, open: false }))}
+                message={validationToast.message}
+                type={validationToast.type}
+            />
         </div>
     );
 };
 
 export default AddExpenseModal;
+

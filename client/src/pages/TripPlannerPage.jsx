@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
-import { getUserGroups } from '../firebase/firestore';
+import { getUserGroups, getBudgetAnalytics, setBudget } from '../firebase/firestore';
 import DestinationCard from '../components/trip/DestinationCard';
 import TransportTab from '../components/trip/TransportTab';
 import HotelsTab from '../components/trip/HotelsTab';
 import ActivitiesTab from '../components/trip/ActivitiesTab';
 import ItineraryTab from '../components/trip/ItineraryTab';
 import BudgetAnalyzer from '../components/trip/BudgetAnalyzer';
+import SetBudgetModal from '../components/trip/SetBudgetModal';
 import { destinations as mockDestinations, filterOptions as initialFilters } from '../data/destinations';
 
 const TripPlannerPage = () => {
@@ -21,6 +22,8 @@ const TripPlannerPage = () => {
     const [filters, setFilters] = useState(initialFilters);
     const [destinations, setDestinations] = useState(mockDestinations);
     const [loading, setLoading] = useState(true);
+    const [budgetData, setBudgetData] = useState(null);
+    const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
 
     // Fetch user groups
     useEffect(() => {
@@ -42,6 +45,32 @@ const TripPlannerPage = () => {
         fetchGroups();
     }, [currentUser, addToast]);
 
+    // Fetch budget analytics when group changes
+    useEffect(() => {
+        const fetchBudget = async () => {
+            if (!selectedGroup) {
+                setBudgetData(null);
+                return;
+            }
+            try {
+                const analytics = await getBudgetAnalytics(selectedGroup.id);
+                setBudgetData(analytics);
+            } catch (error) {
+                console.error('Error fetching budget:', error);
+                // If budget doesn't exist, set default empty state
+                setBudgetData({
+                    totalBudget: 0,
+                    utilized: 0,
+                    avgDaily: 0,
+                    estimatedFinal: 0,
+                    remaining: 0,
+                    utilizationPercent: 0
+                });
+            }
+        };
+        fetchBudget();
+    }, [selectedGroup]);
+
     // Handle favorite toggle
     const handleFavorite = (destinationId) => {
         setDestinations(prev => prev.map(dest =>
@@ -60,6 +89,15 @@ const TripPlannerPage = () => {
         setFilters(prev => prev.map(filter =>
             filter.id === filterId ? { ...filter, active: !filter.active } : filter
         ));
+    };
+
+    // Handle budget save
+    const handleSaveBudget = async (budgetInfo) => {
+        if (!selectedGroup) return;
+        await setBudget(selectedGroup.id, budgetInfo);
+        // Refresh budget analytics
+        const analytics = await getBudgetAnalytics(selectedGroup.id);
+        setBudgetData(analytics);
     };
 
     // Filter destinations
@@ -124,18 +162,48 @@ const TripPlannerPage = () => {
                 </div>
 
                 <div className="text-right">
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">AVAILABLE BUDGET</p>
-                    <p className="text-amber-500 dark:text-amber-400 font-black text-4xl">₹85,000</p>
+                    <div className="flex items-center justify-end gap-2 mb-1">
+                        <p className="text-gray-600 dark:text-gray-400 text-sm">AVAILABLE BUDGET</p>
+                        <button
+                            onClick={() => setIsBudgetModalOpen(true)}
+                            className="text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors"
+                            title="Set Budget"
+                        >
+                            <span className="material-symbols-outlined text-lg">edit</span>
+                        </button>
+                    </div>
+                    <p className="text-amber-500 dark:text-amber-400 font-black text-4xl">
+                        ₹{budgetData ? budgetData.totalBudget.toLocaleString() : '0'}
+                    </p>
                 </div>
             </div>
 
             {/* Budget Analyzer */}
-            <BudgetAnalyzer
-                totalBudget={85000}
-                utilized={15000}
-                avgDaily={1250}
-                estimatedFinal={72000}
-            />
+            {budgetData && budgetData.totalBudget > 0 ? (
+                <BudgetAnalyzer
+                    totalBudget={budgetData.totalBudget}
+                    utilized={budgetData.utilized}
+                    avgDaily={budgetData.avgDaily}
+                    estimatedFinal={budgetData.estimatedFinal}
+                    dailySpending={budgetData.dailySpending || []}
+                    startDate={budgetData.startDate}
+                    endDate={budgetData.endDate}
+                />
+            ) : (
+                <div className="bg-gradient-to-br from-amber-500/10 via-amber-600/5 to-transparent border border-amber-500/20 rounded-2xl p-8 text-center">
+                    <span className="material-symbols-outlined text-5xl text-amber-500/50 mb-4">trending_up</span>
+                    <h3 className="text-gray-900 dark:text-white font-bold text-xl mb-2">No Budget Set</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                        Set a budget to track your spending and get insights
+                    </p>
+                    <button
+                        onClick={() => setIsBudgetModalOpen(true)}
+                        className="px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-colors"
+                    >
+                        Set Budget Now
+                    </button>
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="flex items-center gap-8 border-b border-gray-200 dark:border-white/10 overflow-x-auto">
@@ -250,6 +318,14 @@ const TripPlannerPage = () => {
                     <p className="text-gray-500 text-sm mt-2">This feature is under development</p>
                 </div>
             )}
+
+            {/* Set Budget Modal */}
+            <SetBudgetModal
+                isOpen={isBudgetModalOpen}
+                onClose={() => setIsBudgetModalOpen(false)}
+                onSave={handleSaveBudget}
+                currentBudget={budgetData}
+            />
         </div>
     );
 };

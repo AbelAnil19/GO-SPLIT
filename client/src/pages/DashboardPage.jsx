@@ -11,6 +11,7 @@ import { WalletIcon } from '../components/icons/WalletIcon';
 import { PaymentsIcon } from '../components/icons/PaymentsIcon';
 import { TrendingDownIcon } from '../components/icons/TrendingDownIcon';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
+import ShareWidget from '../components/ShareWidget';
 
 const StatCard = ({ IconComponent, label, value, trend, trendLabel, trendUp, color }) => {
     const iconRef = React.useRef(null);
@@ -745,6 +746,9 @@ const DashboardPage = () => {
                 onClose={() => setIsCreateModalOpen(false)}
                 onCreate={handleCreateGroup}
             />
+
+            {/* Share Widget - Fixed on Right Side */}
+            <ShareWidget />
         </div>
     );
 };

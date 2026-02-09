@@ -11,6 +11,7 @@ import { useAuth } from '../../firebase/authContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { doSignOut } from '../../firebase/auth';
+import { getUserDocument } from '../../firebase/firestore';
 
 import { useTranslation } from 'react-i18next';
 
@@ -19,6 +20,8 @@ const Sidebar = () => {
     const navigate = useNavigate();
     const { addToast } = useToast();
     const { t } = useTranslation();
+    const { currentUser } = useAuth();
+    const [isAdmin, setIsAdmin] = React.useState(false);
     const dashboardIconRef = useRef(null);
     const groupsIconRef = useRef(null);
     const expensesIconRef = useRef(null);
@@ -35,6 +38,17 @@ const Sidebar = () => {
         { icon: 'history', label: t('sidebar.history'), path: '/dashboard/history' },
         { icon: 'settings', label: t('sidebar.settings'), path: '/dashboard/settings' }
     ];
+
+    // Check admin status
+    React.useEffect(() => {
+        const checkAdmin = async () => {
+            if (currentUser) {
+                const userData = await getUserDocument(currentUser.uid);
+                setIsAdmin(userData?.isAdmin === true);
+            }
+        };
+        checkAdmin();
+    }, [currentUser]);
 
     const isActive = (path) => {
         if (path === '/dashboard') {
@@ -102,6 +116,19 @@ const Sidebar = () => {
                     </Link>
                 ))}
             </nav>
+
+            {/* Admin Link */}
+            {isAdmin && (
+                <div className="px-4 pb-2 relative z-10">
+                    <Link
+                        to="/admin/dashboard"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-black hover:shadow-lg hover:shadow-amber-500/30 transition-all duration-300 w-full group"
+                    >
+                        <span className="material-symbols-outlined text-xl">shield</span>
+                        <span className="font-bold text-sm">Admin Panel</span>
+                    </Link>
+                </div>
+            )}
 
             {/* Logout Button - Fixed at bottom */}
             <div className="p-4 border-t border-gray-200 dark:border-white/10 relative z-10">

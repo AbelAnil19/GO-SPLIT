@@ -6,6 +6,7 @@ import { createUserDocument } from '../firebase/firestore';
 import { EyeIcon } from '../components/icons/EyeOpenIcon';
 import { EyeOffIcon } from '../components/icons/EyeCloseIcon';
 import { LoaderIcon } from '../components/Loader';
+import MinimalToast from '../components/ui/MinimalToast';
 
 const RegisterPage = () => {
     const [name, setName] = useState('');
@@ -18,6 +19,24 @@ const RegisterPage = () => {
     const [isRegistering, setIsRegistering] = useState(false);
     const { addToast } = useToast();
     const navigate = useNavigate();
+
+    // MinimalToast state for validation
+    const [validationToast, setValidationToast] = useState({
+        open: false,
+        message: '',
+        type: 'error'
+    });
+
+    const showValidationError = (message) => {
+        setValidationToast({
+            open: true,
+            message,
+            type: 'error'
+        });
+        setTimeout(() => {
+            setValidationToast(prev => ({ ...prev, open: false }));
+        }, 3000);
+    };
 
     const validateEmail = (email) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -34,40 +53,34 @@ const RegisterPage = () => {
 
         // Validation
         if (!name || !email || !password || !confirmPassword) {
-            setError('Please fill in all fields');
-            addToast('Please fill in all fields', 'error');
+            showValidationError('Please fill in all fields');
             return;
         }
 
         if (name.trim().length < 2) {
-            setError('Name must be at least 2 characters');
-            addToast('Name must be at least 2 characters', 'error');
+            showValidationError('Name must be at least 2 characters');
             return;
         }
 
         if (!validateEmail(email)) {
-            setError('Please enter a valid email address');
-            addToast('Please enter a valid email address', 'error');
+            showValidationError('Please enter a valid email address');
             return;
         }
 
         if (!validatePassword(password)) {
-            setError('Password must be at least 6 characters');
-            addToast('Password must be at least 6 characters', 'error');
+            showValidationError('Password must be at least 6 characters');
             return;
         }
 
         if (password !== confirmPassword) {
-            setError("Passwords do not match");
-            addToast("Passwords do not match", 'error');
+            showValidationError("Passwords do not match");
             return;
         }
 
         // Check if email already exists in Firebase Auth
         const emailExists = await checkEmailExists(email);
         if (emailExists) {
-            setError('This email is already registered. Please login instead.');
-            addToast('This email is already registered. Please login instead.', 'error');
+            showValidationError('This email is already registered. Please login instead.');
             return;
         }
 
@@ -144,8 +157,6 @@ const RegisterPage = () => {
                 <p className="text-center text-gray-500 mb-8">
                     Already have an account? <Link to="/login" className="text-gray-700 underline hover:text-gray-900">Log in</Link>
                 </p>
-
-                {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
 
                 <button
                     onClick={handleGoogleSignIn}
@@ -240,8 +251,17 @@ const RegisterPage = () => {
                     </button>
                 </form>
             </div>
+
+            {/* Validation Toast */}
+            <MinimalToast
+                open={validationToast.open}
+                onClose={() => setValidationToast(prev => ({ ...prev, open: false }))}
+                message={validationToast.message}
+                type={validationToast.type}
+            />
         </div>
     );
 };
 
 export default RegisterPage;
+

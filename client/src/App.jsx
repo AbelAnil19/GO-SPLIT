@@ -19,6 +19,15 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import GroupDetailsPage from './pages/GroupDetailsPage';
 import TripPlannerPage from './pages/TripPlannerPage';
 
+// Admin imports
+import AdminRoute from './components/AdminRoute';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import UserManagement from './pages/admin/UserManagement';
+import GroupManagement from './pages/admin/GroupManagement';
+import ExpenseManagement from './pages/admin/ExpenseManagement';
+import Analytics from './pages/admin/Analytics';
+
+
 function App() {
   return (
     <Router>
@@ -45,6 +54,13 @@ function App() {
                 <Route path="history" element={<HistoryPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
+
+              {/* Admin Routes */}
+              <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+              <Route path="/admin/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
+              <Route path="/admin/groups" element={<AdminRoute><GroupManagement /></AdminRoute>} />
+              <Route path="/admin/expenses" element={<AdminRoute><ExpenseManagement /></AdminRoute>} />
+              <Route path="/admin/analytics" element={<AdminRoute><Analytics /></AdminRoute>} />
             </Routes>
           </ToastProvider>
         </ThemeProvider>
@@ -54,3 +70,4 @@ function App() {
 }
 
 export default App;
+

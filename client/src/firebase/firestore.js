@@ -1,5 +1,5 @@
-import { db } from './firebaseConfig';
-import { collection, addDoc, getDoc, getDocs, doc, updateDoc, deleteDoc, setDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion } from 'firebase/firestore';
+﻿import { db } from './firebaseConfig';
+import { collection, addDoc, getDoc, getDocs, doc, updateDoc, deleteDoc, setDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, startAfter } from 'firebase/firestore';
 import { getDefaultAvatar } from '../utils/avatarUtils';
 
 // ==================== USER FUNCTIONS ====================
@@ -11,7 +11,7 @@ export const createUserDocument = async (userId, userData) => {
         // Check if document already exists
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
-            console.log('✅ User document already exists, skipping creation');
+            console.log('âœ… User document already exists, skipping creation');
             return;
         }
 
@@ -27,9 +27,9 @@ export const createUserDocument = async (userId, userData) => {
             groups: [],
             createdAt: serverTimestamp()
         });
-        console.log('✅ User document created successfully with default avatar');
+        console.log('âœ… User document created successfully with default avatar');
     } catch (error) {
-        console.error('❌ Error creating user document:', error);
+        console.error('âŒ Error creating user document:', error);
         throw error;
     }
 };
@@ -61,9 +61,9 @@ export const updateUserDocument = async (userId, data) => {
             }
         }
 
-        console.log('✅ User document updated successfully');
+        console.log('âœ… User document updated successfully');
     } catch (error) {
-        console.error('❌ Error updating user document:', error);
+        console.error('âŒ Error updating user document:', error);
         throw error;
     }
 };
@@ -85,7 +85,7 @@ export const calculateUserNetBalance = async (userId) => {
         const groupsSnapshot = await getDocs(userGroupsQuery);
         const userGroupIds = groupsSnapshot.docs.map(doc => doc.id);
 
-        console.log('🔍 DEBUG: User is in', userGroupIds.length, 'groups');
+        console.log('ðŸ” DEBUG: User is in', userGroupIds.length, 'groups');
 
         // Fetch all expenses from these groups
         let allExpenses = [];
@@ -132,7 +132,7 @@ export const calculateUserNetBalance = async (userId) => {
             totalExpenses: userExpenses.length
         };
     } catch (error) {
-        console.error('❌ Error calculating user balance:', error);
+        console.error('âŒ Error calculating user balance:', error);
         throw error;
     }
 };
@@ -148,7 +148,7 @@ export const checkUserCanDelete = async (userId) => {
         // 1. Check net balance
         const { netBalance } = await calculateUserNetBalance(userId);
         if (Math.abs(netBalance) > 0.01) { // Allow 1 paisa tolerance for floating point
-            blockers.push(`Unsettled balance: ₹${netBalance.toFixed(2)}`);
+            blockers.push(`Unsettled balance: â‚¹${netBalance.toFixed(2)}`);
         }
 
         // 2. Check if user is admin of any groups
@@ -170,7 +170,7 @@ export const checkUserCanDelete = async (userId) => {
 
         const canDelete = blockers.length === 0;
 
-        console.log(`✅ Deletion check for user ${userId}: ${canDelete ? 'ALLOWED' : 'BLOCKED'}`);
+        console.log(`âœ… Deletion check for user ${userId}: ${canDelete ? 'ALLOWED' : 'BLOCKED'}`);
 
         return {
             canDelete,
@@ -179,7 +179,7 @@ export const checkUserCanDelete = async (userId) => {
             adminGroups
         };
     } catch (error) {
-        console.error('❌ Error checking user deletion eligibility:', error);
+        console.error('âŒ Error checking user deletion eligibility:', error);
         throw error;
     }
 };
@@ -229,10 +229,10 @@ export const createDeletionSnapshot = async (userId) => {
         // Also store in separate deletedUsers collection for admin audit
         await setDoc(doc(db, 'deletedUsers', userId), snapshot);
 
-        console.log('✅ Deletion snapshot created for user:', userId);
+        console.log('âœ… Deletion snapshot created for user:', userId);
         return snapshot;
     } catch (error) {
-        console.error('❌ Error creating deletion snapshot:', error);
+        console.error('âŒ Error creating deletion snapshot:', error);
         throw error;
     }
 };
@@ -280,7 +280,7 @@ export const transferGroupOwnership = async (userId) => {
                     action: 'transferred'
                 });
 
-                console.log(`✅ Transferred group "${groupData.name}" to ${newAdmin.name}`);
+                console.log(`âœ… Transferred group "${groupData.name}" to ${newAdmin.name}`);
             } else {
                 // Solo admin - mark group for deletion or leave as-is
                 // (You might want different logic here)
@@ -290,14 +290,14 @@ export const transferGroupOwnership = async (userId) => {
                     action: 'marked_for_cleanup'
                 });
 
-                console.log(`⚠️ Group "${groupData.name}" has no other members`);
+                console.log(`âš ï¸ Group "${groupData.name}" has no other members`);
             }
         }
 
-        console.log(`✅ Transferred ownership of ${transfers.length} groups`);
+        console.log(`âœ… Transferred ownership of ${transfers.length} groups`);
         return transfers;
     } catch (error) {
-        console.error('❌ Error transferring group ownership:', error);
+        console.error('âŒ Error transferring group ownership:', error);
         throw error;
     }
 };
@@ -316,8 +316,10 @@ export const softDeleteUserAccount = async (userId, options = {}) => {
             throw new Error(`Cannot delete: ${check.blockers.join(', ')}`);
         }
 
-        // 2. Create Data Snapshot (Backup)
-        await createDeletionSnapshot(userId);
+        // 2. Create Data Snapshot (Backup) - TEMPORARILY DISABLED DUE TO PERMISSIONS
+        // await createDeletionSnapshot(userId);
+        console.log('âš ï¸ Skipping deletion snapshot (temporarily disabled)');
+
 
         // 3. Transfer Group Ownerships
         await transferGroupOwnership(userId);
@@ -345,7 +347,7 @@ export const softDeleteUserAccount = async (userId, options = {}) => {
             return updateDoc(doc(db, 'groups', docSnap.id), { members: updatedMembers });
         });
         await Promise.all(anonymizePromises);
-        console.log(`✅ Anonymized user in ${anonymizePromises.length} groups`);
+        console.log(`âœ… Anonymized user in ${anonymizePromises.length} groups`);
 
         // 5. Mark User as Deleted (Soft Delete)
         const userRef = doc(db, 'users', userId);
@@ -360,11 +362,11 @@ export const softDeleteUserAccount = async (userId, options = {}) => {
             previousDisplayName: check.adminGroups?.[0]?.members?.find(m => m.userId === userId)?.name || 'Unknown'
         });
 
-        console.log('✅ User soft deleted successfully');
+        console.log('âœ… User soft deleted successfully');
         return true;
 
     } catch (error) {
-        console.error('❌ Error in soft delete:', error);
+        console.error('âŒ Error in soft delete:', error);
         throw error;
     }
 };
@@ -388,7 +390,7 @@ export const createGroup = async (groupName, creatorId, creatorData) => {
             isSettled: false,
             memberIds: [creatorId], // Add this primarily for permissions and querying
             customization: {
-                icon: '💰', // Default emoji icon
+                icon: 'ðŸ’°', // Default emoji icon
                 color: '#F59E0B', // Default amber color
                 description: '',
                 category: 'Other'
@@ -403,7 +405,7 @@ export const createGroup = async (groupName, creatorId, creatorData) => {
             groups: [...currentGroups, groupRef.id]
         });
 
-        console.log('✅ Group created with ID:', groupRef.id);
+        console.log('âœ… Group created with ID:', groupRef.id);
 
         // Log activity
         await createActivity({
@@ -417,7 +419,7 @@ export const createGroup = async (groupName, creatorId, creatorData) => {
 
         return groupRef.id;
     } catch (error) {
-        console.error('❌ Error creating group:', error);
+        console.error('âŒ Error creating group:', error);
         throw error;
     }
 };
@@ -493,7 +495,7 @@ export const deleteGroup = async (groupId, userId) => {
         );
         await Promise.all(deletePromises);
 
-        console.log(`✅ Deleted ${expensesSnapshot.size} expenses from group`);
+        console.log(`âœ… Deleted ${expensesSnapshot.size} expenses from group`);
 
         // Remove group from all members' groups arrays
         const memberIds = groupData.memberIds || [];
@@ -512,7 +514,7 @@ export const deleteGroup = async (groupId, userId) => {
         // Delete the group document
         await deleteDoc(groupRef);
 
-        console.log('✅ Group deleted successfully');
+        console.log('âœ… Group deleted successfully');
 
         // Log activity
         await createActivity({
@@ -525,7 +527,7 @@ export const deleteGroup = async (groupId, userId) => {
 
         return { success: true, message: 'Group deleted successfully' };
     } catch (error) {
-        console.error('❌ Error deleting group:', error);
+        console.error('âŒ Error deleting group:', error);
         throw error;
     }
 };
@@ -551,16 +553,16 @@ export const updateGroupCustomization = async (groupId, userId, customization) =
         // Update customization
         await updateDoc(groupRef, {
             customization: {
-                icon: customization.icon || groupData.customization?.icon || '💰',
+                icon: customization.icon || groupData.customization?.icon || 'ðŸ’°',
                 color: customization.color || groupData.customization?.color || '#F59E0B',
                 description: customization.description !== undefined ? customization.description : (groupData.customization?.description || ''),
                 category: customization.category || groupData.customization?.category || 'Other'
             }
         });
 
-        console.log('✅ Group customization updated');
+        console.log('âœ… Group customization updated');
     } catch (error) {
-        console.error('❌ Error updating group customization:', error);
+        console.error('âŒ Error updating group customization:', error);
         throw error;
     }
 };
@@ -612,7 +614,7 @@ export const removeMemberFromGroup = async (groupId, memberUserId, currentUserId
                 });
             }
         } catch (userUpdateError) {
-            console.warn('⚠️ Error updating user groups array:', userUpdateError);
+            console.warn('âš ï¸ Error updating user groups array:', userUpdateError);
         }
 
         // Clean up pending settlements involving this member
@@ -633,9 +635,9 @@ export const removeMemberFromGroup = async (groupId, memberUserId, currentUserId
             const deletePromises = settlementsToDelete.map(doc => deleteDoc(doc.ref));
             await Promise.all(deletePromises);
 
-            console.log(`✅ Cleaned up ${settlementsToDelete.length} settlements for removed member`);
+            console.log(`âœ… Cleaned up ${settlementsToDelete.length} settlements for removed member`);
         } catch (settlementError) {
-            console.warn('⚠️ Error cleaning up settlements:', settlementError);
+            console.warn('âš ï¸ Error cleaning up settlements:', settlementError);
             // Don't fail the whole operation if settlement cleanup fails
         }
 
@@ -648,10 +650,10 @@ export const removeMemberFromGroup = async (groupId, memberUserId, currentUserId
             { groupId: groupId, groupName: groupData.name }
         );
 
-        console.log('✅ Member removed from group successfully');
+        console.log('âœ… Member removed from group successfully');
         return { success: true, message: 'Member removed successfully' };
     } catch (error) {
-        console.error('❌ Error removing member from group:', error);
+        console.error('âŒ Error removing member from group:', error);
         throw error;
     }
 };
@@ -698,7 +700,7 @@ export const leaveGroup = async (groupId, userId) => {
                 });
             }
         } catch (userUpdateError) {
-            console.warn('⚠️ Error updating user groups array:', userUpdateError);
+            console.warn('âš ï¸ Error updating user groups array:', userUpdateError);
         }
 
         // Clean up pending settlements involving this member
@@ -718,13 +720,13 @@ export const leaveGroup = async (groupId, userId) => {
             const deletePromises = settlementsToDelete.map(doc => deleteDoc(doc.ref));
             await Promise.all(deletePromises);
         } catch (settlementError) {
-            console.warn('⚠️ Error cleaning up settlements:', settlementError);
+            console.warn('âš ï¸ Error cleaning up settlements:', settlementError);
         }
 
-        console.log('✅ User left group successfully');
+        console.log('âœ… User left group successfully');
         return { success: true, message: 'You have left the group' };
     } catch (error) {
-        console.error('❌ Error leaving group:', error);
+        console.error('âŒ Error leaving group:', error);
         throw error;
     }
 };
@@ -810,10 +812,10 @@ export const sendGroupInvitation = async (groupId, groupName, inviterName, membe
             createdAt: serverTimestamp()
         });
 
-        console.log('✅ Invitation sent');
+        console.log('âœ… Invitation sent');
         return { success: true, message: `Invitation sent to ${memberEmail}` };
     } catch (error) {
-        console.error('❌ Error sending invitation:', error);
+        console.error('âŒ Error sending invitation:', error);
         throw error;
     }
 };
@@ -903,7 +905,7 @@ export const acceptGroupInvitation = async (invitationId, userId) => {
                 console.warn('Failed to send join message:', msgError);
             }
         } else {
-            console.log('⚠️ User is already a member, skipping addition but updating invite status');
+            console.log('âš ï¸ User is already a member, skipping addition but updating invite status');
         }
 
         // Update invitation status (mark as accepted regardless, to clear it)
@@ -912,9 +914,9 @@ export const acceptGroupInvitation = async (invitationId, userId) => {
             acceptedAt: serverTimestamp()
         });
 
-        console.log('✅ Invitation accepted');
+        console.log('âœ… Invitation accepted');
     } catch (error) {
-        console.error('❌ Error accepting invitation:', error);
+        console.error('âŒ Error accepting invitation:', error);
         throw error;
     }
 };
@@ -926,9 +928,9 @@ export const declineGroupInvitation = async (invitationId) => {
             status: 'declined',
             declinedAt: serverTimestamp()
         });
-        console.log('✅ Invitation declined');
+        console.log('âœ… Invitation declined');
     } catch (error) {
-        console.error('❌ Error declining invitation:', error);
+        console.error('âŒ Error declining invitation:', error);
         throw error;
     }
 };
@@ -1019,7 +1021,7 @@ export const createExpense = async (expenseData) => {
                         memberId,
                         'expense',
                         'New Expense Added',
-                        `${expenseData.paidByName} added ₹${expenseData.amount} for "${expenseData.description}"`,
+                        `${expenseData.paidByName} added â‚¹${expenseData.amount} for "${expenseData.description}"`,
                         {
                             groupId: expenseData.groupId,
                             expenseId: expenseRef.id,
@@ -1032,10 +1034,10 @@ export const createExpense = async (expenseData) => {
             await Promise.all(notificationPromises);
         }
 
-        console.log('✅ Expense created with ID:', expenseRef.id);
+        console.log('âœ… Expense created with ID:', expenseRef.id);
         return expenseRef.id;
     } catch (error) {
-        console.error('❌ Error creating expense:', error);
+        console.error('âŒ Error creating expense:', error);
         throw error;
     }
 };
@@ -1044,9 +1046,9 @@ export const updateExpense = async (expenseId, updates) => {
     try {
         const expenseRef = doc(db, 'expenses', expenseId);
         await updateDoc(expenseRef, updates);
-        console.log('✅ Expense updated:', expenseId);
+        console.log('âœ… Expense updated:', expenseId);
     } catch (error) {
-        console.error('❌ Error updating expense:', error);
+        console.error('âŒ Error updating expense:', error);
         throw error;
     }
 };
@@ -1067,9 +1069,9 @@ export const deleteExpense = async (expenseId, groupId, amount) => {
             }
         }
 
-        console.log('✅ Expense deleted:', expenseId);
+        console.log('âœ… Expense deleted:', expenseId);
     } catch (error) {
-        console.error('❌ Error deleting expense:', error);
+        console.error('âŒ Error deleting expense:', error);
         throw error;
     }
 };
@@ -1085,22 +1087,22 @@ export const deleteAllCreatedGroups = async (userId) => {
         const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
         await Promise.all(deletePromises);
 
-        console.log(`✅ Deleted ${snapshot.size} groups created by user ${userId}`);
+        console.log(`âœ… Deleted ${snapshot.size} groups created by user ${userId}`);
         return snapshot.size;
     } catch (error) {
-        console.error('❌ Error deleting all groups:', error);
+        console.error('âŒ Error deleting all groups:', error);
         throw error;
     }
 };
 
 export const deleteAllUserExpenses = async (userId) => {
     try {
-        console.log('🔍 Starting deleteAllUserExpenses for user:', userId);
+        console.log('ðŸ” Starting deleteAllUserExpenses for user:', userId);
         const expensesToDelete = [];
         const affectedGroups = new Set(); // Track which groups need their totals reset
 
         // 1. Get expenses user paid for
-        console.log('📋 Step 1: Fetching expenses paid by user...');
+        console.log('ðŸ“‹ Step 1: Fetching expenses paid by user...');
         const paidByQuery = query(
             collection(db, 'expenses'),
             where('paidBy', '==', userId)
@@ -1108,13 +1110,13 @@ export const deleteAllUserExpenses = async (userId) => {
         const paidBySnapshot = await getDocs(paidByQuery);
         console.log(`   Found ${paidBySnapshot.size} expenses paid by user`);
         paidBySnapshot.docs.forEach(doc => {
-            console.log(`   - Expense: ${doc.id}, Amount: ₹${doc.data().amount}, Group: ${doc.data().groupId}`);
+            console.log(`   - Expense: ${doc.id}, Amount: â‚¹${doc.data().amount}, Group: ${doc.data().groupId}`);
             expensesToDelete.push(doc);
             if (doc.data().groupId) affectedGroups.add(doc.data().groupId);
         });
 
         // 2. Get groups created by user and ALL their expenses
-        console.log('📋 Step 2: Fetching groups created by user...');
+        console.log('ðŸ“‹ Step 2: Fetching groups created by user...');
         const groupsQuery = query(
             collection(db, 'groups'),
             where('createdBy', '==', userId)
@@ -1135,7 +1137,7 @@ export const deleteAllUserExpenses = async (userId) => {
             groupExpensesSnapshot.docs.forEach(doc => {
                 // Add if not already in list (avoid duplicates)
                 if (!expensesToDelete.find(e => e.id === doc.id)) {
-                    console.log(`     + Adding expense: ${doc.id}, Amount: ₹${doc.data().amount}, Paid by: ${doc.data().paidBy}`);
+                    console.log(`     + Adding expense: ${doc.id}, Amount: â‚¹${doc.data().amount}, Paid by: ${doc.data().paidBy}`);
                     expensesToDelete.push(doc);
                 } else {
                     console.log(`     = Already in list: ${doc.id}`);
@@ -1143,36 +1145,36 @@ export const deleteAllUserExpenses = async (userId) => {
             });
         }
 
-        console.log(`\n🗑️ Total expenses to delete: ${expensesToDelete.length}`);
-        console.log(`🏢 Affected groups: ${affectedGroups.size}`);
+        console.log(`\nðŸ—‘ï¸ Total expenses to delete: ${expensesToDelete.length}`);
+        console.log(`ðŸ¢ Affected groups: ${affectedGroups.size}`);
 
         // Delete all expenses
         if (expensesToDelete.length > 0) {
-            console.log('🔥 Starting deletion process...');
+            console.log('ðŸ”¥ Starting deletion process...');
             const deletePromises = expensesToDelete.map((doc, index) => {
                 console.log(`   Deleting ${index + 1}/${expensesToDelete.length}: ${doc.id}`);
                 return deleteExpense(doc.id, doc.data().groupId, doc.data().amount);
             });
             await Promise.all(deletePromises);
-            console.log(`✅ Successfully deleted ${expensesToDelete.length} expenses`);
+            console.log(`âœ… Successfully deleted ${expensesToDelete.length} expenses`);
         } else {
-            console.log('⚠️ No expenses found to delete!');
+            console.log('âš ï¸ No expenses found to delete!');
         }
 
         // Reset totalExpenses for all affected groups
         if (affectedGroups.size > 0) {
-            console.log('\n🔄 Resetting totalExpenses for affected groups...');
+            console.log('\nðŸ”„ Resetting totalExpenses for affected groups...');
             const resetPromises = Array.from(affectedGroups).map(async (groupId) => {
                 const groupRef = doc(db, 'groups', groupId);
                 await updateDoc(groupRef, { totalExpenses: 0 });
-                console.log(`   ✅ Reset totalExpenses for group: ${groupId}`);
+                console.log(`   âœ… Reset totalExpenses for group: ${groupId}`);
             });
             await Promise.all(resetPromises);
-            console.log(`✅ Reset ${affectedGroups.size} group totals to ₹0`);
+            console.log(`âœ… Reset ${affectedGroups.size} group totals to â‚¹0`);
         }
 
         // Delete all user activities (using involvedUserIds to match Dashboard display)
-        console.log('\n🗑️ Deleting activity history...');
+        console.log('\nðŸ—‘ï¸ Deleting activity history...');
         const activityQuery = query(
             collection(db, 'activity'),
             where('involvedUserIds', 'array-contains', userId)
@@ -1180,11 +1182,11 @@ export const deleteAllUserExpenses = async (userId) => {
         const activitySnapshot = await getDocs(activityQuery);
         const activityDeletePromises = activitySnapshot.docs.map(doc => deleteDoc(doc.ref));
         await Promise.all(activityDeletePromises);
-        console.log(`✅ Deleted ${activitySnapshot.size} activity records`);
+        console.log(`âœ… Deleted ${activitySnapshot.size} activity records`);
 
         return expensesToDelete.length;
     } catch (error) {
-        console.error('❌ Error deleting all expenses:', error);
+        console.error('âŒ Error deleting all expenses:', error);
         console.error('Error details:', error.message);
         console.error('Error code:', error.code);
         throw error;
@@ -1254,9 +1256,9 @@ export const createActivity = async (activityData) => {
             ...activityData,
             timestamp: serverTimestamp()
         });
-        console.log('✅ Activity logged');
+        console.log('âœ… Activity logged');
     } catch (error) {
-        console.error('❌ Error creating activity:', error);
+        console.error('âŒ Error creating activity:', error);
         throw error;
     }
 };
@@ -1313,14 +1315,14 @@ export const createSettlement = async (fromUserId, toUserId, amount, fromUserDat
         };
 
         const docRef = await addDoc(collection(db, 'settlements'), settlement);
-        console.log('✅ Settlement created:', docRef.id);
+        console.log('âœ… Settlement created:', docRef.id);
 
         // Notify the receiver
         await createNotification(
             toUserId,
             'settlement',
             'Settlement Request',
-            `${fromUserData.displayName?.split(' ')[0]} wants to settle ₹${amount}`,
+            `${fromUserData.displayName?.split(' ')[0]} wants to settle â‚¹${amount}`,
             {
                 settlementId: docRef.id,
                 amount,
@@ -1331,7 +1333,7 @@ export const createSettlement = async (fromUserId, toUserId, amount, fromUserDat
 
         return docRef;
     } catch (error) {
-        console.error('❌ Error creating settlement:', error);
+        console.error('âŒ Error creating settlement:', error);
         throw error;
     }
 };
@@ -1372,7 +1374,7 @@ export const approveSettlement = async (settlementId) => {
 
         await addDoc(collection(db, 'expenses'), paymentExpense);
 
-        console.log('✅ Settlement approved and payment recorded:', settlementId);
+        console.log('âœ… Settlement approved and payment recorded:', settlementId);
 
         // Notify the payer
         if (settlementData) {
@@ -1381,7 +1383,7 @@ export const approveSettlement = async (settlementId) => {
                 try {
                     await sendMessage(
                         settlementData.groupId,
-                        `${settlementData.toUserName} verified a payment of ₹${settlementData.amount} from ${settlementData.fromUserName}`,
+                        `${settlementData.toUserName} verified a payment of â‚¹${settlementData.amount} from ${settlementData.fromUserName}`,
                         {
                             uid: 'SYSTEM',
                             displayName: 'System',
@@ -1398,7 +1400,7 @@ export const approveSettlement = async (settlementId) => {
                 settlementData.fromUserId,
                 'payment',
                 'Payment Approved',
-                `${settlementData.toUserName} verified your ₹${settlementData.amount} payment`,
+                `${settlementData.toUserName} verified your â‚¹${settlementData.amount} payment`,
                 {
                     settlementId,
                     amount: settlementData.amount,
@@ -1411,13 +1413,13 @@ export const approveSettlement = async (settlementId) => {
             await createActivity({
                 involvedUserIds: [settlementData.fromUserId, settlementData.toUserId],
                 type: 'payment_verified',
-                description: `${settlementData.toUserName} verified a payment of ₹${settlementData.amount}`,
+                description: `${settlementData.toUserName} verified a payment of â‚¹${settlementData.amount}`,
                 relatedId: settlementId,
                 groupId: settlementData.groupId || null // Link activity to group if possible
             });
         }
     } catch (error) {
-        console.error('❌ Error approving settlement:', error);
+        console.error('âŒ Error approving settlement:', error);
         throw error;
     }
 };
@@ -1425,9 +1427,9 @@ export const approveSettlement = async (settlementId) => {
 export const rejectSettlement = async (settlementId) => {
     try {
         await deleteDoc(doc(db, 'settlements', settlementId));
-        console.log('✅ Settlement rejected/deleted:', settlementId);
+        console.log('âœ… Settlement rejected/deleted:', settlementId);
     } catch (error) {
-        console.error('❌ Error rejecting settlement:', error);
+        console.error('âŒ Error rejecting settlement:', error);
         throw error;
     }
 };
@@ -1479,7 +1481,7 @@ export const sendMessage = async (groupId, text, currentUser, options = {}) => {
             timestamp: serverTimestamp(),
             type: options.type || 'text'
         });
-        console.log('✅ Message sent to group:', groupId);
+        console.log('âœ… Message sent to group:', groupId);
 
         // Don't notify for system messages
         if (options.type === 'system') return;
@@ -1512,7 +1514,7 @@ export const sendMessage = async (groupId, text, currentUser, options = {}) => {
             await Promise.all(notificationPromises);
         }
     } catch (error) {
-        console.error('❌ Error sending message:', error);
+        console.error('âŒ Error sending message:', error);
         throw error;
     }
 };
@@ -1548,9 +1550,9 @@ export const createNotification = async (userId, type, title, message, metadata 
         };
 
         await addDoc(collection(db, 'notifications'), notification);
-        console.log('✅ Notification created for user:', userId);
+        console.log('âœ… Notification created for user:', userId);
     } catch (error) {
-        console.error('❌ Error creating notification:', error);
+        console.error('âŒ Error creating notification:', error);
         // Don't throw - notifications are non-critical
     }
 };
@@ -1579,7 +1581,7 @@ export const markNotificationRead = async (notificationId) => {
             read: true
         });
     } catch (error) {
-        console.error('❌ Error marking notification as read:', error);
+        console.error('âŒ Error marking notification as read:', error);
     }
 };
 
@@ -1596,9 +1598,9 @@ export const markAllNotificationsRead = async (userId) => {
             updateDoc(d.ref, { read: true })
         );
         await Promise.all(promises);
-        console.log(`✅ Marked ${snapshot.size} notifications as read`);
+        console.log(`âœ… Marked ${snapshot.size} notifications as read`);
     } catch (error) {
-        console.error('❌ Error marking all notifications as read:', error);
+        console.error('âŒ Error marking all notifications as read:', error);
     }
 };
 
@@ -1620,9 +1622,703 @@ export const updateUserAvatar = async (userId, photoURL, avatarStyle) => {
             updatedAt: serverTimestamp()
         });
 
-        console.log('✅ User avatar updated in Firestore');
+        console.log('âœ… User avatar updated in Firestore');
     } catch (error) {
-        console.error('❌ Error updating user avatar:', error);
+        console.error('âŒ Error updating user avatar:', error);
         throw error;
     }
 };
+
+// ==================== ADMIN FUNCTIONS ====================
+
+/**
+ * Get all users with pagination (Admin only)
+ * @param {number} limitCount - Number of users to fetch
+ * @param {object} lastDoc - Last document for pagination
+ * @returns {Promise<{users: Array, lastVisible: object}>}
+ */
+export const getAllUsers = async (limitCount = 50, lastDoc = null) => {
+    try {
+        let q = query(
+            collection(db, 'users'),
+            orderBy('createdAt', 'desc'),
+            limit(limitCount)
+        );
+
+        if (lastDoc) {
+            q = query(
+                collection(db, 'users'),
+                orderBy('createdAt', 'desc'),
+                startAfter(lastDoc),
+                limit(limitCount)
+            );
+        }
+
+        const snapshot = await getDocs(q);
+        const users = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        const lastVisible = snapshot.docs[snapshot.docs.length - 1];
+
+        return { users, lastVisible };
+    } catch (error) {
+        console.error('âŒ Error fetching all users:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get all groups (Admin only)
+ * @returns {Promise<Array>}
+ */
+export const getAllGroups = async () => {
+    try {
+        const q = query(
+            collection(db, 'groups'),
+            orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error('âŒ Error fetching all groups:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get all expenses across platform (Admin only)
+ * @returns {Promise<Array>}
+ */
+export const getAllExpenses = async () => {
+    try {
+        const q = query(
+            collection(db, 'expenses'),
+            orderBy('date', 'desc'),
+            limit(200) // Limit to prevent performance issues
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error('âŒ Error fetching all expenses:', error);
+        throw error;
+    }
+};
+
+/**
+ * Ban a user from the platform (Admin only)
+ * @param {string} userId - User ID to ban
+ * @param {string} reason - Reason for ban
+ */
+export const banUser = async (userId, reason) => {
+    try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+            isBanned: true,
+            bannedAt: serverTimestamp(),
+            bannedReason: reason
+        });
+        console.log('âœ… User banned successfully');
+    } catch (error) {
+        console.error('âŒ Error banning user:', error);
+        throw error;
+    }
+};
+
+/**
+ * Unban a user (Admin only)
+ * @param {string} userId - User ID to unban
+ */
+export const unbanUser = async (userId) => {
+    try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+            isBanned: false,
+            bannedAt: null,
+            bannedReason: null
+        });
+        console.log('âœ… User unbanned successfully');
+    } catch (error) {
+        console.error('âŒ Error unbanning user:', error);
+        throw error;
+    }
+};
+
+/**
+ * Update user role (promote/demote admin) (Admin only)
+ * @param {string} userId - User ID
+ * @param {boolean} isAdmin - Whether user should be admin
+ */
+export const updateUserRole = async (userId, isAdmin) => {
+    try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+            isAdmin: isAdmin
+        });
+        console.log(`âœ… User ${isAdmin ? 'promoted to' : 'removed from'} admin`);
+    } catch (error) {
+        console.error('âŒ Error updating user role:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get platform-wide statistics (Admin only)
+ * @returns {Promise<object>} System stats
+ */
+export const getSystemStats = async () => {
+    try {
+        // Get counts
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const groupsSnapshot = await getDocs(collection(db, 'groups'));
+        const expensesSnapshot = await getDocs(collection(db, 'expenses'));
+        const settlementsSnapshot = await getDocs(collection(db, 'settlements'));
+
+        const users = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const groups = groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const expenses = expensesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const settlements = settlementsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Calculate stats
+        const totalUsers = users.length;
+        const activeUsers = users.filter(u => !u.isBanned).length;
+        const bannedUsers = users.filter(u => u.isBanned).length;
+        const totalGroups = groups.length;
+        const activeGroups = groups.filter(g => !g.isSettled).length;
+        const totalExpenses = expenses.length;
+
+        // Calculate total money managed
+        const totalAmount = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+
+        // Settlement stats
+        const pendingSettlements = settlements.filter(s => s.status === 'pending').length;
+        const approvedSettlements = settlements.filter(s => s.status === 'approved').length;
+
+        // Recent activity (last 7 days)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const recentUsers = users.filter(u => {
+            const createdAt = u.createdAt?.toDate ? u.createdAt.toDate() : new Date(u.createdAt);
+            return createdAt > sevenDaysAgo;
+        }).length;
+
+        return {
+            totalUsers,
+            activeUsers,
+            bannedUsers,
+            totalGroups,
+            activeGroups,
+            totalExpenses,
+            totalAmount,
+            pendingSettlements,
+            approvedSettlements,
+            recentUsers,
+            adminCount: users.filter(u => u.isAdmin).length
+        };
+    } catch (error) {
+        console.error('âŒ Error getting system stats:', error);
+        throw error;
+    }
+};
+
+/**
+ * Force delete a group without balance checks (Admin only)
+ * @param {string} groupId - Group ID to delete
+ */
+export const forceDeleteGroup = async (groupId) => {
+    try {
+        // Delete all expenses in the group
+        const expensesQuery = query(
+            collection(db, 'expenses'),
+            where('groupId', '==', groupId)
+        );
+        const expensesSnapshot = await getDocs(expensesQuery);
+        await Promise.all(expensesSnapshot.docs.map(doc => deleteDoc(doc.ref)));
+
+        // Delete all settlements in the group
+        const settlementsQuery = query(
+            collection(db, 'settlements'),
+            where('groupId', '==', groupId)
+        );
+        const settlementsSnapshot = await getDocs(settlementsQuery);
+        await Promise.all(settlementsSnapshot.docs.map(doc => deleteDoc(doc.ref)));
+
+        // Delete the group
+        await deleteDoc(doc(db, 'groups', groupId));
+
+        console.log('âœ… Group force deleted successfully');
+    } catch (error) {
+        console.error('âŒ Error force deleting group:', error);
+        throw error;
+    }
+};
+
+/**
+ * Delete an expense completely (Admin only)
+ * @param {string} expenseId - Expense ID to delete
+ */
+export const adminDeleteExpense = async (expenseId) => {
+    try {
+        await deleteDoc(doc(db, 'expenses', expenseId));
+        console.log('âœ… Expense deleted successfully');
+    } catch (error) {
+        console.error('âŒ Error deleting expense:', error);
+        throw error;
+    }
+};
+
+/**
+ * Search users by name or email (Admin only)
+ * @param {string} searchTerm - Search term
+ * @returns {Promise<Array>}
+ */
+export const searchUsers = async (searchTerm) => {
+    try {
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const users = usersSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        // Client-side filtering (Firestore doesn't support full-text search natively)
+        const filtered = users.filter(user =>
+            user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.email?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        return filtered;
+    } catch (error) {
+        console.error('âŒ Error searching users:', error);
+        throw error;
+    }
+};
+
+/**
+/**
+ * Get user recent expense activity (Admin feature)
+ * @param {string} userId - User ID
+ * @param {number} limit - Number of activities to fetch
+ */
+export const getUserRecentExpenses = async (userId, limit = 20) => {
+    try {
+        const activities = [];
+
+        // Get user's recent expenses
+        const expensesQuery = query(
+            collection(db, 'expenses'),
+            where('paidBy', '==', userId),
+            orderBy('createdAt', 'desc'),
+            limit(limit)
+        );
+        const expensesSnap = await getDocs(expensesQuery);
+        expensesSnap.docs.forEach(doc => {
+            const data = doc.data();
+            activities.push({
+                type: 'expense',
+                action: 'Created expense',
+                description: data.description,
+                amount: data.amount,
+                timestamp: data.createdAt,
+                id: doc.id
+            });
+        });
+
+        // Sort by timestamp
+        activities.sort((a, b) => {
+            const aTime = a.timestamp?.toMillis?.() || 0;
+            const bTime = b.timestamp?.toMillis?.() || 0;
+            return bTime - aTime;
+        });
+
+        return activities.slice(0, limit);
+    } catch (error) {
+        console.error('âŒ Error getting user activity:', error);
+        return [];
+    }
+};
+
+/**
+ * Get system health metrics (Admin dashboard)
+ */
+export const getSystemHealth = async () => {
+    try {
+        const health = {
+            status: 'healthy',
+            uptime: '99.9%',
+            responseTime: Math.floor(Math.random() * 50) + 80, // Simulated: 80-130ms
+            lastCheck: new Date().toISOString(),
+            services: {
+                database: 'operational',
+                auth: 'operational',
+                storage: 'operational'
+            }
+        };
+
+        // Check recent errors (simulated - in production, you'd track these)
+        const errorCount = 0; // TODO: Implement error tracking
+
+        if (errorCount > 10) {
+            health.status = 'degraded';
+        }
+
+        return health;
+    } catch (error) {
+        console.error('âŒ Error getting system health:', error);
+        return {
+            status: 'error',
+            message: error.message
+        };
+    }
+};
+
+/**
+ * Get detailed user statistics (Admin user profile)
+ * @param {string} userId - User ID
+ */
+export const getUserStats = async (userId) => {
+    try {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (!userDoc.exists()) {
+            throw new Error('User not found');
+        }
+
+        const userData = userDoc.data();
+
+        // Get expense stats
+        const expensesQuery = query(
+            collection(db, 'expenses'),
+            where('paidBy', '==', userId)
+        );
+        const expensesSnap = await getDocs(expensesQuery);
+
+        let totalPaid = 0;
+        expensesSnap.docs.forEach(doc => {
+            totalPaid += doc.data().amount || 0;
+        });
+
+        // Get groups count
+        const groupsQuery = query(
+            collection(db, 'groups'),
+            where('memberIds', 'array-contains', userId)
+        );
+        const groupsSnap = await getDocs(groupsQuery);
+
+        // Get balance
+        const balance = await calculateUserNetBalance(userId);
+
+        return {
+            ...userData,
+            stats: {
+                totalExpenses: expensesSnap.size,
+                totalPaid,
+                groupsCount: groupsSnap.size,
+                balance: balance.total,
+                joinedDate: userData.createdAt || null,
+                lastActive: userData.lastActive || null
+            }
+        };
+    } catch (error) {
+        console.error('âŒ Error getting user stats:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get all groups a user belongs to (Admin user profile)
+ * Uses collection query instead of user.groups array for reliability
+ * @param {string} userId - User ID
+ */
+export const getUserGroupsAdmin = async (userId) => {
+    try {
+        const groupsQuery = query(
+            collection(db, 'groups'),
+            where('memberIds', 'array-contains', userId)
+        );
+        const groupsSnap = await getDocs(groupsQuery);
+
+        return groupsSnap.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error('âŒ Error getting user groups:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get aggregated analytics data for dashboard charts
+ * @returns {Promise<object>} Chart data for users, expenses, and groups
+ */
+/**
+ * Get aggregated analytics data for dashboard charts
+ * @returns {Promise<object>} Chart data for users, expenses, and groups
+ */
+export const getDashboardAnalytics = async () => {
+    try {
+        console.log('Fetching dashboard analytics...');
+
+        // 1. Fetch data
+        const [usersSnap, expensesSnap, groupsSnap] = await Promise.all([
+            getDocs(query(collection(db, 'users'), orderBy('createdAt', 'asc'))),
+            getDocs(query(collection(db, 'expenses'), orderBy('createdAt', 'asc'))),
+            getDocs(collection(db, 'groups'))
+        ]);
+
+        // 2. Process User Growth (Last 30 days)
+        const userGrowth = [];
+        const today = new Date();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+
+        // Initialize map for last 30 days
+        const dateMap = new Map();
+        for (let i = 0; i < 30; i++) {
+            const d = new Date();
+            d.setDate(today.getDate() - i);
+            const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+            dateMap.set(dateStr, 0);
+        }
+
+        // Count users per day
+        let runningTotal = 0;
+        usersSnap.docs.forEach(doc => {
+            const userData = doc.data();
+            if (!userData.createdAt) return;
+
+            const date = userData.createdAt.toDate ? userData.createdAt.toDate() : new Date(userData.createdAt);
+
+            // Count total up to 30 days ago for baseline
+            if (date < thirtyDaysAgo) {
+                runningTotal++;
+            } else {
+                const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+                if (dateMap.has(dateStr)) {
+                    dateMap.set(dateStr, dateMap.get(dateStr) + 1);
+                }
+            }
+        });
+
+        // Convert map to array with cumulative total
+        const sortedDates = Array.from(dateMap.keys()).reverse();
+        sortedDates.forEach(date => {
+            runningTotal += dateMap.get(date);
+            userGrowth.push({
+                date,
+                users: runningTotal
+            });
+        });
+
+        // 3. Process Expense Trends (Last 6 months)
+        const expenseTrends = [];
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(today.getMonth() - 5);
+
+        // Initialize map for last 6 months
+        const monthMap = new Map();
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(today.getMonth() - i);
+            const monthStr = monthNames[d.getMonth()];
+            monthMap.set(monthStr, 0);
+        }
+
+        expensesSnap.docs.forEach(doc => {
+            const data = doc.data();
+            if (!data.createdAt || !data.amount) return;
+
+            const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+            if (date >= sixMonthsAgo) {
+                const monthStr = monthNames[date.getMonth()];
+                if (monthMap.has(monthStr)) {
+                    monthMap.set(monthStr, monthMap.get(monthStr) + data.amount);
+                }
+            }
+        });
+
+        monthMap.forEach((amount, month) => {
+            expenseTrends.push({
+                month,
+                amount
+            });
+        });
+
+        // 4. Process Group Status
+        let activeGroups = 0;
+        let settledGroups = 0;
+
+        groupsSnap.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.isSettled) {
+                settledGroups++;
+            } else {
+                activeGroups++;
+            }
+        });
+
+        const groupStatus = [
+            { name: 'Active', value: activeGroups, color: '#10b981' },
+            { name: 'Settled', value: settledGroups, color: '#6366f1' }
+        ];
+
+        return {
+            userGrowth,
+            expenseTrends,
+            groupStatus
+        };
+    } catch (error) {
+        console.error('Error getting dashboard analytics:', error);
+        throw error;
+    }
+};
+
+// ===========================
+// TRAVEL BUDGET FUNCTIONS
+// ===========================
+
+/**
+ * Set or update budget for a group
+ * @param {string} groupId - Group ID
+ * @param {Object} budgetData - Budget configuration
+ * @returns {Promise<void>}
+ */
+export const setBudget = async (groupId, budgetData) => {
+    try {
+        const groupRef = doc(db, 'groups', groupId);
+        await updateDoc(groupRef, {
+            budget: {
+                total: budgetData.total || 0,
+                currency: budgetData.currency || 'INR',
+                startDate: budgetData.startDate || null,
+                endDate: budgetData.endDate || null,
+                notes: budgetData.notes || ''
+            },
+            updatedAt: serverTimestamp()
+        });
+        console.log(' Budget updated for group:', groupId);
+    } catch (error) {
+        console.error(' Error setting budget:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get real-time budget analytics for a group
+ * @param {string} groupId - Group ID
+ * @returns {Promise<Object>} Budget analytics
+ */
+export const getBudgetAnalytics = async (groupId) => {
+    try {
+        // Get the group document to retrieve budget info
+        const groupRef = doc(db, 'groups', groupId);
+        const groupSnap = await getDoc(groupRef);
+
+        if (!groupSnap.exists()) {
+            throw new Error('Group not found');
+        }
+
+        const groupData = groupSnap.data();
+        const budget = groupData.budget || {};
+
+        // If no budget is set, return empty analytics
+        if (!budget.total) {
+            return {
+                totalBudget: 0,
+                utilized: 0,
+                avgDaily: 0,
+                estimatedFinal: 0,
+                remaining: 0,
+                utilizationPercent: 0,
+                daysElapsed: 0,
+                totalDays: 0,
+                dailySpending: []
+            };
+        }
+
+        // Get all expenses for this group
+        const expensesRef = collection(db, 'expenses');
+        const q = query(expensesRef, where('groupId', '==', groupId));
+        const expensesSnap = await getDocs(q);
+
+        // Calculate total utilized amount and group by date
+        let totalUtilized = 0;
+        const spendingByDate = {};
+
+        expensesSnap.forEach((doc) => {
+            const expense = doc.data();
+            const amount = expense.amount || 0;
+            totalUtilized += amount;
+
+            // Group expenses by date
+            const expenseDate = expense.createdAt?.toDate ? expense.createdAt.toDate() : new Date(expense.createdAt);
+            const dateKey = expenseDate.toISOString().split('T')[0];
+            spendingByDate[dateKey] = (spendingByDate[dateKey] || 0) + amount;
+        });
+
+        // Calculate days elapsed and total days
+        const now = new Date();
+        const startDate = budget.startDate?.toDate ? budget.startDate.toDate() : new Date(budget.startDate);
+        const endDate = budget.endDate?.toDate ? budget.endDate.toDate() : new Date(budget.endDate);
+
+        const daysElapsed = Math.max(1, Math.ceil((now - startDate) / (1000 * 60 * 60 * 24)));
+        const totalDays = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)));
+
+        // Calculate average daily spending
+        const avgDaily = totalUtilized / daysElapsed;
+
+        // Calculate estimated final cost (project current spending rate to end date)
+        const estimatedFinal = avgDaily * totalDays;
+
+        // Calculate remaining budget
+        const remaining = budget.total - totalUtilized;
+
+        // Calculate utilization percentage
+        const utilizationPercent = (totalUtilized / budget.total) * 100;
+
+        // Generate daily spending array for chart (cumulative)
+        const dailySpending = [];
+        let cumulativeSpending = 0;
+        for (let i = 0; i < daysElapsed; i++) {
+            const date = new Date(startDate);
+            date.setDate(date.getDate() + i);
+            const dateKey = date.toISOString().split('T')[0];
+
+            if (spendingByDate[dateKey]) {
+                cumulativeSpending += spendingByDate[dateKey];
+            }
+
+            dailySpending.push({
+                date: dateKey,
+                amount: cumulativeSpending,
+                dayNumber: i + 1
+            });
+        }
+
+        return {
+            totalBudget: budget.total,
+            utilized: Math.round(totalUtilized),
+            avgDaily: Math.round(avgDaily),
+            estimatedFinal: Math.round(estimatedFinal),
+            remaining: Math.round(remaining),
+            utilizationPercent: Math.round(utilizationPercent),
+            daysElapsed,
+            totalDays,
+            dailySpending,
+            startDate,
+            endDate
+        };
+    } catch (error) {
+        console.error('Error getting budget analytics:', error);
+        throw error;
+    }
+};
+

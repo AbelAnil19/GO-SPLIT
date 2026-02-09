@@ -4,10 +4,11 @@ import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { doDeleteUser } from '../firebase/auth';
-import { updateUserDocument, getUserDocument, softDeleteUserAccount, updateUserAvatar } from '../firebase/firestore';
+import { updateUserDocument, getUserDocument, softDeleteUserAccount, updateUserAvatar, deleteAllUserExpenses, deleteAllCreatedGroups } from '../firebase/firestore';
 import ConfirmationModal from '../components/ConfirmationModal';
 import BalanceCheckModal from '../components/BalanceCheckModal';
 import AvatarPickerModal from '../components/AvatarPickerModal';
+import MinimalToast from '../components/ui/MinimalToast';
 
 const SettingsPage = () => {
     const { currentUser } = useAuth();
@@ -18,6 +19,7 @@ const SettingsPage = () => {
     const [firstName, setFirstName] = useState(currentUser?.displayName?.split(' ')[0] || '');
     const [lastName, setLastName] = useState(currentUser?.displayName?.split(' ')[1] || '');
     const [email, setEmail] = useState(currentUser?.email || '');
+    const [countryCode, setCountryCode] = useState('+91'); // Default to India
     const [phone, setPhone] = useState('');
     const [upiId, setUpiId] = useState('');
     const [currency, setCurrency] = useState('INR');
@@ -27,6 +29,38 @@ const SettingsPage = () => {
     const [notifMarketing, setNotifMarketing] = useState(false);
     const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
     const [userAvatar, setUserAvatar] = useState(currentUser?.photoURL || '');
+
+    // Country codes for dropdown with exact phone lengths
+    const countryCodes = [
+        { code: '+1', country: 'US/CA', flag: '🇺🇸', length: 10 },
+        { code: '+44', country: 'UK', flag: '🇬🇧', length: 10 },
+        { code: '+91', country: 'India', flag: '🇮🇳', length: 10 },
+        { code: '+61', country: 'Australia', flag: '🇦🇺', length: 9 },
+        { code: '+81', country: 'Japan', flag: '🇯🇵', length: 10 },
+        { code: '+86', country: 'China', flag: '🇨🇳', length: 11 },
+        { code: '+49', country: 'Germany', flag: '🇩🇪', length: 10 },
+        { code: '+33', country: 'France', flag: '🇫🇷', length: 9 },
+        { code: '+971', country: 'UAE', flag: '🇦🇪', length: 9 },
+        { code: '+65', country: 'Singapore', flag: '🇸🇬', length: 8 },
+    ];
+
+    // MinimalToast state for validation
+    const [validationToast, setValidationToast] = useState({
+        open: false,
+        message: '',
+        type: 'error'
+    });
+
+    const showValidationError = (message) => {
+        setValidationToast({
+            open: true,
+            message,
+            type: 'error'
+        });
+        setTimeout(() => {
+            setValidationToast(prev => ({ ...prev, open: false }));
+        }, 3000);
+    };
 
     // Phase 2: Balance check modal state
     const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
@@ -67,9 +101,42 @@ const SettingsPage = () => {
     };
 
     const handleSave = async () => {
+        // Validation
+        if (!firstName || firstName.trim().length < 2) {
+            showValidationError('First name must be at least 2 characters');
+            return;
+        }
+
+        if (phone) {
+            // Remove spaces and special characters for validation
+            const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+
+            // Check if it contains only digits
+            if (!/^\d+$/.test(cleanPhone)) {
+                showValidationError('Phone number must contain only digits');
+                return;
+            }
+
+            // Get the selected country's required length
+            const selectedCountry = countryCodes.find(c => c.code === countryCode);
+            const requiredLength = selectedCountry?.length || 10;
+
+            // Check exact length for the selected country
+            if (cleanPhone.length !== requiredLength) {
+                showValidationError(`${selectedCountry?.country || 'This country'} phone numbers must be exactly ${requiredLength} digits`);
+                return;
+            }
+        }
+
+        if (upiId && !upiId.includes('@')) {
+            showValidationError('Please enter a valid UPI ID (e.g., username@upi)');
+            return;
+        }
+
         try {
             await updateUserDocument(currentUser.uid, {
                 displayName: `${firstName} ${lastName}`.trim(),
+                countryCode,
                 phone,
                 upiId,
                 currency,
@@ -87,7 +154,7 @@ const SettingsPage = () => {
             addToast(t('common.save'), 'success');
         } catch (error) {
             console.error("Error saving settings:", error);
-            addToast(t('common.error'), 'error');
+            showValidationError('Failed to save settings. Please try again.');
         }
     };
 
@@ -228,16 +295,35 @@ const SettingsPage = () => {
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-gray-300">{t('settings.phone')}</label>
-                                <div className="relative">
-                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 text-[20px]">phone</span>
-                                    <input
-                                        className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white pl-10 pr-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
-                                        placeholder="+1 (555) 000-0000"
-                                        type="tel"
-                                        value={phone}
-                                        onChange={(e) => setPhone(e.target.value)}
-                                    />
+                                <div className="flex gap-2">
+                                    {/* Country Code Dropdown */}
+                                    <div className="relative w-32">
+                                        <select
+                                            className="w-full appearance-none rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-3 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all cursor-pointer text-sm"
+                                            value={countryCode}
+                                            onChange={(e) => setCountryCode(e.target.value)}
+                                        >
+                                            {countryCodes.map((item) => (
+                                                <option key={item.code} value={item.code} className="bg-white dark:bg-[#1a1c23]">
+                                                    {item.flag} {item.code}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 pointer-events-none text-[18px]">expand_more</span>
+                                    </div>
+                                    {/* Phone Number Input */}
+                                    <div className="relative flex-1">
+                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 text-[20px]">phone</span>
+                                        <input
+                                            className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white pl-10 pr-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
+                                            placeholder="1234567890"
+                                            type="tel"
+                                            value={phone}
+                                            onChange={(e) => setPhone(e.target.value)}
+                                        />
+                                    </div>
                                 </div>
+                                <p className="text-xs text-gray-500">Select your country code and enter phone number</p>
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-gray-300">{t('settings.upi')}</label>
@@ -470,6 +556,14 @@ const SettingsPage = () => {
                 userId={currentUser?.uid}
                 onClose={() => setIsAvatarPickerOpen(false)}
                 onSave={handleAvatarSave}
+            />
+
+            {/* Validation Toast */}
+            <MinimalToast
+                open={validationToast.open}
+                onClose={() => setValidationToast(prev => ({ ...prev, open: false }))}
+                message={validationToast.message}
+                type={validationToast.type}
             />
         </div >
     );

@@ -1,21 +1,37 @@
 import React from 'react';
 
-const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal }) => {
+const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal, dailySpending = [], startDate, endDate }) => {
     const utilizationPercent = Math.round((utilized / totalBudget) * 100);
 
-    // Generate sample chart data points
-    const chartPoints = [
-        { x: 5, y: 60 },
-        { x: 20, y: 45 },
-        { x: 35, y: 70 },
-        { x: 50, y: 35 },
-        { x: 65, y: 55 },
-        { x: 80, y: 25 },
-        { x: 95, y: 40 }
-    ];
+    // Generate chart points from real data
+    const generateChartPoints = () => {
+        if (dailySpending.length === 0) {
+            // Fallback to placeholder if no data
+            return [
+                { x: 5, y: 60 },
+                { x: 20, y: 45 },
+                { x: 35, y: 70 },
+                { x: 50, y: 35 },
+                { x: 65, y: 55 },
+                { x: 80, y: 25 },
+                { x: 95, y: 40 }
+            ];
+        }
+
+        // Map daily spending to chart coordinates
+        const maxSpending = Math.max(...dailySpending.map(d => d.amount), totalBudget);
+        return dailySpending.map((day, index) => ({
+            x: (index / (dailySpending.length - 1 || 1)) * 95 + 2.5, // Spread across 0-100
+            y: 75 - (day.amount / maxSpending) * 60 // Invert Y (SVG coordinates) and scale to 0-75
+        }));
+    };
+
+    const chartPoints = generateChartPoints();
 
     // Create SVG path
     const createPath = () => {
+        if (chartPoints.length === 0) return '';
+
         let path = `M ${chartPoints[0].x} ${chartPoints[0].y}`;
         for (let i = 1; i < chartPoints.length; i++) {
             const cp1x = (chartPoints[i - 1].x + chartPoints[i].x) / 2;
@@ -26,6 +42,32 @@ const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal }) => 
         }
         return path;
     };
+
+    // Format date labels
+    const getDateLabels = () => {
+        if (!startDate || !endDate) {
+            return ['MAY 1', 'MAY 10', 'MAY 20', 'MAY 31'];
+        }
+
+        const start = startDate?.toDate ? startDate.toDate() : new Date(startDate);
+        const end = endDate?.toDate ? endDate.toDate() : new Date(endDate);
+
+        const formatDate = (date) => {
+            const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+            return `${months[date.getMonth()]} ${date.getDate()}`;
+        };
+
+        // Generate 4 date points (start, 1/3, 2/3, end)
+        const duration = end - start;
+        return [
+            formatDate(start),
+            formatDate(new Date(start.getTime() + duration / 3)),
+            formatDate(new Date(start.getTime() + (2 * duration) / 3)),
+            formatDate(end)
+        ];
+    };
+
+    const dateLabels = getDateLabels();
 
     return (
         <div className="bg-gradient-to-br from-amber-500/10 via-amber-600/5 to-transparent border border-amber-500/20 rounded-2xl p-6 backdrop-blur-md">
@@ -65,10 +107,9 @@ const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal }) => 
 
                 {/* Date labels */}
                 <div className="flex justify-between text-xs text-gray-500 mt-2">
-                    <span>MAY 1</span>
-                    <span>MAY 10</span>
-                    <span>MAY 20</span>
-                    <span>MAY 31</span>
+                    {dateLabels.map((label, index) => (
+                        <span key={index}>{label}</span>
+                    ))}
                 </div>
             </div>
 
