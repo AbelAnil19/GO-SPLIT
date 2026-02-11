@@ -9,6 +9,9 @@ import ActivitiesTab from '../components/trip/ActivitiesTab';
 import ItineraryTab from '../components/trip/ItineraryTab';
 import BudgetAnalyzer from '../components/trip/BudgetAnalyzer';
 import SetBudgetModal from '../components/trip/SetBudgetModal';
+import CreateTripModal from '../components/trip/CreateTripModal';
+import TripDetailsModal from '../components/trip/TripDetailsModal';
+import LocationSearch from '../components/trip/LocationSearch';
 import { destinations as mockDestinations, filterOptions as initialFilters } from '../data/destinations';
 
 const TripPlannerPage = () => {
@@ -20,10 +23,15 @@ const TripPlannerPage = () => {
     const [activeTab, setActiveTab] = useState('destinations');
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState(initialFilters);
-    const [destinations, setDestinations] = useState(mockDestinations);
+    const [destinations, setDestinations] = useState([]); // Start with empty - only show user-created trips
     const [loading, setLoading] = useState(true);
     const [budgetData, setBudgetData] = useState(null);
     const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [newTripData, setNewTripData] = useState(null);
+    const [isTripDetailsOpen, setIsTripDetailsOpen] = useState(false);
+    const [selectedTrip, setSelectedTrip] = useState(null);
+    const [activeTripForPlanning, setActiveTripForPlanning] = useState(null); // Trip currently being planned in tabs
 
     // Fetch user groups
     useEffect(() => {
@@ -80,8 +88,8 @@ const TripPlannerPage = () => {
 
     // Handle view details
     const handleViewDetails = (destination) => {
-        addToast(`Viewing ${destination.title}`, 'info');
-        // TODO: Open modal with full details
+        setSelectedTrip(destination);
+        setIsTripDetailsOpen(true);
     };
 
     // Handle filter toggle
@@ -109,6 +117,7 @@ const TripPlannerPage = () => {
         // Active filters
         const activeFilterIds = filters.filter(f => f.active).map(f => f.id);
         const matchesFilter = activeFilterIds.length === 0 || activeFilterIds.some(filterId => {
+            if (filterId === 'my-trips') return dest.tags.includes('Custom Trip');
             if (filterId === 'budget-friendly') return dest.tags.includes('Budget-Friendly');
             if (filterId === 'luxury') return dest.tags.includes('Premium');
             if (filterId === 'nature') return dest.category === 'Nature';
@@ -231,16 +240,12 @@ const TripPlannerPage = () => {
                     {/* Search & Filters */}
                     <div className="flex flex-col md:flex-row gap-4">
                         {/* Search */}
-                        <div className="flex-1 relative">
-                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                                search
-                            </span>
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search cities, regions or attractions..."
-                                className="w-full pl-12 pr-4 py-3 bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-amber-400/50 transition-colors"
+                        <div className="flex-1 relative z-30">
+                            <LocationSearch
+                                onLocationSelect={(location) => {
+                                    setNewTripData(location);
+                                    setIsCreateModalOpen(true);
+                                }}
                             />
                         </div>
 
@@ -284,10 +289,21 @@ const TripPlannerPage = () => {
                         </div>
                     </div>
 
-                    {filteredDestinations.length === 0 && (
+                    {filteredDestinations.length === 0 && destinations.length === 0 && (
+                        <div className="text-center py-20">
+                            <span className="material-symbols-outlined text-6xl text-amber-400 mb-4">flight_takeoff</span>
+                            <p className="text-gray-700 dark:text-gray-300 text-lg font-semibold mb-2">No trips yet!</p>
+                            <p className="text-gray-500 text-sm mb-4">Search for a city above to plan your first trip</p>
+                            <div className="inline-flex items-center gap-2 text-amber-500 text-sm">
+                                <span className="material-symbols-outlined text-lg">arrow_upward</span>
+                                <span>Start by searching for a destination</span>
+                            </div>
+                        </div>
+                    )}
+                    {filteredDestinations.length === 0 && destinations.length > 0 && (
                         <div className="text-center py-20">
                             <span className="material-symbols-outlined text-6xl text-gray-400 dark:text-gray-600 mb-4">travel_explore</span>
-                            <p className="text-gray-700 dark:text-gray-400 text-lg">No destinations match your filters</p>
+                            <p className="text-gray-700 dark:text-gray-400 text-lg">No trips match your filters</p>
                             <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
                         </div>
                     )}
@@ -295,16 +311,16 @@ const TripPlannerPage = () => {
             )}
 
             {/* Transport Tab Content */}
-            {activeTab === 'transport' && <TransportTab />}
+            {activeTab === 'transport' && <TransportTab trip={activeTripForPlanning} />}
 
             {/* Hotels Tab Content */}
-            {activeTab === 'hotels' && <HotelsTab />}
+            {activeTab === 'hotels' && <HotelsTab trip={activeTripForPlanning} />}
 
             {/* Activities Tab Content */}
-            {activeTab === 'activities' && <ActivitiesTab />}
+            {activeTab === 'activities' && <ActivitiesTab trip={activeTripForPlanning} />}
 
             {/* Itinerary Tab Content */}
-            {activeTab === 'itinerary' && <ItineraryTab />}
+            {activeTab === 'itinerary' && <ItineraryTab trip={activeTripForPlanning} />}
 
             {/* Placeholder for other tabs */}
             {activeTab !== 'destinations' && activeTab !== 'transport' && activeTab !== 'hotels' && activeTab !== 'activities' && activeTab !== 'itinerary' && (
@@ -325,6 +341,25 @@ const TripPlannerPage = () => {
                 onClose={() => setIsBudgetModalOpen(false)}
                 onSave={handleSaveBudget}
                 currentBudget={budgetData}
+            />
+
+            {/* Create Trip Modal */}
+            <CreateTripModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                initialData={newTripData}
+                onSave={(trip) => {
+                    setDestinations(prev => [trip, ...prev]);
+                    setActiveTripForPlanning(trip); // Auto-select the new trip
+                    addToast('Trip created successfully!', 'success');
+                }}
+            />
+
+            {/* Trip Details Modal */}
+            <TripDetailsModal
+                isOpen={isTripDetailsOpen}
+                onClose={() => setIsTripDetailsOpen(false)}
+                trip={selectedTrip}
             />
         </div>
     );

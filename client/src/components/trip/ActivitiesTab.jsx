@@ -1,149 +1,157 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchNearbyPlaces, getPlaceIcon } from '../../services/overpassAPI';
 
-const ActivitiesTab = () => {
-    const [activeCategory, setActiveCategory] = useState('All');
+const ActivitiesTab = ({ trip }) => {
+    const [places, setPlaces] = useState([]);
+    const [activeCategory, setActiveCategory] = useState('all');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-    const categories = ['All', 'Adventure', 'Culture', 'Relaxation', 'Food', 'Nightlife'];
-
-    const mockActivities = [
-        {
-            id: 1,
-            title: 'Scuba Diving at Blue Lagoon',
-            location: 'Padang Bai, Bali',
-            rating: 4.8,
-            reviews: 215,
-            price: 4500,
-            duration: '4 hours',
-            image: 'https://images.unsplash.com/photo-1544551763-46a42a4571da?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-            category: 'Adventure',
-            tags: ['Water Sports', 'Guided']
-        },
-        {
-            id: 2,
-            title: 'Uluwatu Temple Sunset Tour',
-            location: 'Uluwatu, Bali',
-            rating: 4.9,
-            reviews: 1840,
-            price: 1200,
-            duration: '3 hours',
-            image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-            category: 'Culture',
-            tags: ['Sightseeing', 'Must Visit']
-        },
-        {
-            id: 3,
-            title: 'Traditional Balinese Cooking Class',
-            location: 'Ubud, Bali',
-            rating: 4.7,
-            reviews: 320,
-            price: 2800,
-            duration: '5 hours',
-            image: 'https://images.unsplash.com/photo-1556910103-1c02745a30bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-            category: 'Food',
-            tags: ['Workshop', 'Lunch Included']
-        },
-        {
-            id: 4,
-            title: 'Mount Batur Sunrise Trek',
-            location: 'Kintamani, Bali',
-            rating: 4.6,
-            reviews: 850,
-            price: 3500,
-            duration: '8 hours',
-            image: 'https://images.unsplash.com/photo-1542332213-31f87348057f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-            category: 'Adventure',
-            tags: ['Hiking', 'Sunrise']
-        },
-        {
-            id: 5,
-            title: 'Luxury Spa Day',
-            location: 'Seminyak, Bali',
-            rating: 4.9,
-            reviews: 120,
-            price: 5500,
-            duration: '3 hours',
-            image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-            category: 'Relaxation',
-            tags: ['Wellness', 'Massage']
-        }
+    const categories = [
+        { id: 'all', label: 'All', icon: 'grid_view' },
+        { id: 'restaurants', label: 'Food', icon: 'restaurant' },
+        { id: 'attractions', label: 'Attractions', icon: 'attractions' }
     ];
 
-    const filteredActivities = activeCategory === 'All'
-        ? mockActivities
-        : mockActivities.filter(a => a.category === activeCategory);
+    useEffect(() => {
+        if (trip && trip.lat && trip.lon) {
+            loadNearbyActivities();
+        }
+    }, [trip, activeCategory]);
+
+    const loadNearbyActivities = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const category = activeCategory === 'all' ? 'restaurants' : activeCategory;
+            const results = await fetchNearbyPlaces(trip.lat, trip.lon, category, 10000);
+
+            // If "all", fetch both restaurants and attractions
+            if (activeCategory === 'all') {
+                const attractions = await fetchNearbyPlaces(trip.lat, trip.lon, 'attractions', 10000);
+                const combined = [...results, ...attractions].sort((a, b) => a.distance - b.distance);
+                setPlaces(combined.slice(0, 50));
+            } else {
+                setPlaces(results);
+            }
+        } catch (err) {
+            setError('Failed to load activities. Please try again.');
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!trip) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20">
+                <span className="material-symbols-outlined text-6xl text-gray-400 mb-4">local_activity</span>
+                <p className="text-gray-600 dark:text-gray-400 text-lg font-semibold">No trip selected</p>
+                <p className="text-gray-500 text-sm">Select a trip from the Destinations tab to explore activities</p>
+            </div>
+        );
+    }
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-amber-400 mb-4"></div>
+                <p className="text-gray-600 dark:text-gray-400">Finding nearby activities...</p>
+            </div>
+        );
+    }
 
     return (
-        <div className="flex flex-col gap-6 animate-fade-in">
-            {/* Filter Bar */}
-            <div className="flex flex-wrap items-center gap-2">
-                {categories.map((cat) => (
-                    <button
-                        key={cat}
-                        onClick={() => setActiveCategory(cat)}
-                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${activeCategory === cat
-                            ? 'bg-amber-400 border-amber-400 text-black shadow-lg shadow-amber-900/20'
-                            : 'bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10 hover:text-[#0d191b] dark:hover:text-white'
-                            }`}
-                    >
-                        {cat}
-                    </button>
-                ))}
+        <div className="space-y-6">
+            {/* Header with Filters */}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Nearby Activities</h2>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm">
+                        Found {places.length} activities within 10km of {trip.title}
+                    </p>
+                </div>
+
+                {/* Category Filters */}
+                <div className="flex gap-2">
+                    {categories.map(cat => (
+                        <button
+                            key={cat.id}
+                            onClick={() => setActiveCategory(cat.id)}
+                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${activeCategory === cat.id
+                                    ? 'bg-amber-400 text-black'
+                                    : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                                }`}
+                        >
+                            <span className="material-symbols-outlined text-base">{cat.icon}</span>
+                            {cat.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            {/* Results Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredActivities.map((activity) => (
-                    <div key={activity.id} className="group bg-white dark:bg-white/5 rounded-2xl border border-gray-200 dark:border-white/10 overflow-hidden hover:border-amber-400/50 transition-all cursor-pointer flex flex-col h-full">
-                        {/* Image */}
-                        <div className="relative h-48 overflow-hidden">
-                            <img
-                                src={activity.image}
-                                alt={activity.title}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                            />
-                            <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 text-xs font-bold shadow-sm">
-                                <span className="material-symbols-outlined text-amber-500 text-sm">star</span>
-                                {activity.rating} ({activity.reviews})
-                            </div>
-                            <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg text-white text-xs font-bold">
-                                {activity.category}
-                            </div>
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-4 flex flex-col flex-1">
-                            <h4 className="font-bold text-lg text-[#0d191b] dark:text-white mb-1 line-clamp-1 group-hover:text-amber-400 transition-colors">{activity.title}</h4>
-                            <p className="text-sm text-gray-400 flex items-center gap-1 mb-3">
-                                <span className="material-symbols-outlined text-sm">location_on</span>
-                                {activity.location}
-                            </p>
-
-                            <div className="flex flex-wrap gap-2 mb-4">
-                                <span className="text-[10px] font-semibold px-2 py-1 rounded bg-amber-100 dark:bg-amber-400/10 text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                                    <span className="material-symbols-outlined text-[10px]">schedule</span>
-                                    {activity.duration}
-                                </span>
-                                {activity.tags.map((tag, idx) => (
-                                    <span key={idx} className="text-[10px] font-semibold px-2 py-1 rounded bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300">
-                                        {tag}
+            {/* Activities Grid */}
+            {places.length === 0 ? (
+                <div className="text-center py-16">
+                    <span className="material-symbols-outlined text-5xl text-gray-400 mb-3">explore</span>
+                    <p className="text-gray-600 dark:text-gray-400">No activities found nearby</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {places.map(place => (
+                        <div
+                            key={place.id}
+                            className="bg-white dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10 hover:border-amber-400/50 hover:shadow-lg transition-all"
+                        >
+                            {/* Icon & Name */}
+                            <div className="flex items-start gap-3 mb-3">
+                                <div className="w-12 h-12 rounded-full bg-amber-400/10 flex items-center justify-center flex-shrink-0">
+                                    <span className="material-symbols-outlined text-amber-500 text-xl">
+                                        {getPlaceIcon(place.type)}
                                     </span>
-                                ))}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate">
+                                        {place.name}
+                                    </h3>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                                        {place.type.replace('_', ' ')}
+                                        {place.cuisine && ` • ${place.cuisine}`}
+                                    </p>
+                                </div>
                             </div>
 
-                            <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-100 dark:border-white/5">
-                                <div>
-                                    <p className="text-xs text-gray-400">Estimated cost</p>
-                                    <p className="text-xl font-black text-[#0d191b] dark:text-white">₹{activity.price.toLocaleString()}</p>
-                                </div>
-                                <button className="px-4 py-2 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-bold text-[#0d191b] dark:text-white hover:bg-amber-400 hover:text-black hover:border-amber-400 transition-all flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-lg">add</span>
-                                    Add
-                                </button>
+                            {/* Distance */}
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="material-symbols-outlined text-gray-400 text-sm">distance</span>
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    {place.distance} km away
+                                </span>
+                            </div>
+
+                            {/* Address */}
+                            {place.address && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                                    {place.address}
+                                </p>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex gap-2">
+                                <a
+                                    href={`https://www.google.com/maps?q=${place.lat},${place.lon}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-1 px-3 py-2 bg-amber-400 text-black text-xs font-semibold rounded-lg hover:bg-amber-500 transition-colors flex items-center justify-center gap-1"
+                                >
+                                    <span className="material-symbols-outlined text-sm">map</span>
+                                    View on Map
+                                </a>
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

@@ -1,157 +1,165 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchNearbyPlaces, getPlaceIcon } from '../../services/overpassAPI';
 
-const TransportTab = () => {
-    const [mode, setMode] = useState('flight'); // 'flight', 'train', 'bus'
-    const [searchParams, setSearchParams] = useState({
-        from: '',
-        to: '',
-        date: '',
-        passengers: 1
-    });
+const TransportTab = ({ trip }) => {
+    const [places, setPlaces] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-    const mockResults = [
-        {
-            id: 1,
-            mode: 'flight',
-            provider: 'Sky Airlines',
-            logo: 'flight',
-            departure: '08:00 AM',
-            arrival: '10:30 AM',
-            duration: '2h 30m',
-            price: 4500,
-            type: 'Non-stop'
-        },
-        {
-            id: 2,
-            mode: 'flight',
-            provider: 'Air Jet',
-            logo: 'flight_takeoff',
-            departure: '01:15 PM',
-            arrival: '04:00 PM',
-            duration: '2h 45m',
-            price: 3800,
-            type: '1 Stop'
-        },
-        {
-            id: 3,
-            mode: 'train',
-            provider: 'Express Rail',
-            logo: 'train',
-            departure: '06:00 AM',
-            arrival: '02:00 PM',
-            duration: '8h 00m',
-            price: 1200,
-            type: 'Sleeper'
+    useEffect(() => {
+        if (trip && trip.lat && trip.lon) {
+            loadNearbyTransport();
         }
-    ];
+    }, [trip]);
+
+    const loadNearbyTransport = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const results = await fetchNearbyPlaces(trip.lat, trip.lon, 'transport', 10000);
+            setPlaces(results);
+        } catch (err) {
+            setError('Failed to load nearby transport. Please try again.');
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!trip) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20">
+                <span className="material-symbols-outlined text-6xl text-gray-400 mb-4">directions_bus</span>
+                <p className="text-gray-600 dark:text-gray-400 text-lg font-semibold">No trip selected</p>
+                <p className="text-gray-500 text-sm">Select a trip from the Destinations tab to plan transport</p>
+            </div>
+        );
+    }
+
+    if (!trip.lat || !trip.lon) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20">
+                <span className="material-symbols-outlined text-6xl text-amber-400 mb-4">error</span>
+                <p className="text-gray-600 dark:text-gray-400 text-lg font-semibold">Location data missing</p>
+                <p className="text-gray-500 text-sm">This trip doesn't have coordinates</p>
+            </div>
+        );
+    }
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-amber-400 mb-4"></div>
+                <p className="text-gray-600 dark:text-gray-400">Finding nearby transport...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20">
+                <span className="material-symbols-outlined text-6xl text-red-400 mb-4">error</span>
+                <p className="text-gray-600 dark:text-gray-400 text-lg font-semibold">{error}</p>
+                <button
+                    onClick={loadNearbyTransport}
+                    className="mt-4 px-4 py-2 bg-amber-400 text-black rounded-lg hover:bg-amber-500 transition-colors"
+                >
+                    Retry
+                </button>
+            </div>
+        );
+    }
 
     return (
-        <div className="flex flex-col gap-6 animate-fade-in">
-            {/* Search Card */}
-            <div className="bg-white dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm backdrop-blur-md">
-                {/* Mode Selector */}
-                <div className="flex gap-4 border-b border-gray-200 dark:border-white/10 pb-4 mb-4">
-                    {['flight', 'train', 'bus', 'directions_car'].map((m) => (
-                        <button
-                            key={m}
-                            onClick={() => setMode(m)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === m
-                                ? 'bg-amber-400 text-black shadow-lg shadow-amber-900/20'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                                }`}
-                        >
-                            <span className="material-symbols-outlined">
-                                {m === 'flight' ? 'flight' : m === 'train' ? 'train' : m === 'bus' ? 'directions_bus' : 'directions_car'}
-                            </span>
-                            <span className="capitalize">{m === 'directions_car' ? 'Car' : m}</span>
-                        </button>
-                    ))}
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Nearby Transport</h2>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm">
+                        Found {places.length} transport options within 10km of {trip.title}
+                    </p>
                 </div>
-
-                {/* Search Inputs */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined">flight_takeoff</span>
-                        <input
-                            type="text"
-                            placeholder="From"
-                            className="w-full pl-10 pr-4 h-12 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl text-[#0d191b] dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
-                            value={searchParams.from}
-                            onChange={(e) => setSearchParams({ ...searchParams, from: e.target.value })}
-                        />
-                    </div>
-                    <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined">flight_land</span>
-                        <input
-                            type="text"
-                            placeholder="To"
-                            className="w-full pl-10 pr-4 h-12 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl text-[#0d191b] dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
-                            value={searchParams.to}
-                            onChange={(e) => setSearchParams({ ...searchParams, to: e.target.value })}
-                        />
-                    </div>
-                    <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined">calendar_today</span>
-                        <input
-                            type="date"
-                            className="w-full pl-10 pr-4 h-12 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl text-[#0d191b] dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
-                            value={searchParams.date}
-                            onChange={(e) => setSearchParams({ ...searchParams, date: e.target.value })}
-                        />
-                    </div>
-                    <button className="h-12 bg-amber-400 hover:bg-amber-300 text-black font-bold rounded-xl transition-colors shadow-lg shadow-amber-900/20 flex items-center justify-center gap-2">
-                        <span className="material-symbols-outlined">search</span>
-                        Search
-                    </button>
-                </div>
+                <button
+                    onClick={loadNearbyTransport}
+                    className="px-4 py-2 bg-amber-400/10 text-amber-600 dark:text-amber-400 rounded-lg hover:bg-amber-400/20 transition-colors flex items-center gap-2"
+                >
+                    <span className="material-symbols-outlined text-base">refresh</span>
+                    Refresh
+                </button>
             </div>
 
-            {/* Results Grid */}
-            <div className="space-y-4">
-                <h3 className="text-xl font-bold text-[#0d191b] dark:text-white px-2">Recommended Options</h3>
-
-                {mockResults.filter(r => r.mode === 'flight' || mode === 'all').map((result) => (
-                    <div key={result.id} className="bg-white dark:bg-white/5 p-4 md:p-6 rounded-xl border border-gray-200 dark:border-white/10 hover:border-amber-400/50 transition-all group cursor-pointer flex flex-col md:flex-row items-center gap-6">
-                        {/* Provider Info */}
-                        <div className="flex items-center gap-4 w-full md:w-1/4">
-                            <div className="size-12 rounded-full bg-amber-400/10 flex items-center justify-center text-amber-400">
-                                <span className="material-symbols-outlined">{result.logo}</span>
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-[#0d191b] dark:text-white">{result.provider}</h4>
-                                <p className="text-xs text-gray-400">{result.type}</p>
-                            </div>
-                        </div>
-
-                        {/* Timeline */}
-                        <div className="flex-1 flex items-center justify-center gap-6 w-full">
-                            <div className="text-center">
-                                <p className="font-bold text-lg text-[#0d191b] dark:text-white">{result.departure}</p>
-                                <p className="text-xs text-gray-400">BLR</p>
-                            </div>
-                            <div className="flex-1 flex flex-col items-center gap-1">
-                                <span className="text-xs text-gray-500 font-medium">{result.duration}</span>
-                                <div className="w-full h-0.5 bg-gray-300 dark:bg-white/10 relative">
-                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 size-2 rounded-full bg-amber-400"></div>
-                                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 material-symbols-outlined text-gray-400 text-xs bg-[#0d191b] px-1">flight</span>
+            {/* Transport List */}
+            {places.length === 0 ? (
+                <div className="text-center py-16">
+                    <span className="material-symbols-outlined text-5xl text-gray-400 mb-3">directions_bus_filled</span>
+                    <p className="text-gray-600 dark:text-gray-400">No transport found nearby</p>
+                    <p className="text-gray-500 text-sm">Try a different location</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {places.map(place => (
+                        <div
+                            key={place.id}
+                            className="bg-white dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10 hover:border-amber-400/50 hover:shadow-lg transition-all"
+                        >
+                            {/* Icon & Type */}
+                            <div className="flex items-start gap-3 mb-3">
+                                <div className="w-12 h-12 rounded-full bg-amber-400/10 flex items-center justify-center flex-shrink-0">
+                                    <span className="material-symbols-outlined text-amber-500 text-xl">
+                                        {getPlaceIcon(place.type)}
+                                    </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate">
+                                        {place.name}
+                                    </h3>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                                        {place.type.replace('_', ' ')}
+                                    </p>
                                 </div>
                             </div>
-                            <div className="text-center">
-                                <p className="font-bold text-lg text-[#0d191b] dark:text-white">{result.arrival}</p>
-                                <p className="text-xs text-gray-400">DEL</p>
+
+                            {/* Distance */}
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="material-symbols-outlined text-gray-400 text-sm">distance</span>
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    {place.distance} km away
+                                </span>
+                            </div>
+
+                            {/* Address */}
+                            {place.address && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                                    {place.address}
+                                </p>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex gap-2">
+                                <a
+                                    href={`https://www.google.com/maps/dir/?api=1&origin=${trip.lat},${trip.lon}&destination=${place.lat},${place.lon}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-1 px-3 py-2 bg-amber-400 text-black text-xs font-semibold rounded-lg hover:bg-amber-500 transition-colors flex items-center justify-center gap-1"
+                                >
+                                    <span className="material-symbols-outlined text-sm">directions</span>
+                                    Directions
+                                </a>
+                                <a
+                                    href={`https://www.google.com/maps?q=${place.lat},${place.lon}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-xs font-semibold rounded-lg hover:bg-gray-200 dark:hover:bg-white/20 transition-colors flex items-center justify-center"
+                                    title="View on map"
+                                >
+                                    <span className="material-symbols-outlined text-sm">map</span>
+                                </a>
                             </div>
                         </div>
-
-                        {/* Price & Action */}
-                        <div className="w-full md:w-auto flex items-center justify-between md:flex-col md:items-end gap-2 pl-6 md:border-l border-gray-200 dark:border-white/10">
-                            <p className="text-2xl font-black text-[#0d191b] dark:text-white">₹{result.price.toLocaleString()}</p>
-                            <button className="px-6 py-2 bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 rounded-lg text-sm font-bold text-[#0d191b] dark:text-white hover:bg-amber-400 hover:text-black hover:border-amber-400 transition-all">
-                                Select
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

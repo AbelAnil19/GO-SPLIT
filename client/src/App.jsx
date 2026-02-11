@@ -26,6 +26,7 @@ import UserManagement from './pages/admin/UserManagement';
 import GroupManagement from './pages/admin/GroupManagement';
 import ExpenseManagement from './pages/admin/ExpenseManagement';
 import Analytics from './pages/admin/Analytics';
+import NotFoundPage from './pages/NotFoundPage';
 
 
 function App() {
@@ -61,6 +62,9 @@ function App() {
               <Route path="/admin/groups" element={<AdminRoute><GroupManagement /></AdminRoute>} />
               <Route path="/admin/expenses" element={<AdminRoute><ExpenseManagement /></AdminRoute>} />
               <Route path="/admin/analytics" element={<AdminRoute><Analytics /></AdminRoute>} />
+
+              {/* 404 Route */}
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </ToastProvider>
         </ThemeProvider>

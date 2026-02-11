@@ -99,7 +99,8 @@ export const destinations = [
 ];
 
 export const filterOptions = [
-    { id: 'budget-friendly', label: 'Budget-Friendly', active: true },
+    { id: 'my-trips', label: 'My Trips', active: false },
+    { id: 'budget-friendly', label: 'Budget-Friendly', active: false },
     { id: 'popular', label: 'Popular', active: false },
     { id: 'nature', label: 'Nature', active: false },
     { id: 'solo-friendly', label: 'Solo Friendly', active: false },
