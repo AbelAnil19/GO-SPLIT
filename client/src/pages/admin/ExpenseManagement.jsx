@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { getAllExpenses, adminDeleteExpense } from '../../firebase/firestore';
 import { useToast } from '../../context/ToastContext';
 import AdminLayout from '../../components/admin/AdminLayout';
+import { useCurrency } from '../../context/CurrencyContext';
 
 const ExpenseManagement = () => {
+    const { formatAmount } = useCurrency();
     const { addToast } = useToast();
     const [expenses, setExpenses] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -64,7 +66,7 @@ const ExpenseManagement = () => {
                     <div className="text-sm text-gray-600 dark:text-gray-400">Total Expenses</div>
                 </div>
                 <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6">
-                    <div className="text-3xl font-bold text-[#0d191b] dark:text-white mb-1">₹{totalAmount.toFixed(2)}</div>
+                    <div className="text-3xl font-bold text-[#0d191b] dark:text-white mb-1">{formatAmount(totalAmount)}</div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">Total Amount</div>
                 </div>
             </div>
@@ -87,7 +89,7 @@ const ExpenseManagement = () => {
                                         <p className="font-semibold text-[#0d191b] dark:text-white">{expense.description}</p>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <p className="text-sm font-bold text-green-500">₹{(expense.amount || 0).toFixed(2)}</p>
+                                        <p className="text-sm font-bold text-green-500">{formatAmount(expense.amount || 0)}</p>
                                     </td>
                                     <td className="px-6 py-4">
                                         <p className="text-sm text-gray-600 dark:text-gray-400">

@@ -3,9 +3,12 @@ import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
 import { getUserExpenses, listenToUserSettlements } from '../firebase/firestore';
 
+import { useCurrency } from '../context/CurrencyContext';
+
 const HistoryPage = () => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
+    const { formatAmount } = useCurrency();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
     const [activities, setActivities] = useState([]);
@@ -37,9 +40,10 @@ const HistoryPage = () => {
                         id: expense.id,
                         type: 'expense',
                         title: expense.description,
-                        description: `${expense.paidByName} paid ${expense.currency || '₹'}${expense.amount}`,
+                        description: `${expense.paidByName} paid ${formatAmount(expense.amount, expense.currency || 'INR')}`,
                         group: expense.groupName || 'No Group',
                         amount: expense.amount,
+                        currency: expense.currency || 'INR',
                         timestamp: expense.createdAt,
                         icon: 'receipt_long',
                         color: 'orange',
@@ -87,7 +91,7 @@ const HistoryPage = () => {
 
         try {
             // Create CSV header
-            const headers = ['Date', 'Type', 'Description', 'Group', 'Amount (₹)', 'Status'];
+            const headers = ['Date', 'Type', 'Description', 'Group', `Amount (${currency})`, 'Status'];
 
             // Create CSV rows
             const rows = filteredActivities.map(activity => {
@@ -95,7 +99,9 @@ const HistoryPage = () => {
                 const type = activity.type === 'expense' ? 'Expense' : 'Settlement';
                 const description = activity.title;
                 const group = activity.group || 'N/A';
-                const amount = activity.amount;
+
+                // Convert amount for CSV if needed (using current display amount)
+                const displayAmount = convertAmount(activity.amount, activity.currency || 'INR').toFixed(2);
 
                 // Correct status logic
                 let status;
@@ -107,7 +113,7 @@ const HistoryPage = () => {
                     status = activity.status === 'approved' ? 'Approved' : 'Pending';
                 }
 
-                return [date, type, description, group, amount, status];
+                return [date, type, description, group, displayAmount, status];
             });
 
             // Combine headers and rows
@@ -286,7 +292,7 @@ const HistoryPage = () => {
                                         <span className={`text-sm font-bold ${activity.type === 'expense' ? 'text-orange-400' :
                                             activity.status === 'approved' ? 'text-green-400' : 'text-yellow-400'
                                             }`}>
-                                            ₹{activity.amount}
+                                            {formatAmount(activity.amount, activity.currency || 'INR')}
                                         </span>
                                         <span className="text-xs text-gray-500">{getTimeAgo(activity.timestamp)}</span>
                                     </div>

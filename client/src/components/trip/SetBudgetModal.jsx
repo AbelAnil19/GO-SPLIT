@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useCurrency } from '../../context/CurrencyContext';
 import { useToast } from '../../context/ToastContext';
 import MinimalToast from '../ui/MinimalToast';
 
 const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
     const { addToast } = useToast();
+    const { currencySymbol, currency } = useCurrency();
 
     // Helper function to convert Firestore Timestamp to date string
     const convertToDateString = (date) => {
@@ -23,7 +25,7 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
 
     const [budgetData, setBudgetData] = useState({
         total: currentBudget?.total || '',
-        currency: currentBudget?.currency || 'INR',
+        currency: currentBudget?.currency || currency, // Use current preferred currency
         startDate: convertToDateString(currentBudget?.startDate),
         endDate: convertToDateString(currentBudget?.endDate),
         notes: currentBudget?.notes || ''
@@ -121,11 +123,18 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
                             Total Budget *
                         </label>
                         <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">{currencySymbol}</span>
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 value={budgetData.total}
-                                onChange={(e) => setBudgetData({ ...budgetData, total: e.target.value })}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    // Only allow positive numbers and up to 2 decimal places
+                                    if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+                                        setBudgetData({ ...budgetData, total: value });
+                                    }
+                                }}
                                 placeholder="85000"
                                 className="w-full pl-8 pr-4 py-3 bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:border-amber-400/50"
                             />

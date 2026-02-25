@@ -1,7 +1,9 @@
 import React, { forwardRef, useImperativeHandle } from 'react';
 import { motion, useAnimation, useReducedMotion } from 'framer-motion';
+import { useCurrency } from '../../context/CurrencyContext';
 
 const PaymentsIcon = forwardRef(({ size = 24, duration = 0.8, isAnimated = true }, ref) => {
+    const { currencySymbol } = useCurrency();
     const controls = useAnimation();
     const shouldReduceMotion = useReducedMotion();
 
@@ -66,7 +68,7 @@ const PaymentsIcon = forwardRef(({ size = 24, duration = 0.8, isAnimated = true 
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.6, duration: 0.3 }}
             >
-                ₹
+                {currencySymbol}
             </motion.text>
         </motion.svg>
     );

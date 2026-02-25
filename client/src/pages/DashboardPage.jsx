@@ -3,6 +3,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../firebase/authContext';
+import { useCurrency } from '../context/CurrencyContext';
+import ConvertedAmount from '../components/ConvertedAmount';
 import { createGroup, getUserGroups, listenToUserGroups, getUserExpenses, createExpense, getUserDocument, updateExpense, deleteExpense, createActivity, listenToUserActivity, createSettlement, approveSettlement, rejectSettlement, listenToUserSettlements, createNotification } from '../firebase/firestore';
 import { calculateTotalBalance, getAmountOwed, getAmountUserIsOwed, getMonthlySpending, getPendingSettlements, getMonthlySpendingTrend, getBalanceTrend } from '../utils/expenseCalculator';
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
@@ -69,7 +71,9 @@ const GroupCard = ({ name, lastActive, settled, oweAmount, onOpen, customization
                 {settled ? (
                     <span className="px-2 py-1 bg-green-500/10 text-green-400 rounded-lg text-xs font-bold border border-green-500/20">Settled</span>
                 ) : (
-                    <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20">You owe ${oweAmount}</span>
+                    <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20">
+                        You owe <ConvertedAmount amount={oweAmount || 0} originalCurrency="INR" />
+                    </span>
                 )}
             </div>
             <h3 className="font-bold text-lg text-[#0d191b] dark:text-white mb-1 group-hover:text-amber-500 transition-colors">{name}</h3>
@@ -184,6 +188,7 @@ const getActivityColor = (type) => {
 const DashboardPage = () => {
     const { addToast } = useToast();
     const { currentUser } = useAuth();
+    const { currencySymbol, formatAmount } = useCurrency();
     const navigate = useNavigate();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [groups, setGroups] = useState([]);
@@ -384,7 +389,7 @@ const DashboardPage = () => {
 
         // If someone owes YOU money, show reminder toast (can't force them to pay)
         if (type === 'owed') {
-            addToast(`Reminder: ${name} owes you ₹${settlement.amount.toFixed(2)}`, 'info');
+            addToast(`Reminder: ${name} owes you ${formatAmount(settlement.amount)}`, 'info');
             return;
         }
 
@@ -487,14 +492,14 @@ const DashboardPage = () => {
     };
 
     return (
-        <div className="flex flex-col gap-8 pb-20">
+        <div className="flex flex-col gap-4 md:gap-6 lg:gap-8 pb-20 md:pb-24">
             {/* Quick Stats Grid */}
-            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 <StatCard
                     IconComponent={WalletIcon}
                     label="Total Balance"
-                    value={`₹${Math.abs(stats.totalBalance).toFixed(2)}`}
-                    trend={`₹${Math.abs(stats.balanceTrend || 0)}`}
+                    value={<ConvertedAmount amount={Math.abs(stats.totalBalance)} originalCurrency="INR" />}
+                    trend={formatAmount(Math.abs(stats.balanceTrend || 0))}
                     trendLabel="change this month"
                     trendUp={(stats.balanceTrend || 0) >= 0}
                     color={(stats.totalBalance || 0) >= 0 ? 'green' : 'red'}
@@ -502,7 +507,7 @@ const DashboardPage = () => {
                 <StatCard
                     IconComponent={PaymentsIcon}
                     label="Expenses (Month)"
-                    value={`₹${stats.monthlySpending.toFixed(2)}`}
+                    value={<ConvertedAmount amount={stats.monthlySpending} originalCurrency="INR" />}
                     trend={`${stats.spendingTrend?.diffPercent || 0}%`}
                     trendLabel={`${stats.spendingTrend?.isHigher ? 'more' : 'less'} than last month`}
                     trendUp={!stats.spendingTrend?.isHigher}
@@ -511,7 +516,7 @@ const DashboardPage = () => {
                 <StatCard
                     IconComponent={TrendingDownIcon}
                     label="You Owe"
-                    value={`₹${stats.youOwe.toFixed(2)}`}
+                    value={<ConvertedAmount amount={stats.youOwe} originalCurrency="INR" />}
                     trend={pendingSettlements.filter(s => s.type === 'owe').length > 0
                         ? pendingSettlements.filter(s => s.type === 'owe').length
                         : "All settled up"}
@@ -522,7 +527,7 @@ const DashboardPage = () => {
                 <StatCard
                     IconComponent={TrendingUpIcon}
                     label="You Are Owed"
-                    value={`₹${stats.youreOwed.toFixed(2)}`}
+                    value={<ConvertedAmount amount={stats.youreOwed} originalCurrency="INR" />}
                     trend={pendingSettlements.filter(s => s.type === 'owed').length > 0
                         ? pendingSettlements.filter(s => s.type === 'owed').length
                         : "No pending payments"}
@@ -532,13 +537,13 @@ const DashboardPage = () => {
                 />
             </section>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
                 {/* Left Column (Groups & Settlements) */}
-                <div className="xl:col-span-2 flex flex-col gap-8">
+                <div className="xl:col-span-2 flex flex-col gap-4 md:gap-6 lg:gap-8">
                     {/* Settlements Section */}
                     <section>
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-[#0d191b] dark:text-white">Pending Settlements</h2>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                            <h2 className="text-lg md:text-xl font-bold text-[#0d191b] dark:text-white">Pending Settlements</h2>
                             {pendingSettlements.length > 0 && (
                                 <Link to="/dashboard/expenses" className="text-amber-400 text-sm font-semibold hover:text-amber-300">View all</Link>
                             )}
@@ -572,7 +577,7 @@ const DashboardPage = () => {
                                         </div>
                                         <div className="text-right">
                                             <p className={`font-bold mb-1 ${settlement.type === 'owed' ? 'text-green-500' : 'text-red-500'}`}>
-                                                {settlement.type === 'owed' ? '+' : '-'}₹{settlement.amount.toFixed(2)}
+                                                {settlement.type === 'owed' ? '+' : '-'}{formatAmount(settlement.amount)}
                                             </p>
                                             <div className="flex gap-2 justify-end">
                                                 {pendingApprovals[settlement.personId] ? (
@@ -619,14 +624,15 @@ const DashboardPage = () => {
 
                     {/* Your Groups Section */}
                     <section>
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-[#0d191b] dark:text-white">Your Groups</h2>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                            <h2 className="text-lg md:text-xl font-bold text-[#0d191b] dark:text-white">Your Groups</h2>
                             <button
                                 onClick={() => setIsCreateModalOpen(true)}
-                                className="flex items-center gap-2 bg-amber-400 text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-amber-300 transition-colors shadow-lg shadow-amber-900/20"
+                                className="flex items-center gap-2 bg-amber-400 text-black px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold hover:bg-amber-300 transition-colors shadow-lg shadow-amber-900/20"
                             >
-                                <span className="material-symbols-outlined text-xl">add</span>
-                                Create Group
+                                <span className="material-symbols-outlined text-lg md:text-xl">add</span>
+                                <span className="hidden sm:inline">Create Group</span>
+                                <span className="sm:hidden">Create</span>
                             </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -720,7 +726,7 @@ const DashboardPage = () => {
                             />
                         </div>
 
-                        <h3 className="text-3xl font-bold text-[#0d191b] dark:text-white mb-6">₹{paymentModal.data.amount.toFixed(2)}</h3>
+                        <h3 className="text-3xl font-bold text-[#0d191b] dark:text-white mb-6">{formatAmount(paymentModal.data.amount)}</h3>
 
                         <div className="flex flex-col gap-3">
                             <a

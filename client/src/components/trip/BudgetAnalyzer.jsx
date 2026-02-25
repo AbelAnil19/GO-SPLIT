@@ -1,6 +1,8 @@
 import React from 'react';
+import { useCurrency } from '../../context/CurrencyContext';
 
 const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal, dailySpending = [], startDate, endDate }) => {
+    const { formatAmount } = useCurrency();
     const utilizationPercent = Math.round((utilized / totalBudget) * 100);
 
     // Generate chart points from real data
@@ -89,45 +91,54 @@ const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal, daily
 
             {/* Chart */}
             <div className="relative h-32 mb-6">
-                <svg viewBox="0 0 100 80" className="w-full h-full">
-                    <defs>
-                        <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor="#FBBF24" stopOpacity="0.8" />
-                            <stop offset="100%" stopColor="#F59E0B" stopOpacity="1" />
-                        </linearGradient>
-                    </defs>
-                    <path
-                        d={createPath()}
-                        fill="none"
-                        stroke="url(#lineGradient)"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                    />
-                </svg>
+                {utilized > 0 && dailySpending?.length > 0 ? (
+                    <>
+                        <svg viewBox="0 0 100 80" className="w-full h-full">
+                            <defs>
+                                <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#FBBF24" stopOpacity="0.8" />
+                                    <stop offset="100%" stopColor="#F59E0B" stopOpacity="1" />
+                                </linearGradient>
+                            </defs>
+                            <path
+                                d={createPath()}
+                                fill="none"
+                                stroke="url(#lineGradient)"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                            />
+                        </svg>
 
-                {/* Date labels */}
-                <div className="flex justify-between text-xs text-gray-500 mt-2">
-                    {dateLabels.map((label, index) => (
-                        <span key={index}>{label}</span>
-                    ))}
-                </div>
+                        {/* Date labels */}
+                        <div className="flex justify-between text-xs text-gray-500 mt-2">
+                            {dateLabels.map((label, index) => (
+                                <span key={index}>{label}</span>
+                            ))}
+                        </div>
+                    </>
+                ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-amber-500/20 rounded-xl bg-amber-500/5">
+                        <span className="material-symbols-outlined text-amber-500/50 text-3xl mb-2">hotel_class</span>
+                        <p className="text-gray-500 text-sm font-medium">Start building your itinerary to see insights</p>
+                    </div>
+                )}
             </div>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white/5 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
                     <p className="text-gray-500 dark:text-gray-400 text-xs mb-2">AVG/DAILY</p>
-                    <p className="text-gray-900 dark:text-white font-bold text-lg">₹{avgDaily.toLocaleString()}</p>
+                    <p className="text-gray-900 dark:text-white font-bold text-lg">{formatAmount(avgDaily)}</p>
                 </div>
                 <div className="bg-white/5 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
                     <p className="text-gray-500 dark:text-gray-400 text-xs mb-2">EST. FINAL</p>
-                    <p className="text-green-600 dark:text-green-400 font-bold text-lg">₹{estimatedFinal.toLocaleString()}</p>
+                    <p className="text-green-600 dark:text-green-400 font-bold text-lg">{formatAmount(estimatedFinal)}</p>
                 </div>
             </div>
 
             {/* Footnote */}
             <p className="text-gray-500 text-xs mt-4">
-                ₹{utilized.toLocaleString()} OF ₹{totalBudget.toLocaleString()} USED
+                {formatAmount(utilized)} OF {formatAmount(totalBudget)} USED
             </p>
         </div>
     );

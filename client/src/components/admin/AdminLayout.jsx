@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../firebase/authContext';
+import AIInsightsBubble from '../ai/AIInsightsBubble';
 
 const AdminLayout = ({ children }) => {
     const location = useLocation();
@@ -13,6 +14,7 @@ const AdminLayout = ({ children }) => {
         { path: '/admin/groups', label: 'Groups', icon: 'groups' },
         { path: '/admin/expenses', label: 'Expenses', icon: 'payments' },
         { path: '/admin/analytics', label: 'Analytics', icon: 'analytics' },
+        { path: '/admin/support', label: 'Support', icon: 'support_agent' },
     ];
 
     const handleLogout = async () => {
@@ -46,8 +48,8 @@ const AdminLayout = ({ children }) => {
                                 key={item.path}
                                 to={item.path}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
-                                        ? 'bg-amber-400 text-black shadow-lg shadow-amber-500/30'
-                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'
+                                    ? 'bg-amber-400 text-black shadow-lg shadow-amber-500/30'
+                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'
                                     }`}
                             >
                                 <span className="material-symbols-outlined text-xl">{item.icon}</span>
@@ -97,6 +99,9 @@ const AdminLayout = ({ children }) => {
                     {children}
                 </div>
             </main>
+
+            {/* AI Insights Chat Bubble */}
+            <AIInsightsBubble />
         </div>
     );
 };

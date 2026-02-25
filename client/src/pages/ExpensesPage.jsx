@@ -7,16 +7,23 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
 import { calculateTotalBalance } from '../utils/expenseCalculator';
 import AddExpenseModal from '../components/AddExpenseModal';
+import RecurringExpenseModal from '../components/RecurringExpenseModal';
+import { createRecurringTemplate } from '../services/recurringExpenseService';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { useCurrency } from '../context/CurrencyContext';
+import ConvertedAmount from '../components/ConvertedAmount';
+import ReceiptViewer from '../components/ReceiptViewer';
 
 const ExpensesPage = () => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
+    const { currencySymbol } = useCurrency();
     const [searchQuery, setSearchQuery] = useState('');
     const [expenses, setExpenses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all'); // 'all', 'owe', 'owed'
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, expense: null });
 
     // Fetch expenses with real-time listener
@@ -167,32 +174,42 @@ const ExpensesPage = () => {
     }
 
     return (
-        <div className="flex flex-col gap-8 pb-20 max-w-7xl mx-auto">
+        <div className="flex flex-col gap-4 md:gap-6 lg:gap-8 pb-20 md:pb-24 max-w-7xl mx-auto">
             {/* Page Heading & Balance */}
             <div className="bg-white dark:bg-white/5 p-6 rounded-xl shadow-sm border border-gray-300 dark:border-white/10 backdrop-blur-md">
                 <div className="flex flex-wrap justify-between items-end gap-4">
                     <div className="flex flex-col gap-2">
-                        <h1 className="text-3xl md:text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">Expenses</h1>
+                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">Expenses</h1>
                         <div className="flex items-center gap-2">
-                            <span className="text-[#5c6f73] dark:text-gray-400 font-medium">Total balance:</span>
+                            <p className="text-sm md:text-base text-[#5c6f73] dark:text-gray-400 font-normal">Total balance:</p>
                             <span className={`font-bold text-lg px-2 py-0.5 rounded ${totalBalance >= 0
                                 ? 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-400/10'
                                 : 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-400/10'
                                 }`}>
-                                {totalBalance >= 0 ? '+' : ''}₹{totalBalance.toFixed(2)}
+                                {totalBalance >= 0 ? '+' : ''}{currencySymbol}{totalBalance.toFixed(2)}
                             </span>
                             <span className="text-gray-400 text-sm">
                                 {totalBalance >= 0 ? '(You are owed)' : '(You owe)'}
                             </span>
                         </div>
                     </div>
-                    <button
-                        onClick={() => setIsAddModalOpen(true)}
-                        className="bg-amber-400 hover:bg-amber-300 text-black h-12 rounded-lg text-sm font-bold flex items-center gap-2 px-6 shadow-lg shadow-amber-900/20 transition-all"
-                    >
-                        <span className="material-symbols-outlined">add</span>
-                        Add Expense
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setIsRecurringModalOpen(true)}
+                            className="bg-purple-500 hover:bg-purple-600 text-white h-12 rounded-lg text-sm font-bold flex items-center gap-2 px-4 shadow-lg shadow-purple-900/20 transition-all"
+                            title="Set up recurring expenses"
+                        >
+                            <span className="material-symbols-outlined">event_repeat</span>
+                            Recurring
+                        </button>
+                        <button
+                            onClick={() => setIsAddModalOpen(true)}
+                            className="bg-amber-400 hover:bg-amber-300 text-black h-12 rounded-lg text-sm font-bold flex items-center gap-2 px-6 shadow-lg shadow-amber-900/20 transition-all"
+                        >
+                            <span className="material-symbols-outlined">add</span>
+                            Add Expense
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -210,7 +227,7 @@ const ExpensesPage = () => {
                     />
                 </div>
                 {/* Filter Chips */}
-                <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
                     <button
                         onClick={() => setFilter('all')}
                         className={`flex items-center gap-2 h-12 px-4 rounded-lg whitespace-nowrap transition-colors backdrop-blur-md ${filter === 'all'
@@ -284,10 +301,18 @@ const ExpensesPage = () => {
                                             <div className="flex flex-col justify-center gap-0.5">
                                                 <p className="text-base font-bold text-[#0d191b] dark:text-white">{expense.description}</p>
                                                 <p className="text-sm text-gray-400">
-                                                    {expense.paidByName} paid ₹{expense.amount.toFixed(2)}
+                                                    {expense.paidByName} paid <ConvertedAmount amount={expense.amount} originalCurrency={expense.originalCurrency || 'INR'} />
                                                 </p>
                                             </div>
                                         </div>
+
+                                        {/* Receipt Viewer */}
+                                        {expense.receipt && (
+                                            <div className="mt-3 border-t border-gray-200 dark:border-white/10 pt-3">
+                                                <ReceiptViewer receipt={expense.receipt} />
+                                            </div>
+                                        )}
+
                                         <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 pl-16 sm:pl-0">
                                             <span className={`text-xs font-semibold uppercase tracking-wider ${type === 'lent' ? 'text-green-400' : 'text-orange-400'
                                                 }`}>
@@ -295,7 +320,7 @@ const ExpensesPage = () => {
                                             </span>
                                             <span className={`text-base font-bold ${type === 'lent' ? 'text-green-400' : 'text-orange-400'
                                                 }`}>
-                                                ₹{amount.toFixed(2)}
+                                                <ConvertedAmount amount={amount} originalCurrency={expense.originalCurrency || 'INR'} />
                                             </span>
                                             {/* Delete Button */}
                                             {expense.paidBy === currentUser.uid && (
@@ -346,6 +371,22 @@ const ExpensesPage = () => {
                 message={`Are you sure you want to delete "${deleteModal.expense?.description}"? This action cannot be undone.`}
                 confirmText="Delete"
                 type="danger"
+            />
+
+            {/* Recurring Expense Modal */}
+            <RecurringExpenseModal
+                isOpen={isRecurringModalOpen}
+                onClose={() => setIsRecurringModalOpen(false)}
+                onSave={async (template) => {
+                    try {
+                        await createRecurringTemplate(template);
+                        addToast('Recurring expense created!', 'success');
+                        setIsRecurringModalOpen(false);
+                    } catch (error) {
+                        console.error('Error creating recurring expense:', error);
+                        addToast('Failed to create recurring expense', 'error');
+                    }
+                }}
             />
         </div>
     );

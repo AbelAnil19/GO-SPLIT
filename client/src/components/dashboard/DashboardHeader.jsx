@@ -13,7 +13,7 @@ import { getUserDocument } from '../../firebase/firestore';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/firebaseConfig';
 
-const DashboardHeader = () => {
+const DashboardHeader = ({ onMenuClick }) => {
     const { currentUser, doSignOut } = useAuth();
     const { addToast } = useToast();
     const navigate = useNavigate();
@@ -81,10 +81,21 @@ const DashboardHeader = () => {
     };
 
     return (
-        <header className="h-20 bg-white dark:bg-black/40 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 flex items-center justify-between px-8 flex-shrink-0 z-10 relative transition-colors duration-300 shadow-sm">
-            <div>
-                <h1 className="text-xl font-bold text-[#0d191b] dark:text-white">{getPageTitle()}</h1>
-                <p className="text-sm text-[#5c6f73] dark:text-gray-400">{getGreeting()}, {currentUser?.displayName?.split(' ')[0] || 'User'}!</p>
+        <header className="h-14 md:h-20 bg-white dark:bg-black/40 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 flex items-center justify-between px-3 md:px-8 flex-shrink-0 z-10 relative transition-colors duration-300 shadow-sm">
+            <div className="flex items-center gap-1.5 md:gap-4">
+                {/* Mobile Menu Button - ONLY SHOWS ON MOBILE */}
+                <button
+                    onClick={onMenuClick}
+                    className="lg:hidden w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                    aria-label="Open menu"
+                >
+                    <span className="material-symbols-outlined text-[20px] md:text-[24px] text-gray-700 dark:text-gray-300">menu</span>
+                </button>
+
+                <div className="flex flex-col justify-center">
+                    <h1 className="text-base md:text-xl font-bold text-[#0d191b] dark:text-white leading-none md:leading-normal">{getPageTitle()}</h1>
+                    <p className="text-[10px] md:text-sm text-[#5c6f73] dark:text-gray-400 mt-1 md:mt-0 leading-none md:leading-normal">{getGreeting()}, {currentUser?.displayName?.split(' ')[0] || 'User'}!</p>
+                </div>
             </div>
 
             <div className="flex items-center gap-4">

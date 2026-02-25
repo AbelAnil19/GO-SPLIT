@@ -20,6 +20,14 @@ const RegisterPage = () => {
     const { addToast } = useToast();
     const navigate = useNavigate();
 
+    // Live validation errors
+    const [errors, setErrors] = useState({
+        name: '',
+        email: '',
+        password: '',
+        confirmPassword: ''
+    });
+
     // MinimalToast state for validation
     const [validationToast, setValidationToast] = useState({
         open: false,
@@ -45,6 +53,62 @@ const RegisterPage = () => {
 
     const validatePassword = (password) => {
         return password.length >= 6;
+    };
+
+    // Live validation handlers
+    const handleNameChange = (e) => {
+        const value = e.target.value;
+        // Only allow letters and spaces
+        const cleanValue = value.replace(/[^a-zA-Z\s]/g, '');
+        setName(cleanValue);
+
+        if (cleanValue && cleanValue.trim().length < 2) {
+            setErrors(prev => ({ ...prev, name: 'Name must be at least 2 characters' }));
+        } else if (cleanValue && !/^[a-zA-Z\s]+$/.test(cleanValue)) {
+            setErrors(prev => ({ ...prev, name: 'Name can only contain letters and spaces' }));
+        } else {
+            setErrors(prev => ({ ...prev, name: '' }));
+        }
+    };
+
+    const handleEmailChange = (e) => {
+        const value = e.target.value;
+        setEmail(value);
+
+        if (value && !validateEmail(value)) {
+            setErrors(prev => ({ ...prev, email: 'Please enter a valid email address' }));
+        } else {
+            setErrors(prev => ({ ...prev, email: '' }));
+        }
+    };
+
+    const handlePasswordChange = (e) => {
+        const value = e.target.value;
+        setPassword(value);
+
+        if (value && value.length < 6) {
+            setErrors(prev => ({ ...prev, password: 'Password must be at least 6 characters' }));
+        } else {
+            setErrors(prev => ({ ...prev, password: '' }));
+        }
+
+        // Also check confirm password match if it exists
+        if (confirmPassword && value !== confirmPassword) {
+            setErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+        } else if (confirmPassword) {
+            setErrors(prev => ({ ...prev, confirmPassword: '' }));
+        }
+    };
+
+    const handleConfirmPasswordChange = (e) => {
+        const value = e.target.value;
+        setConfirmPassword(value);
+
+        if (value && value !== password) {
+            setErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+        } else {
+            setErrors(prev => ({ ...prev, confirmPassword: '' }));
+        }
     };
 
     const handleRegister = async (e) => {
@@ -180,9 +244,21 @@ const RegisterPage = () => {
                             type="text"
                             required
                             value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                            onChange={handleNameChange}
+                            className={`w-full px-4 py-3 rounded-xl border ${errors.name ? 'border-red-500' : 'border-gray-200'} focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all`}
                         />
+                        {errors.name && (
+                            <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                {errors.name}
+                            </p>
+                        )}
+                        {!errors.name && name && (
+                            <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                                Valid name
+                            </p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Email address</label>
@@ -190,9 +266,21 @@ const RegisterPage = () => {
                             type="email"
                             required
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                            onChange={handleEmailChange}
+                            className={`w-full px-4 py-3 rounded-xl border ${errors.email ? 'border-red-500' : 'border-gray-200'} focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all`}
                         />
+                        {errors.email && (
+                            <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                {errors.email}
+                            </p>
+                        )}
+                        {!errors.email && email && validateEmail(email) && (
+                            <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                                Valid email
+                            </p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Password</label>
@@ -201,8 +289,8 @@ const RegisterPage = () => {
                                 type={showPassword ? "text" : "password"}
                                 required
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                                onChange={handlePasswordChange}
+                                className={`w-full px-4 py-3 pr-12 rounded-xl border ${errors.password ? 'border-red-500' : 'border-gray-200'} focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all`}
                             />
                             <button
                                 type="button"
@@ -216,6 +304,18 @@ const RegisterPage = () => {
                                 )}
                             </button>
                         </div>
+                        {errors.password && (
+                            <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                {errors.password}
+                            </p>
+                        )}
+                        {!errors.password && password && password.length >= 6 && (
+                            <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                                Strong password
+                            </p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Confirm Password</label>
@@ -224,8 +324,8 @@ const RegisterPage = () => {
                                 type={showConfirmPassword ? "text" : "password"}
                                 required
                                 value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                                onChange={handleConfirmPasswordChange}
+                                className={`w-full px-4 py-3 pr-12 rounded-xl border ${errors.confirmPassword ? 'border-red-500' : 'border-gray-200'} focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all`}
                             />
                             <button
                                 type="button"
@@ -239,6 +339,18 @@ const RegisterPage = () => {
                                 )}
                             </button>
                         </div>
+                        {errors.confirmPassword && (
+                            <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                {errors.confirmPassword}
+                            </p>
+                        )}
+                        {!errors.confirmPassword && confirmPassword && confirmPassword === password && (
+                            <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                                Passwords match
+                            </p>
+                        )}
                     </div>
 
                     <button

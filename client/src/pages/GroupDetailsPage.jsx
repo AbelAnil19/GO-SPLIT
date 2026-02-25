@@ -10,12 +10,16 @@ import GroupIconPicker from '../components/GroupIconPicker';
 import ColorPicker from '../components/ColorPicker';
 import { deleteExpense, sendMessage, listenToGroupMessages, getUserDocument, removeMemberFromGroup, leaveGroup, deleteGroup, updateGroupCustomization } from '../firebase/firestore';
 import ConfirmationModal from '../components/ConfirmationModal';
+import SmartSettlementModal from '../components/SmartSettlementModal';
+import ReceiptViewer from '../components/ReceiptViewer';
+import { useCurrency } from '../context/CurrencyContext';
 
 const GroupDetailsPage = () => {
     const { groupId } = useParams();
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const { addToast } = useToast();
+    const { formatAmount } = useCurrency();
 
     const [group, setGroup] = useState(null);
     const [expenses, setExpenses] = useState([]);
@@ -40,6 +44,7 @@ const GroupDetailsPage = () => {
     const [customColor, setCustomColor] = useState('#F59E0B');
     const [customDescription, setCustomDescription] = useState('');
     const [customCategory, setCustomCategory] = useState('Other');
+    const [isSettlementModalOpen, setIsSettlementModalOpen] = useState(false);
 
     // Fetch group details
     useEffect(() => {
@@ -366,31 +371,31 @@ const GroupDetailsPage = () => {
                     Back to Groups
                 </button>
 
-                <div className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-2xl p-6 border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-2xl p-4 md:p-6 border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 md:gap-4">
                             <div
-                                className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                                className="w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0"
                                 style={{
                                     background: `linear-gradient(135deg, ${customColor}, ${customColor}dd)`
                                 }}
                             >
-                                <span className="text-4xl">{customIcon}</span>
+                                <span className="text-2xl md:text-4xl">{customIcon}</span>
                             </div>
-                            <div>
-                                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{group.name}</h1>
-                                <p className="text-gray-500 dark:text-gray-400">{group.members?.length || 0} members · ₹{(group.totalExpenses || 0).toFixed(2)} total</p>
+                            <div className="min-w-0">
+                                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white truncate">{group.name}</h1>
+                                <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate">{group.members?.length || 0} members · {formatAmount(group.totalExpenses || 0)} total</p>
                                 {customDescription && (
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 italic">"{customDescription}"</p>
+                                    <p className="text-[10px] md:text-sm text-gray-600 dark:text-gray-400 mt-0.5 md:mt-1 italic line-clamp-2">"{customDescription}"</p>
                                 )}
                             </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2 w-full md:w-auto mt-2 md:mt-0">
                             <button
                                 onClick={() => setIsAddExpenseOpen(true)}
-                                className="px-4 py-2 bg-amber-400 hover:bg-amber-500 text-black rounded-xl font-semibold transition-colors flex items-center gap-2"
+                                className="flex-1 md:flex-none px-3 md:px-4 py-2 bg-amber-400 hover:bg-amber-500 text-black rounded-xl font-semibold transition-colors flex items-center justify-center gap-1 md:gap-2 text-sm md:text-base"
                             >
-                                <span className="material-symbols-outlined text-xl">add</span>
+                                <span className="material-symbols-outlined text-lg md:text-xl">add</span>
                                 Add Expense
                             </button>
                             <button
@@ -477,7 +482,7 @@ const GroupDetailsPage = () => {
 
             {/* Tab Content */}
             {activeTab === 'expenses' && (
-                <div className="space-y-4">
+                <div className="space-y-6">
                     {expenses.length === 0 ? (
                         <div className="text-center py-16 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-2xl border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
                             <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600 mb-4">receipt_long</span>
@@ -495,12 +500,14 @@ const GroupDetailsPage = () => {
                             const payer = group.members?.find(m => m.userId === expense.paidBy);
 
                             return (
-                                <div key={expense.id} className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] rounded-xl p-4 border-2 border-gray-200 dark:border-white/10 hover:border-amber-400/50 dark:hover:border-amber-400/50 transition-all group shadow-md dark:shadow-none backdrop-blur-[2px] hover:shadow-xl">
+                                <div key={expense.id} className="group bg-white/20 dark:bg-white/[0.05] rounded-xl p-4 border border-gray-200/40 dark:border-white/10 hover:border-amber-400/50 transition-all backdrop-blur-sm">
+
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4 flex-1">
                                             <div className={`w-12 h-12 rounded-xl bg-${categoryStyle.color}-500/10 flex items-center justify-center`}>
                                                 <span className={`material-symbols-outlined text-${categoryStyle.color}-500`}>{categoryStyle.icon}</span>
                                             </div>
+
                                             <div className="flex-1">
                                                 <h3 className="font-semibold text-gray-900 dark:text-white">{expense.description}</h3>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -509,7 +516,7 @@ const GroupDetailsPage = () => {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4">
-                                            <span className="text-xl font-bold text-gray-900 dark:text-white">₹{expense.amount.toFixed(2)}</span>
+                                            <span className="text-xl font-bold text-gray-900 dark:text-white">{formatAmount(expense.amount, expense.currency || 'INR')}</span>
                                             {expense.paidBy === currentUser.uid && (
                                                 <button
                                                     onClick={() => setDeleteModal({ isOpen: true, expense })}
@@ -520,6 +527,19 @@ const GroupDetailsPage = () => {
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* Receipt Viewer */}
+                                    {expense.receipt && (
+                                        <div className="mt-3 border-t border-gray-200/40 dark:border-white/10 pt-3">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="material-symbols-outlined text-sm text-amber-500">receipt_long</span>
+                                                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                                                    Receipt Attached
+                                                </span>
+                                            </div>
+                                            <ReceiptViewer receipt={expense.receipt} />
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })
@@ -573,9 +593,9 @@ const GroupDetailsPage = () => {
                                     {Math.abs(balance) < 0.01 ? (
                                         <span className="text-sm font-semibold">Settled up</span>
                                     ) : isPositive ? (
-                                        <span className="text-sm font-semibold">Gets back ₹{Math.abs(balance).toFixed(2)}</span>
+                                        <span className="text-sm font-semibold">Gets back {formatAmount(Math.abs(balance))}</span>
                                     ) : (
-                                        <span className="text-sm font-semibold">Owes ₹{Math.abs(balance).toFixed(2)}</span>
+                                        <span className="text-sm font-semibold">Owes {formatAmount(Math.abs(balance))}</span>
                                     )}
                                 </div>
                             </div>
@@ -595,12 +615,21 @@ const GroupDetailsPage = () => {
                     ) : (
                         <div>
                             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mb-4">
-                                <div className="flex gap-2">
-                                    <span className="material-symbols-outlined text-amber-400">lightbulb</span>
-                                    <div className="text-sm text-amber-300">
-                                        <p className="font-semibold mb-1">Suggested Settlement Plan</p>
-                                        <p>Complete these {settlements.length} transactions to settle all debts in the group.</p>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex gap-2">
+                                        <span className="material-symbols-outlined text-amber-400">lightbulb</span>
+                                        <div className="text-sm text-amber-300">
+                                            <p className="font-semibold mb-1">Suggested Settlement Plan</p>
+                                            <p>Complete these {settlements.length} transactions to settle all debts in the group.</p>
+                                        </div>
                                     </div>
+                                    <button
+                                        onClick={() => setIsSettlementModalOpen(true)}
+                                        className="px-4 py-2 bg-amber-400 hover:bg-amber-500 text-black rounded-xl font-semibold transition-colors flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined">calculate</span>
+                                        Optimize
+                                    </button>
                                 </div>
                             </div>
                             {settlements.map((settlement, index) => (
@@ -619,7 +648,7 @@ const GroupDetailsPage = () => {
                                             <p className="text-sm text-gray-500 dark:text-gray-400">
                                                 <span className="font-semibold text-gray-900 dark:text-white">{settlement.from}</span> pays <span className="font-semibold text-gray-900 dark:text-white">{settlement.to}</span>
                                             </p>
-                                            <p className="text-2xl font-bold text-amber-400">₹{settlement.amount.toFixed(2)}</p>
+                                            <p className="text-2xl font-bold text-amber-400">{formatAmount(settlement.amount)}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -845,6 +874,14 @@ const GroupDetailsPage = () => {
                     onClose={() => setIsIconPickerOpen(false)}
                 />
             )}
+
+            {/* Smart Settlement Modal */}
+            <SmartSettlementModal
+                isOpen={isSettlementModalOpen}
+                onClose={() => setIsSettlementModalOpen(false)}
+                expenses={expenses}
+                members={group.members || []}
+            />
         </div>
     );
 };

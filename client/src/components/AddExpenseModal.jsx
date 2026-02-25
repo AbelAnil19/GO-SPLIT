@@ -5,10 +5,13 @@ import { getUserGroups } from '../firebase/firestore';
 import { createExpense } from '../firebase/firestore';
 import { calculateSplit } from '../utils/expenseCalculator';
 import MinimalToast from './ui/MinimalToast';
+import { useCurrency } from '../context/CurrencyContext';
+import ReceiptUpload from './ReceiptUpload';
 
 const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
+    const { currency, currencySymbol, formatAmount } = useCurrency(); //Get user's current currency
     const [loading, setLoading] = useState(false);
     const [groups, setGroups] = useState([]);
     const [selectedGroup, setSelectedGroup] = useState(null);
@@ -22,6 +25,13 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
     const [splitPreview, setSplitPreview] = useState([]);
     const [splitType, setSplitType] = useState('equal'); // 'equal' or 'custom'
     const [customAmounts, setCustomAmounts] = useState({}); // { userId: amount }
+    const [receiptData, setReceiptData] = useState(null); // Receipt upload data
+
+    // Live validation errors
+    const [errors, setErrors] = useState({
+        description: '',
+        amount: ''
+    });
 
     // MinimalToast state for validation
     const [validationToast, setValidationToast] = useState({
@@ -118,6 +128,43 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
         }
     };
 
+    // Live validation handlers
+    const handleDescriptionChange = (e) => {
+        const value = e.target.value;
+        setDescription(value);
+
+        if (value && value.trim().length < 3) {
+            setErrors(prev => ({ ...prev, description: 'Description must be at least 3 characters' }));
+        } else {
+            setErrors(prev => ({ ...prev, description: '' }));
+        }
+    };
+
+    const handleAmountChange = (e) => {
+        const value = e.target.value;
+        // Only allow numbers and one decimal point
+        const cleanValue = value.replace(/[^0-9.]/g, '');
+
+        // Prevent multiple decimal points
+        const parts = cleanValue.split('.');
+        const finalValue = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleanValue;
+
+        setAmount(finalValue);
+
+        if (finalValue) {
+            const numValue = parseFloat(finalValue);
+            if (isNaN(numValue) || numValue <= 0) {
+                setErrors(prev => ({ ...prev, amount: 'Amount must be greater than 0' }));
+            } else if (finalValue.includes('.') && finalValue.split('.')[1]?.length > 2) {
+                setErrors(prev => ({ ...prev, amount: 'Maximum 2 decimal places allowed' }));
+            } else {
+                setErrors(prev => ({ ...prev, amount: '' }));
+            }
+        } else {
+            setErrors(prev => ({ ...prev, amount: '' }));
+        }
+    };
+
     const handleMemberToggle = (member) => {
         setSplitWith(prev => {
             const exists = prev.find(m => m.userId === member.userId);
@@ -164,7 +211,7 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
 
             // More lenient tolerance since amount may be auto-calculated
             if (Math.abs(totalCustom - expenseAmount) > 0.1) {
-                showValidationError(`Custom amounts (₹${totalCustom.toFixed(2)}) must equal total expense (₹${expenseAmount.toFixed(2)})`);
+                showValidationError(`Custom amounts (${formatAmount(totalCustom)}) must equal total expense (${formatAmount(expenseAmount)})`);
                 return;
             }
 
@@ -196,9 +243,11 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                 groupId: selectedGroup.id,
                 description: description.trim(),
                 amount: parseFloat(amount),
+                originalCurrency: currency, // Store user's current currency
                 category,
                 paidBy,
                 paidByName: paidByMember?.name || currentUser.displayName,
+                receipt: receiptData || null, // Add receipt data
                 splitBetween: splits.map(split => {
                     const member = splitWith.find(m => m.userId === split.userId);
                     return {
@@ -218,6 +267,7 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
             setAmount('');
             setCategory('food');
             setSplitWith(selectedGroup.members);
+            setReceiptData(null); // Reset receipt data
 
             if (onExpenseAdded) {
                 onExpenseAdded();
@@ -277,29 +327,46 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                         <input
                             type="text"
                             value={description}
-                            onChange={(e) => setDescription(e.target.value)}
+                            onChange={handleDescriptionChange}
                             placeholder="e.g., Dinner at restaurant"
-                            className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
+                            className={`w-full px-4 py-3 rounded-xl border ${errors.description ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-white/5 text-[#0d191b] dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all`}
                             required
                         />
+                        {errors.description && (
+                            <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                {errors.description}
+                            </p>
+                        )}
                     </div>
 
                     {/* Amount and Category */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-[#5c6f73] dark:text-gray-300 mb-2">
-                                Amount ($)
+                                Amount ({currencySymbol})
                             </label>
                             <input
-                                type="number"
-                                step="0.01"
-                                min="0.01"
+                                type="text"
                                 value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
+                                onChange={handleAmountChange}
                                 placeholder="0.00"
-                                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
+                                className={`w-full px-4 py-3 rounded-xl border ${errors.amount ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-white/5 text-[#0d191b] dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all`}
                                 required
+                                disabled={splitType === 'custom'}
                             />
+                            {errors.amount && (
+                                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                    {errors.amount}
+                                </p>
+                            )}
+                            {!errors.amount && amount && parseFloat(amount) > 0 && (
+                                <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                                    Valid amount
+                                </p>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-[#5c6f73] dark:text-gray-300 mb-2">
@@ -438,7 +505,7 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                                             }))}
                                             className="w-28 px-3 py-2 rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none"
                                         />
-                                        <span className="text-gray-500 dark:text-gray-400">₹</span>
+                                        <span className="text-gray-500 dark:text-gray-400">{currencySymbol}</span>
                                     </div>
                                 ))}
                                 <div className="pt-3 border-t border-gray-300 dark:border-white/10 flex justify-between items-center">
@@ -448,9 +515,9 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                                             ? 'text-green-600 dark:text-green-400'
                                             : 'text-red-600 dark:text-red-400'
                                             }`}>
-                                            ₹{Object.values(customAmounts).reduce((sum, amt) => sum + (parseFloat(amt) || 0), 0).toFixed(2)}
+                                            {formatAmount(Object.values(customAmounts).reduce((sum, amt) => sum + (parseFloat(amt) || 0), 0))}
                                         </span>
-                                        <span className="text-gray-500 dark:text-gray-400">/ ₹{parseFloat(amount || 0).toFixed(2)}</span>
+                                        <span className="text-gray-500 dark:text-gray-400">/ {formatAmount(parseFloat(amount || 0))}</span>
                                         {Math.abs((Object.values(customAmounts).reduce((sum, amt) => sum + (parseFloat(amt) || 0), 0)) - (parseFloat(amount) || 0)) < 0.01 && amount && (
                                             <span className="text-green-600 dark:text-green-400">✓</span>
                                         )}
@@ -469,13 +536,24 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                                     <div key={split.userId} className="flex items-center justify-between text-sm">
                                         <span className="text-amber-800 dark:text-amber-300">{split.name}</span>
                                         <span className="font-bold text-amber-900 dark:text-amber-400">
-                                            ₹{split.amount.toFixed(2)}
+                                            {formatAmount(split.amount)}
                                         </span>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
+
+                    {/* Receipt Upload */}
+                    <div>
+                        <label className="block text-sm font-medium text-[#5c6f73] dark:text-gray-300 mb-2">
+                            📎 Attach Receipt (Optional)
+                        </label>
+                        <ReceiptUpload
+                            onUploadComplete={(data) => setReceiptData(data)}
+                            existingReceipt={receiptData}
+                        />
+                    </div>
 
                     {/* Action Buttons */}
                     <div className="flex gap-3 pt-4">

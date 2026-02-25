@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
+import AIInsightsBubble from './ai/AIInsightsBubble';
 
 const Layout = () => {
     return (
@@ -18,6 +19,9 @@ const Layout = () => {
             <main className="container mx-auto px-4 py-8 relative z-10">
                 <Outlet />
             </main>
+
+            {/* AI Insights Chat Bubble */}
+            <AIInsightsBubble />
         </div>
     );
 };

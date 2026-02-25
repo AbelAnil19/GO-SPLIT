@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
+import { useCurrency } from '../context/CurrencyContext';
+import ConvertedAmount from '../components/ConvertedAmount';
 import { listenToUserGroups, createGroup, deleteGroup, getUserDocument } from '../firebase/firestore';
 import AddMemberModal from '../components/AddMemberModal';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -10,6 +12,7 @@ import GroupInvitations from '../components/GroupInvitations';
 const GroupsPage = () => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
+    const { currencySymbol } = useCurrency();
     const navigate = useNavigate();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
@@ -100,7 +103,7 @@ const GroupsPage = () => {
     );
 
     return (
-        <div className="flex flex-col gap-8 pb-20">
+        <div className="flex flex-col gap-4 md:gap-6 lg:gap-8 pb-20 md:pb-24">
             {/* Page Heading & Actions */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div className="flex flex-col gap-1">
@@ -109,10 +112,11 @@ const GroupsPage = () => {
                 </div>
                 <button
                     onClick={() => setIsCreateModalOpen(true)}
-                    className="bg-amber-400 hover:bg-amber-300 text-black font-bold py-3 px-6 rounded-xl flex items-center gap-2 shadow-lg shadow-amber-900/20 transition-all transform active:scale-95"
+                    className="bg-amber-400 text-black px-4 md:px-6 py-2 md:py-3 rounded-xl text-sm md:text-base font-bold hover:bg-amber-300 transition-all flex items-center gap-2 shadow-lg shadow-amber-900/20 transition-all transform active:scale-95"
                 >
-                    <span className="material-symbols-outlined">add</span>
-                    Create New Group
+                    <span className="material-symbols-outlined text-lg md:text-xl">add</span>
+                    <span className="hidden sm:inline">Create New Group</span>
+                    <span className="sm:hidden">Create</span>
                 </button>
             </div>
 
@@ -134,7 +138,7 @@ const GroupsPage = () => {
                         <p className="text-[#5c6f73] dark:text-gray-400 font-medium">Total Members</p>
                         <span className="material-symbols-outlined text-blue-400 bg-blue-400/10 p-1.5 rounded-lg">people</span>
                     </div>
-                    <p className="text-[#0d191b] dark:text-white text-3xl font-bold tracking-tight">
+                    <p className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">
                         {groups.reduce((sum, g) => sum + (g.members?.length || 0), 0)}
                     </p>
                     <p className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium mt-1">across all groups</p>
@@ -214,7 +218,7 @@ const GroupsPage = () => {
                                 </p>
                                 <div className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
                                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Expenses</p>
-                                    <p className="text-xl font-bold text-[#0d191b] dark:text-white">₹{group.totalExpenses || 0}</p>
+                                    <p className="text-xl font-bold text-[#0d191b] dark:text-white"><ConvertedAmount amount={group.totalExpenses || 0} originalCurrency="INR" /></p>
                                 </div>
                             </div>
                             <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200 dark:border-white/5">

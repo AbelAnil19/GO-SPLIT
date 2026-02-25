@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSystemStats, getAllUsers, getDashboardAnalytics } from '../../firebase/firestore';
 import AdminLayout from '../../components/admin/AdminLayout';
+import { useCurrency } from '../../context/CurrencyContext';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const AdminDashboard = () => {
+    const { formatAmount, currencySymbol } = useCurrency();
     const navigate = useNavigate();
     const [stats, setStats] = useState(null);
     const [recentUsers, setRecentUsers] = useState([]);
@@ -78,7 +80,7 @@ const AdminDashboard = () => {
         { label: 'Total Groups', value: stats?.totalGroups || 0, icon: 'groups', color: 'purple' },
         { label: 'Active Groups', value: stats?.activeGroups || 0, icon: 'playlist_add_check', color: 'teal' },
         { label: 'Total Expenses', value: stats?.totalExpenses || 0, icon: 'payments', color: 'amber' },
-        { label: 'Money Managed', value: `₹${(stats?.totalAmount || 0).toFixed(2)}`, icon: 'account_balance_wallet', color: 'emerald' },
+        { label: 'Money Managed', value: formatAmount(stats?.totalAmount || 0), icon: 'account_balance_wallet', color: 'emerald' },
         { label: 'Pending Settlements', value: stats?.pendingSettlements || 0, icon: 'hourglass_empty', color: 'orange' },
         { label: 'Banned Users', value: stats?.bannedUsers || 0, icon: 'block', color: 'red' },
     ];
@@ -213,12 +215,12 @@ const AdminDashboard = () => {
                                         tickLine={false}
                                         axisLine={false}
                                         dx={-10}
-                                        tickFormatter={(value) => `₹${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
+                                        tickFormatter={(value) => `${currencySymbol}${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
                                     />
                                     <Tooltip
                                         cursor={{ fill: 'transparent' }}
                                         contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                                        formatter={(value) => [`₹${value.toLocaleString()}`, 'Amount']}
+                                        formatter={(value) => [formatAmount(value), 'Amount']}
                                     />
                                     <Bar dataKey="amount" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={40} />
                                 </BarChart>

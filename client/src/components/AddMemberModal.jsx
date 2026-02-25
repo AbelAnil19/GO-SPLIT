@@ -9,6 +9,9 @@ const AddMemberModal = ({ isOpen, onClose, groupId, groupName, currentMembers = 
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // Live validation
+    const [emailError, setEmailError] = useState('');
+
     const handleSendInvitation = async () => {
         if (!email.trim()) {
             addToast('Please enter an email address', 'error');
@@ -46,6 +49,19 @@ const AddMemberModal = ({ isOpen, onClose, groupId, groupName, currentMembers = 
         setLoading(false);
     };
 
+    const handleEmailChange = (e) => {
+        const value = e.target.value;
+        setEmail(value);
+
+        // Live email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (value && !emailRegex.test(value)) {
+            setEmailError('Please enter a valid email address');
+        } else {
+            setEmailError('');
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -72,13 +88,25 @@ const AddMemberModal = ({ isOpen, onClose, groupId, groupName, currentMembers = 
                     <input
                         type="email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={handleEmailChange}
                         placeholder="member@example.com"
-                        className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                        className={`w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border ${emailError ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/10'} rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent`}
                         onKeyPress={(e) => e.key === 'Enter' && handleSendInvitation()}
                         autoFocus
                         disabled={loading}
                     />
+                    {emailError && (
+                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                            {emailError}
+                        </p>
+                    )}
+                    {!emailError && email && (
+                        <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                            Valid email address
+                        </p>
+                    )}
 
                     {currentMembers.length > 0 && (
                         <div className="mt-4 p-3 bg-gray-100 dark:bg-white/5 rounded-xl">

@@ -41,17 +41,17 @@ const MinimalToast = ({ open, onClose, message, type = 'default' }) => {
     const styles = getTypeStyles();
 
     return (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[9999] animate-fade-in-up">
-            <div className={`${styles.bg} text-white px-8 py-5 rounded-xl shadow-2xl flex items-center gap-4 min-w-[500px] max-w-3xl`}>
-                <span className={`material-symbols-outlined ${styles.iconColor} text-2xl`}>
+        <div className="fixed bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 z-[9999] animate-fade-in-up w-[90%] md:w-auto flex justify-center">
+            <div className={`${styles.bg} text-white px-4 md:px-8 py-3 md:py-5 rounded-lg md:rounded-xl shadow-2xl flex items-center gap-2 md:gap-4 md:min-w-[500px] max-w-sm md:max-w-3xl w-full`}>
+                <span className={`material-symbols-outlined ${styles.iconColor} text-lg md:text-2xl flex-shrink-0`}>
                     {styles.icon}
                 </span>
-                <p className="flex-1 font-medium text-sm">{message}</p>
+                <p className="flex-1 font-medium text-xs md:text-sm">{message}</p>
                 <button
                     onClick={onClose}
-                    className="text-white hover:text-gray-200 transition-colors"
+                    className="text-white hover:text-gray-200 transition-colors flex-shrink-0"
                 >
-                    <span className="material-symbols-outlined text-xl">close</span>
+                    <span className="material-symbols-outlined text-base md:text-xl">close</span>
                 </button>
             </div>
         </div>

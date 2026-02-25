@@ -1,18 +1,40 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useCurrency } from '../../context/CurrencyContext';
 
-const TripDetailsModal = ({ isOpen, onClose, trip }) => {
+const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) => {
+    const { formatAmount } = useCurrency();
+    const [notes, setNotes] = useState(trip?.notes || '');
+    const [notesEditing, setNotesEditing] = useState(false);
+    const [notesSaved, setNotesSaved] = useState(false);
+
     if (!isOpen || !trip) return null;
+
+    const handleSaveNotes = () => {
+        setNotesEditing(false);
+        setNotesSaved(true);
+        // Pass notes back via onEdit if available
+        if (onEdit) {
+            onEdit({ ...trip, notes }, true); // true = notes-only update
+        }
+        setTimeout(() => setNotesSaved(false), 2000);
+    };
 
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
             <div className="bg-white dark:bg-[#1a1c23] rounded-2xl shadow-2xl w-full max-w-3xl my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 {/* Hero Image Header */}
                 <div className="h-64 relative">
-                    <img
-                        src={trip.image}
-                        alt={trip.title}
-                        className="w-full h-full object-cover"
-                    />
+                    {trip.image ? (
+                        <img
+                            src={trip.image}
+                            alt={trip.title}
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-8xl text-white/80">flight</span>
+                        </div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
 
                     {/* Close Button */}
@@ -55,7 +77,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip }) => {
                                 <span className="material-symbols-outlined text-green-500 text-xl">payments</span>
                                 <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Budget</p>
                             </div>
-                            <p className="text-2xl font-bold text-gray-900 dark:text-white">₹{trip.estimatedCost?.toLocaleString() || 0}</p>
+                            <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatAmount(trip.estimatedCost || 0)}</p>
                         </div>
 
                         <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-xl p-4">
@@ -145,24 +167,79 @@ const TripDetailsModal = ({ isOpen, onClose, trip }) => {
                         </p>
                     </div>
 
-                    {/* Coming Soon Features */}
+                    {/* Action Cards */}
                     <div className="grid md:grid-cols-2 gap-4">
-                        {/* Itinerary Placeholder */}
-                        <div className="bg-gradient-to-br from-gray-100 to-gray-50 dark:from-white/5 dark:to-white/0 rounded-xl p-5 border border-dashed border-gray-300 dark:border-white/20">
+                        {/* Day-by-Day Itinerary - Clickable */}
+                        <button
+                            onClick={() => {
+                                onClose();
+                                if (onViewItinerary) onViewItinerary();
+                            }}
+                            className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-xl p-5 border border-blue-500/20 hover:border-blue-400/50 hover:shadow-lg transition-all text-left group"
+                        >
                             <div className="flex items-center gap-2 mb-3">
-                                <span className="material-symbols-outlined text-gray-400">event_note</span>
-                                <h3 className="text-sm font-bold text-gray-500 dark:text-gray-400">Day-by-Day Itinerary</h3>
+                                <span className="material-symbols-outlined text-blue-500">event_note</span>
+                                <h3 className="text-sm font-bold text-blue-600 dark:text-blue-400">Day-by-Day Itinerary</h3>
+                                <span className="material-symbols-outlined text-blue-400 text-sm ml-auto opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-500">Coming soon! Plan your daily activities.</p>
-                        </div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Plan your daily activities, set budgets per day, and organize your trip schedule.</p>
+                        </button>
 
-                        {/* Notes Placeholder */}
-                        <div className="bg-gradient-to-br from-gray-100 to-gray-50 dark:from-white/5 dark:to-white/0 rounded-xl p-5 border border-dashed border-gray-300 dark:border-white/20">
+                        {/* Trip Notes - Expandable */}
+                        <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 rounded-xl p-5 border border-purple-500/20">
                             <div className="flex items-center gap-2 mb-3">
-                                <span className="material-symbols-outlined text-gray-400">sticky_note_2</span>
-                                <h3 className="text-sm font-bold text-gray-500 dark:text-gray-400">Trip Notes</h3>
+                                <span className="material-symbols-outlined text-purple-500">sticky_note_2</span>
+                                <h3 className="text-sm font-bold text-purple-600 dark:text-purple-400">Trip Notes</h3>
+                                {notesSaved && (
+                                    <span className="text-xs text-green-500 ml-auto flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-sm">check_circle</span>
+                                        Saved!
+                                    </span>
+                                )}
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-500">Coming soon! Add personal notes and reminders.</p>
+                            {notesEditing ? (
+                                <div className="space-y-2">
+                                    <textarea
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        placeholder="Add packing list, reminders, booking references..."
+                                        className="w-full h-24 bg-white/50 dark:bg-white/5 border border-purple-300 dark:border-purple-500/30 rounded-lg p-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={handleSaveNotes}
+                                            className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-semibold hover:bg-purple-600 transition-colors"
+                                        >
+                                            Save Notes
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setNotesEditing(false);
+                                                setNotes(trip.notes || '');
+                                            }}
+                                            className="px-3 py-1.5 bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium hover:bg-gray-300 dark:hover:bg-white/20 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setNotesEditing(true)}
+                                    className="w-full text-left"
+                                >
+                                    {notes ? (
+                                        <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap line-clamp-3">{notes}</p>
+                                    ) : (
+                                        <p className="text-xs text-gray-500 dark:text-gray-500 italic">Click to add notes, packing lists, or reminders...</p>
+                                    )}
+                                    <span className="text-xs text-purple-500 mt-2 inline-flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-sm">edit</span>
+                                        {notes ? 'Edit notes' : 'Add notes'}
+                                    </span>
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -176,6 +253,10 @@ const TripDetailsModal = ({ isOpen, onClose, trip }) => {
                         Close
                     </button>
                     <button
+                        onClick={() => {
+                            onClose();
+                            if (onEdit) onEdit(trip, false);
+                        }}
                         className="flex-1 px-6 py-3 rounded-xl bg-amber-400 text-black font-bold hover:bg-amber-500 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                     >
                         <span className="material-symbols-outlined">edit</span>

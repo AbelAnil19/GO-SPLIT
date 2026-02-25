@@ -24,6 +24,8 @@ export const createUserDocument = async (userId, userData) => {
             email: userData.email,
             photoURL: defaultPhotoURL,
             avatarStyle: 'avataaars', // Default style
+            currency: 'INR', // Default currency for new users
+            language: 'en', // Default language
             groups: [],
             createdAt: serverTimestamp()
         });
@@ -1001,7 +1003,7 @@ export const createExpense = async (expenseData) => {
             try {
                 await sendMessage(
                     expenseData.groupId,
-                    `${expenseData.paidByName} added "${expenseData.description}" for ₹${expenseData.amount}`,
+                    `${expenseData.paidByName} added "${expenseData.description}" for ${expenseData.currency || '₹'} ${expenseData.amount}`,
                     {
                         uid: 'SYSTEM',
                         displayName: 'System',
@@ -1197,11 +1199,17 @@ export const getGroupExpenses = async (groupId) => {
     try {
         const q = query(
             collection(db, 'expenses'),
-            where('groupId', '==', groupId),
-            orderBy('date', 'desc')
+            where('groupId', '==', groupId)
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const expenses = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Client-side sorting by date descending
+        return expenses.sort((a, b) => {
+            const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
+            const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
+            return dateB - dateA;
+        });
     } catch (error) {
         console.error('Error getting group expenses:', error);
         throw error;
@@ -1267,12 +1275,17 @@ export const getUserActivity = async (userId, limitCount = 20) => {
     try {
         const q = query(
             collection(db, 'activity'),
-            where('userId', '==', userId),
-            orderBy('timestamp', 'desc'),
-            limit(limitCount)
+            where('userId', '==', userId)
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const activities = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Sort client-side and limit
+        return activities.sort((a, b) => {
+            const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp instanceof Date ? a.timestamp.getTime() : 0);
+            const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp instanceof Date ? b.timestamp.getTime() : 0);
+            return timeB - timeA;
+        }).slice(0, limitCount);
     } catch (error) {
         console.error('Error getting user activity:', error);
         throw error;
@@ -1906,18 +1919,16 @@ export const searchUsers = async (searchTerm) => {
  * @param {string} userId - User ID
  * @param {number} limit - Number of activities to fetch
  */
-export const getUserRecentExpenses = async (userId, limit = 20) => {
+export const getUserRecentExpenses = async (userId, limitCount = 20) => {
     try {
-        const activities = [];
-
-        // Get user's recent expenses
+        // Get user's expenses
         const expensesQuery = query(
             collection(db, 'expenses'),
-            where('paidBy', '==', userId),
-            orderBy('createdAt', 'desc'),
-            limit(limit)
+            where('paidBy', '==', userId)
         );
         const expensesSnap = await getDocs(expensesQuery);
+        const activities = [];
+
         expensesSnap.docs.forEach(doc => {
             const data = doc.data();
             activities.push({
@@ -1930,16 +1941,14 @@ export const getUserRecentExpenses = async (userId, limit = 20) => {
             });
         });
 
-        // Sort by timestamp
-        activities.sort((a, b) => {
-            const aTime = a.timestamp?.toMillis?.() || 0;
-            const bTime = b.timestamp?.toMillis?.() || 0;
-            return bTime - aTime;
-        });
-
-        return activities.slice(0, limit);
+        // Client-side sort and limit
+        return activities.sort((a, b) => {
+            const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp instanceof Date ? a.timestamp.getTime() : 0);
+            const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp instanceof Date ? b.timestamp.getTime() : 0);
+            return timeB - timeA;
+        }).slice(0, limitCount);
     } catch (error) {
-        console.error('âŒ Error getting user activity:', error);
+        console.error('Error getting user recent expenses:', error);
         return [];
     }
 };
@@ -2318,6 +2327,88 @@ export const getBudgetAnalytics = async (groupId) => {
         };
     } catch (error) {
         console.error('Error getting budget analytics:', error);
+        throw error;
+    }
+};
+
+// ===========================
+// TRIP / DESTINATION FUNCTIONS
+// ===========================
+
+/**
+ * Save a trip (destination) under a group
+ * @param {string} groupId - Group ID
+ * @param {Object} tripData - Trip data to save
+ * @returns {Promise<Object>} Created trip with ID
+ */
+export const saveTrip = async (groupId, tripData) => {
+    try {
+        const tripsRef = collection(db, 'groups', groupId, 'trips');
+        const docRef = await addDoc(tripsRef, {
+            ...tripData,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        return { id: docRef.id, ...tripData };
+    } catch (error) {
+        console.error('Error saving trip:', error);
+        throw error;
+    }
+};
+
+/**
+ * Get all trips for a group
+ * @param {string} groupId - Group ID
+ * @returns {Promise<Array>} Array of trips
+ */
+export const getGroupTrips = async (groupId) => {
+    try {
+        const tripsRef = collection(db, 'groups', groupId, 'trips');
+        const q = query(tripsRef, orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error('Error getting group trips:', error);
+        return [];
+    }
+};
+
+/**
+ * Update a trip (e.g., toggle favorite)
+ * @param {string} groupId - Group ID
+ * @param {string} tripId - Trip document ID
+ * @param {Object} updates - Fields to update
+ */
+export const updateTrip = async (groupId, tripId, updates) => {
+    try {
+        const id = String(tripId);
+        const tripRef = doc(db, 'groups', groupId, 'trips', id);
+        await updateDoc(tripRef, {
+            ...updates,
+            updatedAt: serverTimestamp()
+        });
+    } catch (error) {
+        // Use warn instead of error — the caller handles the fallback (saves as new)
+        console.warn('updateTrip failed (will fallback):', error.message);
+        throw error;
+    }
+};
+
+/**
+ * Delete a trip
+ * @param {string} groupId - Group ID
+ * @param {string} tripId - Trip document ID
+ */
+export const deleteTrip = async (groupId, tripId) => {
+    try {
+        const id = String(tripId);
+        const tripRef = doc(db, 'groups', groupId, 'trips', id);
+        await deleteDoc(tripRef);
+    } catch (error) {
+        console.error('Error deleting trip:', error);
         throw error;
     }
 };

@@ -9,12 +9,14 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import BalanceCheckModal from '../components/BalanceCheckModal';
 import AvatarPickerModal from '../components/AvatarPickerModal';
 import MinimalToast from '../components/ui/MinimalToast';
+import { useCurrency } from '../context/CurrencyContext';
 
 const SettingsPage = () => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
     const navigate = useNavigate();
     const { t, i18n } = useTranslation();
+    const { setCurrency: updateGlobalCurrency } = useCurrency();
 
     const [firstName, setFirstName] = useState(currentUser?.displayName?.split(' ')[0] || '');
     const [lastName, setLastName] = useState(currentUser?.displayName?.split(' ')[1] || '');
@@ -29,6 +31,15 @@ const SettingsPage = () => {
     const [notifMarketing, setNotifMarketing] = useState(false);
     const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
     const [userAvatar, setUserAvatar] = useState(currentUser?.photoURL || '');
+    const [dangerModal, setDangerModal] = useState({ isOpen: false, type: null });
+    const [confirmText, setConfirmText] = useState('');
+
+    // Live validation errors
+    const [errors, setErrors] = useState({
+        firstName: '',
+        lastName: '',
+        phone: ''
+    });
 
     // Country codes for dropdown with exact phone lengths
     const countryCodes = [
@@ -100,6 +111,59 @@ const SettingsPage = () => {
         i18n.changeLanguage(newLang);
     };
 
+    // Live validation handlers
+    const handleFirstNameChange = (e) => {
+        const value = e.target.value;
+        setFirstName(value);
+
+        // Validate name (letters and spaces only)
+        if (value && !/^[a-zA-Z\s]*$/.test(value)) {
+            setErrors(prev => ({ ...prev, firstName: 'Name can only contain letters and spaces' }));
+        } else if (value && value.trim().length < 2) {
+            setErrors(prev => ({ ...prev, firstName: 'Minimum 2 characters required' }));
+        } else {
+            setErrors(prev => ({ ...prev, firstName: '' }));
+        }
+    };
+
+    const handleLastNameChange = (e) => {
+        const value = e.target.value;
+        setLastName(value);
+
+        // Validate name (letters and spaces only)
+        if (value && !/^[a-zA-Z\s]*$/.test(value)) {
+            setErrors(prev => ({ ...prev, lastName: 'Name can only contain letters and spaces' }));
+        } else {
+            setErrors(prev => ({ ...prev, lastName: '' }));
+        }
+    };
+
+    const handlePhoneChange = (e) => {
+        const value = e.target.value;
+
+        // Only allow digits
+        const cleanValue = value.replace(/\D/g, '');
+        setPhone(cleanValue);
+
+        // Live validation
+        if (cleanValue && !/^\d+$/.test(cleanValue)) {
+            setErrors(prev => ({ ...prev, phone: 'Phone number must contain only digits' }));
+        } else if (cleanValue) {
+            const selectedCountry = countryCodes.find(c => c.code === countryCode);
+            const requiredLength = selectedCountry?.length || 10;
+
+            if (cleanValue.length < requiredLength) {
+                setErrors(prev => ({ ...prev, phone: `Phone number must be ${requiredLength} digits` }));
+            } else if (cleanValue.length > requiredLength) {
+                setErrors(prev => ({ ...prev, phone: `Phone number must be exactly ${requiredLength} digits` }));
+            } else {
+                setErrors(prev => ({ ...prev, phone: '' }));
+            }
+        } else {
+            setErrors(prev => ({ ...prev, phone: '' }));
+        }
+    };
+
     const handleSave = async () => {
         // Validation
         if (!firstName || firstName.trim().length < 2) {
@@ -134,27 +198,28 @@ const SettingsPage = () => {
         }
 
         try {
+            const fullName = `${firstName.trim()} ${lastName.trim()}`;
+            const defaultCurrency = currency || 'INR';
+            const defaultLanguage = language || 'en';
+
             await updateUserDocument(currentUser.uid, {
-                displayName: `${firstName} ${lastName}`.trim(),
-                countryCode,
+                displayName: fullName,
                 phone,
                 upiId,
-                currency,
-                language,
-                notifications: {
-                    expense: notifExpense,
-                    settlement: notifSettlement,
-                    marketing: notifMarketing
-                }
+                currency: defaultCurrency,
+                language: defaultLanguage
             });
-            // Ensure i18n stays in sync if saved
-            if (language !== i18n.language) {
-                i18n.changeLanguage(language);
-            }
-            addToast(t('common.save'), 'success');
+
+            // Update global currency context
+            updateGlobalCurrency(defaultCurrency);
+
+            // Update language
+            i18n.changeLanguage(defaultLanguage);
+
+            addToast('Settings saved successfully', 'success');
         } catch (error) {
-            console.error("Error saving settings:", error);
-            showValidationError('Failed to save settings. Please try again.');
+            console.error('Error saving settings:', error);
+            addToast('Failed to save settings', 'error');
         }
     };
 
@@ -172,9 +237,6 @@ const SettingsPage = () => {
     const handleCancel = () => {
         addToast(t('common.cancel'), 'info');
     };
-
-    const [dangerModal, setDangerModal] = useState({ isOpen: false, type: null });
-    const [confirmText, setConfirmText] = useState('');
 
     const handleConfirmDelete = async () => {
         if (confirmText !== 'DELETE') return;
@@ -266,20 +328,32 @@ const SettingsPage = () => {
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-gray-300">{t('settings.firstName')}</label>
                                 <input
-                                    className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
+                                    className={`w-full rounded-lg border ${errors.firstName ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500`}
                                     type="text"
                                     value={firstName}
-                                    onChange={(e) => setFirstName(e.target.value)}
+                                    onChange={handleFirstNameChange}
                                 />
+                                {errors.firstName && (
+                                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                        {errors.firstName}
+                                    </p>
+                                )}
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-gray-300">{t('settings.lastName')}</label>
                                 <input
-                                    className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
+                                    className={`w-full rounded-lg border ${errors.lastName ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-white/5 text-[#0d191b] dark:text-white px-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500`}
                                     type="text"
                                     value={lastName}
-                                    onChange={(e) => setLastName(e.target.value)}
+                                    onChange={handleLastNameChange}
                                 />
+                                {errors.lastName && (
+                                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                        {errors.lastName}
+                                    </p>
+                                )}
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-gray-300">{t('settings.email')}</label>
@@ -315,15 +389,27 @@ const SettingsPage = () => {
                                     <div className="relative flex-1">
                                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 text-[20px]">phone</span>
                                         <input
-                                            className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-[#0d191b] dark:text-white pl-10 pr-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500"
+                                            className={`w-full rounded-lg border ${errors.phone ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-white/5 text-[#0d191b] dark:text-white pl-10 pr-4 py-2.5 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all placeholder:text-gray-500`}
                                             placeholder="1234567890"
                                             type="tel"
                                             value={phone}
-                                            onChange={(e) => setPhone(e.target.value)}
+                                            onChange={handlePhoneChange}
+                                            maxLength={countryCodes.find(c => c.code === countryCode)?.length || 11}
                                         />
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-500">Select your country code and enter phone number</p>
+                                {errors.phone && (
+                                    <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                        {errors.phone}
+                                    </p>
+                                )}
+                                {!errors.phone && phone && (
+                                    <p className="text-xs text-green-500 flex items-center gap-1 mt-1">
+                                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
+                                        Valid phone number
+                                    </p>
+                                )}
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium text-gray-300">{t('settings.upi')}</label>
@@ -357,11 +443,16 @@ const SettingsPage = () => {
                                         value={currency}
                                         onChange={(e) => setCurrency(e.target.value)}
                                     >
-                                        <option value="INR" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">INR (₹) - Indian Rupee</option>
-                                        <option value="USD" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">USD ($) - United States Dollar</option>
-                                        <option value="EUR" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">EUR (€) - Euro</option>
-                                        <option value="GBP" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">GBP (£) - British Pound</option>
-                                        <option value="JPY" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">JPY (¥) - Japanese Yen</option>
+                                        <option value="INR" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">₹ INR - Indian Rupee</option>
+                                        <option value="USD" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">$ USD - US Dollar</option>
+                                        <option value="EUR" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">€ EUR - Euro</option>
+                                        <option value="GBP" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">£ GBP - British Pound</option>
+                                        <option value="JPY" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">¥ JPY - Japanese Yen</option>
+                                        <option value="AUD" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">$ AUD - Australian Dollar</option>
+                                        <option value="CAD" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">$ CAD - Canadian Dollar</option>
+                                        <option value="SGD" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">$ SGD - Singapore Dollar</option>
+                                        <option value="AED" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">د.إ AED - UAE Dirham</option>
+                                        <option value="CNY" className="bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white">¥ CNY - Chinese Yuan</option>
                                     </select>
                                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#5c6f73] dark:text-gray-400 pointer-events-none">expand_more</span>
                                 </div>
@@ -565,7 +656,7 @@ const SettingsPage = () => {
                 message={validationToast.message}
                 type={validationToast.type}
             />
-        </div >
+        </div>
     );
 };
 

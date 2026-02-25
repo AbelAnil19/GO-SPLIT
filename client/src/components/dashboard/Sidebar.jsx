@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { DashboardIcon } from '../icons/DashboardIcon';
 import { UsersIcon } from '../icons/GroupIcon';
 import { ReceiptIcon } from '../icons/ReceiptIcon';
+import AnalyticsIcon from '../icons/AnalyticsIcon';
 import { HistoryIcon } from '../icons/HistoryIcon';
 import { SettingsIcon } from '../icons/SettingsIcon';
 import { LogoutIcon } from '../icons/LogoutIcon';
@@ -15,7 +16,7 @@ import { getUserDocument } from '../../firebase/firestore';
 
 import { useTranslation } from 'react-i18next';
 
-const Sidebar = () => {
+const Sidebar = ({ onClose }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { addToast } = useToast();
@@ -25,19 +26,23 @@ const Sidebar = () => {
     const dashboardIconRef = useRef(null);
     const groupsIconRef = useRef(null);
     const expensesIconRef = useRef(null);
+    const analyticsIconRef = useRef(null);
     const flightIconRef = useRef(null);
     const historyIconRef = useRef(null);
     const settingsIconRef = useRef(null);
     const logoutIconRef = useRef(null);
 
+
     const navItems = [
         { icon: 'dashboard', label: t('sidebar.dashboard'), path: '/dashboard' },
         { icon: 'groups', label: t('sidebar.groups'), path: '/dashboard/groups' },
         { icon: 'receipt_long', label: t('sidebar.expenses'), path: '/dashboard/expenses' },
+        { icon: 'analytics', label: 'Analytics', path: '/dashboard/analytics' },
         { icon: 'flight_takeoff', label: t('sidebar.travelBudget'), path: '/dashboard/trip-planner' },
         { icon: 'history', label: t('sidebar.history'), path: '/dashboard/history' },
         { icon: 'settings', label: t('sidebar.settings'), path: '/dashboard/settings' }
     ];
+
 
     // Check admin status
     React.useEffect(() => {
@@ -72,7 +77,7 @@ const Sidebar = () => {
         <aside className="w-64 bg-white dark:bg-[#1a1c23] flex-shrink-0 h-screen flex flex-col border-r border-gray-200 dark:border-white/10 relative sidebar-pattern">
             {/* Logo */}
             <div className="p-6 pb-8 border-b border-gray-200 dark:border-white/10 relative z-10">
-                <Link to="/dashboard" className="flex items-center justify-center group">
+                <Link to="/dashboard" onClick={onClose} className="flex items-center justify-center group">
                     <span className="text-2xl font-black text-[#0d191b] dark:text-white group-hover:text-amber-400 transition-colors">
                         GoSplit
                     </span>
@@ -85,10 +90,12 @@ const Sidebar = () => {
                     <Link
                         key={item.path}
                         to={item.path}
+                        onClick={onClose}
                         onMouseEnter={() => {
                             if (item.icon === 'dashboard') dashboardIconRef.current?.startAnimation();
                             if (item.icon === 'groups') groupsIconRef.current?.startAnimation();
                             if (item.icon === 'receipt_long') expensesIconRef.current?.startAnimation();
+                            if (item.icon === 'analytics') analyticsIconRef.current?.startAnimation();
                             if (item.icon === 'flight_takeoff') flightIconRef.current?.startAnimation();
                             if (item.icon === 'history') historyIconRef.current?.startAnimation();
                             if (item.icon === 'settings') settingsIconRef.current?.startAnimation();
@@ -97,6 +104,7 @@ const Sidebar = () => {
                             if (item.icon === 'dashboard') dashboardIconRef.current?.stopAnimation();
                             if (item.icon === 'groups') groupsIconRef.current?.stopAnimation();
                             if (item.icon === 'receipt_long') expensesIconRef.current?.stopAnimation();
+                            if (item.icon === 'analytics') analyticsIconRef.current?.stopAnimation();
                             if (item.icon === 'flight_takeoff') flightIconRef.current?.stopAnimation();
                             if (item.icon === 'history') historyIconRef.current?.stopAnimation();
                             if (item.icon === 'settings') settingsIconRef.current?.stopAnimation();
@@ -109,6 +117,7 @@ const Sidebar = () => {
                         {item.icon === 'dashboard' && <DashboardIcon ref={dashboardIconRef} size={20} duration={0.8} isAnimated={false} />}
                         {item.icon === 'groups' && <UsersIcon ref={groupsIconRef} size={20} duration={0.8} isAnimated={false} />}
                         {item.icon === 'receipt_long' && <ReceiptIcon ref={expensesIconRef} size={20} duration={0.8} isAnimated={false} />}
+                        {item.icon === 'analytics' && <AnalyticsIcon ref={analyticsIconRef} />}
                         {item.icon === 'flight_takeoff' && <FlightIcon ref={flightIconRef} size={20} duration={0.8} isAnimated={false} />}
                         {item.icon === 'history' && <HistoryIcon ref={historyIconRef} size={20} duration={0.8} isAnimated={false} />}
                         {item.icon === 'settings' && <SettingsIcon ref={settingsIconRef} size={20} duration={0.8} isAnimated={false} />}

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { getSystemStats } from '../../firebase/firestore';
 import AdminLayout from '../../components/admin/AdminLayout';
+import { useCurrency } from '../../context/CurrencyContext';
 
 const Analytics = () => {
+    const { formatAmount } = useCurrency();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -45,7 +47,7 @@ const Analytics = () => {
                 </div>
                 <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6">
                     <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Total Money Managed</h3>
-                    <div className="text-4xl font-bold text-green-500">₹{(stats?.totalAmount || 0).toFixed(2)}</div>
+                    <div className="text-4xl font-bold text-green-500">{formatAmount(stats?.totalAmount || 0)}</div>
                 </div>
                 <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6">
                     <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Platform Health</h3>

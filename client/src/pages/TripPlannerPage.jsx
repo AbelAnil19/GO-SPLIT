@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
-import { getUserGroups, getBudgetAnalytics, setBudget } from '../firebase/firestore';
+import { getUserGroups, getBudgetAnalytics, setBudget, saveTrip, getGroupTrips, updateTrip, deleteTrip } from '../firebase/firestore';
+import { useCurrency } from '../context/CurrencyContext';
 import DestinationCard from '../components/trip/DestinationCard';
 import TransportTab from '../components/trip/TransportTab';
 import HotelsTab from '../components/trip/HotelsTab';
@@ -17,6 +18,7 @@ import { destinations as mockDestinations, filterOptions as initialFilters } fro
 const TripPlannerPage = () => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
+    const { currency, currencySymbol, formatAmount } = useCurrency();
 
     const [userGroups, setUserGroups] = useState([]);
     const [selectedGroup, setSelectedGroup] = useState(null);
@@ -53,6 +55,23 @@ const TripPlannerPage = () => {
         fetchGroups();
     }, [currentUser, addToast]);
 
+    // Fetch saved trips when group changes
+    useEffect(() => {
+        const fetchTrips = async () => {
+            if (!selectedGroup) {
+                setDestinations([]);
+                return;
+            }
+            try {
+                const trips = await getGroupTrips(selectedGroup.id);
+                setDestinations(trips);
+            } catch (error) {
+                console.error('Error fetching trips:', error);
+            }
+        };
+        fetchTrips();
+    }, [selectedGroup]);
+
     // Fetch budget analytics when group changes
     useEffect(() => {
         const fetchBudget = async () => {
@@ -80,16 +99,48 @@ const TripPlannerPage = () => {
     }, [selectedGroup]);
 
     // Handle favorite toggle
-    const handleFavorite = (destinationId) => {
-        setDestinations(prev => prev.map(dest =>
-            dest.id === destinationId ? { ...dest, isFavorite: !dest.isFavorite } : dest
+    const handleFavorite = async (destinationId) => {
+        const dest = destinations.find(d => d.id === destinationId);
+        if (!dest) return;
+        const newFav = !dest.isFavorite;
+        setDestinations(prev => prev.map(d =>
+            d.id === destinationId ? { ...d, isFavorite: newFav } : d
         ));
+        // Persist to Firestore
+        if (selectedGroup) {
+            try {
+                await updateTrip(selectedGroup.id, destinationId, { isFavorite: newFav });
+            } catch (error) {
+                console.error('Error updating favorite:', error);
+            }
+        }
+    };
+
+    // Handle delete destination
+    const handleDelete = async (destinationId) => {
+        if (!window.confirm('Are you sure you want to delete this destination?')) return;
+        setDestinations(prev => prev.filter(d => d.id !== destinationId));
+        if (selectedGroup) {
+            try {
+                await deleteTrip(selectedGroup.id, destinationId);
+                addToast('Destination deleted!', 'success');
+            } catch (error) {
+                console.error('Error deleting trip:', error);
+                addToast('Failed to delete from cloud', 'error');
+            }
+        }
     };
 
     // Handle view details
     const handleViewDetails = (destination) => {
         setSelectedTrip(destination);
         setIsTripDetailsOpen(true);
+    };
+
+    // Handle plan trip (select for Transport/Hotels/Activities tabs)
+    const handlePlanTrip = (destination) => {
+        setActiveTripForPlanning(destination);
+        addToast(`Planning ${destination.title} — switch to Transport, Hotels, or Activities tab!`, 'success');
     };
 
     // Handle filter toggle
@@ -150,8 +201,8 @@ const TripPlannerPage = () => {
         <div className="flex flex-col gap-6 pb-20">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                <div>
-                    <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-2">Plan Your Travel Budget</h1>
+                <div className="flex-1">
+                    <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-2 leading-tight">Plan Your Travel Budget</h1>
                     {selectedGroup && (
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <span className="material-symbols-outlined text-sm">group</span>
@@ -161,7 +212,7 @@ const TripPlannerPage = () => {
                                 className="bg-transparent text-sm font-medium hover:text-gray-900 dark:hover:text-white cursor-pointer outline-none"
                             >
                                 {userGroups.map(group => (
-                                    <option key={group.id} value={group.id}>
+                                    <option key={group.id} value={group.id} className="dark:bg-slate-800">
                                         GROUP: {group.name.toUpperCase()} 2024
                                     </option>
                                 ))}
@@ -170,19 +221,20 @@ const TripPlannerPage = () => {
                     )}
                 </div>
 
-                <div className="text-right">
-                    <div className="flex items-center justify-end gap-2 mb-1">
-                        <p className="text-gray-600 dark:text-gray-400 text-sm">AVAILABLE BUDGET</p>
+                <div className="text-left md:text-right bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] backdrop-blur-[2px] md:bg-none md:backdrop-filter-none border border-gray-200 dark:border-white/10 md:border-transparent p-4 rounded-2xl md:p-0 md:rounded-none mt-2 md:mt-0 shadow-sm md:shadow-none">
+                    <div className="flex items-center justify-between md:justify-end gap-2 mb-1">
+                        <p className="text-gray-500 dark:text-gray-400 text-xs md:text-sm font-bold tracking-wider uppercase">Available Budget</p>
                         <button
                             onClick={() => setIsBudgetModalOpen(true)}
-                            className="text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors"
+                            className="flex items-center gap-1 text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors bg-amber-500/10 hover:bg-amber-500/20 md:bg-transparent md:hover:bg-transparent px-2 md:px-0 py-1 md:py-0 rounded-lg"
                             title="Set Budget"
                         >
-                            <span className="material-symbols-outlined text-lg">edit</span>
+                            <span className="material-symbols-outlined text-sm md:text-lg">edit</span>
+                            <span className="text-xs font-bold md:hidden">Edit</span>
                         </button>
                     </div>
-                    <p className="text-amber-500 dark:text-amber-400 font-black text-4xl">
-                        ₹{budgetData ? budgetData.totalBudget.toLocaleString() : '0'}
+                    <p className="text-amber-500 dark:text-amber-400 font-black text-3xl md:text-4xl">
+                        {formatAmount(budgetData ? budgetData.totalBudget : 0)}
                     </p>
                 </div>
             </div>
@@ -214,19 +266,43 @@ const TripPlannerPage = () => {
                 </div>
             )}
 
+            {/* Active Trip Indicator */}
+            {activeTripForPlanning && (
+                <div className="flex items-center justify-between bg-gradient-to-r from-amber-400/10 to-transparent border border-amber-400/20 rounded-xl px-4 py-3">
+                    <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-amber-500">explore</span>
+                        <div>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                Planning: {activeTripForPlanning.title}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Transport, Hotels & Activities will show results for this destination
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => { setActiveTripForPlanning(null); addToast('Trip deselected', 'info'); }}
+                        className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
+                        title="Clear selection"
+                    >
+                        <span className="material-symbols-outlined text-lg">close</span>
+                    </button>
+                </div>
+            )}
+
             {/* Tabs */}
-            <div className="flex items-center gap-8 border-b border-gray-200 dark:border-white/10 overflow-x-auto">
+            <div className="flex items-center gap-4 md:gap-8 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] backdrop-blur-[2px] border border-gray-200 dark:border-white/10 rounded-2xl px-4 md:px-6 pt-3 md:pt-4 overflow-x-auto shadow-sm dark:shadow-none">
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 pb-4 px-2 whitespace-nowrap transition-colors relative ${activeTab === tab.id
+                        className={`flex items-center gap-1.5 md:gap-2 pb-3 md:pb-4 px-2 whitespace-nowrap transition-colors relative ${activeTab === tab.id
                             ? 'text-amber-500 dark:text-amber-400'
                             : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                             }`}
                     >
-                        <span className="material-symbols-outlined text-xl">{tab.icon}</span>
-                        <span className="font-semibold">{tab.label}</span>
+                        <span className="material-symbols-outlined text-lg md:text-xl">{tab.icon}</span>
+                        <span className="text-sm md:text-base font-semibold">{tab.label}</span>
                         {activeTab === tab.id && (
                             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 dark:bg-amber-400"></div>
                         )}
@@ -256,8 +332,8 @@ const TripPlannerPage = () => {
                                     key={filter.id}
                                     onClick={() => toggleFilter(filter.id)}
                                     className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${filter.active
-                                        ? 'bg-amber-400 text-black'
-                                        : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-white/10'
+                                        ? 'bg-amber-400 text-black shadow-md'
+                                        : 'bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] backdrop-blur-[2px] text-gray-600 dark:text-gray-400 hover:border-amber-400/50 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-white/10 shadow-sm dark:shadow-none'
                                         }`}
                                 >
                                     {filter.label}
@@ -274,11 +350,20 @@ const TripPlannerPage = () => {
                                 destination={destination}
                                 onFavorite={handleFavorite}
                                 onViewDetails={handleViewDetails}
+                                onDelete={handleDelete}
+                                onPlanTrip={handlePlanTrip}
+                                isActivePlan={activeTripForPlanning?.id === destination.id}
                             />
                         ))}
 
                         {/* Add Custom Destination Card */}
-                        <div className="bg-gray-50 dark:bg-white/5 rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/20 hover:border-amber-400/50 transition-colors flex flex-col items-center justify-center p-8 min-h-[400px] cursor-pointer group">
+                        <div
+                            onClick={() => {
+                                setNewTripData(null);
+                                setIsCreateModalOpen(true);
+                            }}
+                            className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] backdrop-blur-[2px] rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/10 hover:border-amber-400/50 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center p-8 min-h-[400px] cursor-pointer group shadow-md dark:shadow-none"
+                        >
                             <div className="w-16 h-16 rounded-full bg-amber-400/10 flex items-center justify-center mb-4 group-hover:bg-amber-400/20 transition-colors">
                                 <span className="material-symbols-outlined text-4xl text-amber-500 dark:text-amber-400">add_location</span>
                             </div>
@@ -314,13 +399,42 @@ const TripPlannerPage = () => {
             {activeTab === 'transport' && <TransportTab trip={activeTripForPlanning} />}
 
             {/* Hotels Tab Content */}
-            {activeTab === 'hotels' && <HotelsTab trip={activeTripForPlanning} />}
+            {activeTab === 'hotels' && (
+                <HotelsTab
+                    trip={activeTripForPlanning}
+                    groupSize={selectedGroup?.members?.length || 1}
+                    budget={budgetData?.accommodation || null}
+                />
+            )}
 
             {/* Activities Tab Content */}
-            {activeTab === 'activities' && <ActivitiesTab trip={activeTripForPlanning} />}
+            {activeTab === 'activities' && (
+                <ActivitiesTab
+                    trip={activeTripForPlanning}
+                    onUpdateTrip={async (updates) => {
+                        const newTrip = { ...activeTripForPlanning, ...updates };
+                        setActiveTripForPlanning(newTrip);
+                        setDestinations(prev => prev.map(d => d.id === newTrip.id ? newTrip : d));
+                        if (selectedGroup) {
+                            try {
+                                await updateTrip(selectedGroup.id, newTrip.id, updates);
+                            } catch (e) {
+                                console.error('Failed to update trip:', e);
+                            }
+                        }
+                    }}
+                />
+            )}
 
             {/* Itinerary Tab Content */}
-            {activeTab === 'itinerary' && <ItineraryTab trip={activeTripForPlanning} />}
+            {activeTab === 'itinerary' && (
+                <ItineraryTab
+                    groupId={selectedGroup?.id}
+                    groupData={selectedGroup}
+                    savedTrips={destinations}
+                    activeTrip={activeTripForPlanning}
+                />
+            )}
 
             {/* Placeholder for other tabs */}
             {activeTab !== 'destinations' && activeTab !== 'transport' && activeTab !== 'hotels' && activeTab !== 'activities' && activeTab !== 'itinerary' && (
@@ -348,10 +462,67 @@ const TripPlannerPage = () => {
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}
                 initialData={newTripData}
-                onSave={(trip) => {
-                    setDestinations(prev => [trip, ...prev]);
-                    setActiveTripForPlanning(trip); // Auto-select the new trip
-                    addToast('Trip created successfully!', 'success');
+                onSave={async (trip) => {
+                    if (selectedGroup) {
+                        try {
+                            if (trip.id) {
+                                // EDIT mode - try updating existing trip in Firestore
+                                try {
+                                    await updateTrip(selectedGroup.id, trip.id, {
+                                        title: trip.title,
+                                        location: trip.location,
+                                        startDate: trip.startDate,
+                                        endDate: trip.endDate,
+                                        estimatedCost: trip.estimatedCost,
+                                        duration: trip.duration,
+                                        image: trip.image || null,
+                                        tags: trip.tags || ['Custom Trip'],
+                                    });
+                                    setDestinations(prev => prev.map(d =>
+                                        d.id === trip.id ? { ...d, ...trip } : d
+                                    ));
+                                    setActiveTripForPlanning(trip);
+                                    addToast('Trip updated!', 'success');
+                                } catch (updateError) {
+                                    // Trip doesn't exist in Firestore (old local-only trip) — save as new
+                                    console.warn('Trip not in Firestore, saving as new:', updateError.message);
+                                    const { id: oldId, ...tripWithoutId } = trip;
+                                    const savedTrip = await saveTrip(selectedGroup.id, {
+                                        ...tripWithoutId,
+                                        tags: trip.tags || ['Custom Trip'],
+                                        isFavorite: trip.isFavorite || false
+                                    });
+                                    // Replace old local entry with new Firestore-backed one
+                                    setDestinations(prev => prev.map(d =>
+                                        d.id === oldId ? savedTrip : d
+                                    ));
+                                    setActiveTripForPlanning(savedTrip);
+                                    addToast('Trip saved to cloud!', 'success');
+                                }
+                            } else {
+                                // CREATE mode - new trip
+                                const savedTrip = await saveTrip(selectedGroup.id, {
+                                    ...trip,
+                                    tags: trip.tags || ['Custom Trip'],
+                                    isFavorite: false
+                                });
+                                setDestinations(prev => [savedTrip, ...prev]);
+                                setActiveTripForPlanning(savedTrip);
+                                addToast('Trip created and saved!', 'success');
+                            }
+                        } catch (error) {
+                            console.error('Error saving trip:', error);
+                            if (!trip.id) {
+                                setDestinations(prev => [trip, ...prev]);
+                            }
+                            setActiveTripForPlanning(trip);
+                            addToast('Trip created (not saved to cloud)', 'warning');
+                        }
+                    } else {
+                        setDestinations(prev => [trip, ...prev]);
+                        setActiveTripForPlanning(trip);
+                        addToast('Trip created! Select a group to save permanently.', 'info');
+                    }
                 }}
             />
 
@@ -360,6 +531,31 @@ const TripPlannerPage = () => {
                 isOpen={isTripDetailsOpen}
                 onClose={() => setIsTripDetailsOpen(false)}
                 trip={selectedTrip}
+                onEdit={(tripData, notesOnly) => {
+                    if (notesOnly) {
+                        // Save notes to Firestore
+                        if (selectedGroup && tripData.id) {
+                            updateTrip(selectedGroup.id, tripData.id, { notes: tripData.notes })
+                                .then(() => {
+                                    // Update local state
+                                    setDestinations(prev => prev.map(d =>
+                                        d.id === tripData.id ? { ...d, notes: tripData.notes } : d
+                                    ));
+                                    addToast('Notes saved!', 'success');
+                                })
+                                .catch(err => console.error('Error saving notes:', err));
+                        }
+                    } else {
+                        // Open CreateTripModal for full editing
+                        setIsTripDetailsOpen(false);
+                        setNewTripData(tripData);
+                        setIsCreateModalOpen(true);
+                    }
+                }}
+                onViewItinerary={() => {
+                    setIsTripDetailsOpen(false);
+                    setActiveTab('itinerary');
+                }}
             />
         </div>
     );

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { calculateUserNetBalance, checkUserCanDelete } from '../firebase/firestore';
+import { useCurrency } from '../context/CurrencyContext';
 
 const BalanceCheckModal = ({ isOpen, userId, onClose, onProceedToDelete }) => {
+    const { formatAmount } = useCurrency();
     const [loading, setLoading] = useState(true);
     const [balanceData, setBalanceData] = useState(null);
     const [deleteCheck, setDeleteCheck] = useState(null);
@@ -84,7 +86,7 @@ const BalanceCheckModal = ({ isOpen, userId, onClose, onProceedToDelete }) => {
                                         ? 'text-blue-600 dark:text-blue-400'
                                         : 'text-red-600 dark:text-red-400'
                                     }`}>
-                                    ₹{balanceData.netBalance.toFixed(2)}
+                                    {formatAmount(balanceData.netBalance)}
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                                     {Math.abs(balanceData.netBalance) < 0.01
@@ -102,11 +104,11 @@ const BalanceCheckModal = ({ isOpen, userId, onClose, onProceedToDelete }) => {
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-600 dark:text-gray-400">Others Owe You</span>
-                                    <span className="font-semibold text-green-600 dark:text-green-400">+₹{balanceData.totalOwed?.toFixed(2) || '0.00'}</span>
+                                    <span className="font-semibold text-green-600 dark:text-green-400">+{formatAmount(balanceData.totalOwed || 0)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-600 dark:text-gray-400">You Owe Others</span>
-                                    <span className="font-semibold text-red-600 dark:text-red-400">-₹{balanceData.totalOwe?.toFixed(2) || '0.00'}</span>
+                                    <span className="font-semibold text-red-600 dark:text-red-400">-{formatAmount(balanceData.totalOwe || 0)}</span>
                                 </div>
                                 <div className="h-px bg-gray-300 dark:bg-white/10 my-2"></div>
                                 <div className="flex justify-between text-sm font-bold">
@@ -116,7 +118,7 @@ const BalanceCheckModal = ({ isOpen, userId, onClose, onProceedToDelete }) => {
                                             ? 'text-green-600 dark:text-green-400'
                                             : 'text-red-600 dark:text-red-400'
                                     }>
-                                        ₹{balanceData.netBalance.toFixed(2)}
+                                        {formatAmount(balanceData.netBalance)}
                                     </span>
                                 </div>
                             </div>
