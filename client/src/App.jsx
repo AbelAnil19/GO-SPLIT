@@ -9,6 +9,7 @@ import { AuthProvider } from './firebase/authContext';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { CurrencyProvider } from './context/CurrencyContext';
+import { TwoFactorProvider } from './context/TwoFactorContext';
 
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
@@ -39,39 +40,41 @@ function App() {
         <ThemeProvider>
           <CurrencyProvider>
             <ToastProvider>
-              <Routes>
-                <Route path="/" element={<Layout />}>
-                  <Route index element={<LandingPage />} />
-                  <Route path="login" element={<LoginPage />} />
-                  <Route path="register" element={<RegisterPage />} />
-                  <Route path="forgot-password" element={<ForgotPassword />} />
-                  <Route path="verify-email" element={<VerifyEmailPage />} />
-                  <Route path="home" element={<HomePage />} />
-                </Route>
+              <TwoFactorProvider>
+                <Routes>
+                  <Route path="/" element={<Layout />}>
+                    <Route index element={<LandingPage />} />
+                    <Route path="login" element={<LoginPage />} />
+                    <Route path="register" element={<RegisterPage />} />
+                    <Route path="forgot-password" element={<ForgotPassword />} />
+                    <Route path="verify-email" element={<VerifyEmailPage />} />
+                    <Route path="home" element={<HomePage />} />
+                  </Route>
 
-                {/* Dashboard Routes */}
-                <Route path="/dashboard" element={<DashboardLayout />}>
-                  <Route index element={<DashboardPage />} />
-                  <Route path="groups" element={<GroupsPage />} />
-                  <Route path="groups/:groupId" element={<GroupDetailsPage />} />
-                  <Route path="trip-planner" element={<TripPlannerPage />} />
-                  <Route path="expenses" element={<ExpensesPage />} />
-                  <Route path="history" element={<HistoryPage />} />
-                  <Route path="analytics" element={<AnalyticsPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
-                </Route>
+                  {/* Dashboard Routes */}
+                  <Route path="/dashboard" element={<DashboardLayout />}>
+                    <Route index element={<DashboardPage />} />
+                    <Route path="groups" element={<GroupsPage />} />
+                    <Route path="groups/:groupId" element={<GroupDetailsPage />} />
+                    <Route path="trip-planner" element={<TripPlannerPage />} />
+                    <Route path="expenses" element={<ExpensesPage />} />
+                    <Route path="history" element={<HistoryPage />} />
+                    <Route path="analytics" element={<AnalyticsPage />} />
+                    <Route path="settings" element={<SettingsPage />} />
+                  </Route>
 
-                {/* Admin Routes */}
-                <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-                <Route path="/admin/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
-                <Route path="/admin/groups" element={<AdminRoute><GroupManagement /></AdminRoute>} />
-                <Route path="/admin/expenses" element={<AdminRoute><ExpenseManagement /></AdminRoute>} />
-                <Route path="/admin/analytics" element={<AdminRoute><Analytics /></AdminRoute>} />
-                <Route path="/admin/support" element={<AdminRoute><AdminSupportPage /></AdminRoute>} />
+                  {/* Admin Routes */}
+                  <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+                  <Route path="/admin/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
+                  <Route path="/admin/groups" element={<AdminRoute><GroupManagement /></AdminRoute>} />
+                  <Route path="/admin/expenses" element={<AdminRoute><ExpenseManagement /></AdminRoute>} />
+                  <Route path="/admin/analytics" element={<AdminRoute><Analytics /></AdminRoute>} />
+                  <Route path="/admin/support" element={<AdminRoute><AdminSupportPage /></AdminRoute>} />
 
-                {/* 404 Route */}
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
+                  {/* 404 Route */}
+                  <Route path="*" element={<NotFoundPage />} />
+                </Routes>
+              </TwoFactorProvider>
             </ToastProvider>
           </CurrencyProvider>
         </ThemeProvider>

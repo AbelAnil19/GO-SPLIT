@@ -140,7 +140,7 @@ const NotificationBell = () => {
 
             {/* Notification Popover */}
             {showPopover && (
-                <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-[#1a1c23] rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 z-50 overflow-hidden">
+                <div className="fixed top-16 right-4 left-auto w-[calc(100vw-2rem)] max-w-[320px] sm:absolute sm:top-full sm:mt-2 sm:-right-4 sm:left-auto sm:w-96 sm:max-w-none bg-white dark:bg-[#1a1c23] rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 z-[100] overflow-hidden transform origin-top-right">
                     {/* Header */}
                     <div className="p-4 border-b border-gray-200 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-white/5">
                         <h3 className="font-bold text-gray-900 dark:text-white">Notifications</h3>

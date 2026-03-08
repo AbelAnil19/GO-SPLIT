@@ -58,8 +58,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    opacity: 0.02;
-    /* Very subtle for sidebar */
+    opacity: 0.18;
     background-image: url('/yyy.svg');
     background-size: 60px 96px;
     background-repeat: repeat;
@@ -68,6 +67,6 @@
 }
 
 .dark .sidebar-pattern::before {
-    opacity: 0.04;
-    filter: invert(1);
+    opacity: 0.10;
+    /* No filter needed — yyy.svg fill is now white, matching dashboard topography line color */
 }

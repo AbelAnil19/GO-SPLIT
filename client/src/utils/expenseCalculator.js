@@ -178,7 +178,7 @@ export const getPendingSettlements = (expenses, userId, userMap = {}) => {
 
         if (expense.paidBy === userId) {
             // User paid - others owe them
-            expense.splitBetween.forEach(split => {
+            expense.splitBetween?.forEach(split => {
                 if (split.userId !== userId) {
                     const current = settlements.get(split.userId) || 0;
                     settlements.set(split.userId, current + split.amount);
@@ -194,7 +194,7 @@ export const getPendingSettlements = (expenses, userId, userMap = {}) => {
             });
         } else {
             // Someone else paid - user owes them
-            const userSplit = expense.splitBetween.find(s => s.userId === userId);
+            const userSplit = expense.splitBetween?.find(s => s.userId === userId);
             if (userSplit) {
                 const current = settlements.get(expense.paidBy) || 0;
                 settlements.set(expense.paidBy, current - userSplit.amount);

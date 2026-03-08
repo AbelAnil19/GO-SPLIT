@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
 import { getUserExpenses, listenToUserSettlements } from '../firebase/firestore';
-
+import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../context/CurrencyContext';
 
 const HistoryPage = () => {
+    const { t } = useTranslation();
     const { currentUser } = useAuth();
     const { addToast } = useToast();
-    const { formatAmount } = useCurrency();
+    const { formatAmount, currentCurrency, convertAmount } = useCurrency();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
     const [activities, setActivities] = useState([]);
@@ -41,7 +42,7 @@ const HistoryPage = () => {
                         type: 'expense',
                         title: expense.description,
                         description: `${expense.paidByName} paid ${formatAmount(expense.amount, expense.currency || 'INR')}`,
-                        group: expense.groupName || 'No Group',
+                        group: expense.groupName || t('history.activities.noGroup'),
                         amount: expense.amount,
                         currency: expense.currency || 'INR',
                         timestamp: expense.createdAt,
@@ -53,9 +54,9 @@ const HistoryPage = () => {
                         id: settlement.id,
                         type: 'settlement',
                         title: settlement.fromUserId === currentUser.uid
-                            ? `Payment to ${settlement.toUserName}`
-                            : `Payment from ${settlement.fromUserName}`,
-                        description: settlement.status === 'approved' ? 'Approved' : 'Pending approval',
+                            ? t('history.activities.paymentTo', { name: settlement.toUserName })
+                            : t('history.activities.paymentFrom', { name: settlement.fromUserName }),
+                        description: settlement.status === 'approved' ? t('history.activities.approved') : t('history.activities.pendingApproval'),
                         amount: settlement.amount,
                         timestamp: settlement.createdAt,
                         icon: 'payments',
@@ -74,7 +75,7 @@ const HistoryPage = () => {
                 setActivities(allActivities);
             } catch (error) {
                 console.error('Error fetching activities:', error);
-                addToast('Failed to load activity history', 'error');
+                addToast(t('history.activities.loadFail'), 'error');
             } finally {
                 setLoading(false);
             }
@@ -85,20 +86,27 @@ const HistoryPage = () => {
 
     const handleExport = () => {
         if (filteredActivities.length === 0) {
-            addToast('No activities to export', 'warning');
+            addToast(t('history.csv.noActivities'), 'warning');
             return;
         }
 
         try {
             // Create CSV header
-            const headers = ['Date', 'Type', 'Description', 'Group', `Amount (${currency})`, 'Status'];
+            const headers = [
+                t('history.csv.headers.date'),
+                t('history.csv.headers.type'),
+                t('history.csv.headers.description'),
+                t('history.csv.headers.group'),
+                t('history.csv.headers.amount', { currency: currentCurrency }),
+                t('history.csv.headers.status')
+            ];
 
             // Create CSV rows
             const rows = filteredActivities.map(activity => {
-                const date = activity.timestamp?.toDate?.()?.toLocaleDateString() || 'No Date';
-                const type = activity.type === 'expense' ? 'Expense' : 'Settlement';
+                const date = activity.timestamp?.toDate?.()?.toLocaleDateString() || t('history.csv.noDate');
+                const type = activity.type === 'expense' ? t('history.csv.expense') : t('history.csv.settlement');
                 const description = activity.title;
-                const group = activity.group || 'N/A';
+                const group = activity.group || t('history.csv.na');
 
                 // Convert amount for CSV if needed (using current display amount)
                 const displayAmount = convertAmount(activity.amount, activity.currency || 'INR').toFixed(2);
@@ -107,10 +115,10 @@ const HistoryPage = () => {
                 let status;
                 if (activity.type === 'expense') {
                     // For expenses, check if settled
-                    status = activity.isSettled ? 'Settled' : 'Unsettled';
+                    status = activity.isSettled ? t('history.csv.settled') : t('history.csv.unsettled');
                 } else {
                     // For settlements, show approval status
-                    status = activity.status === 'approved' ? 'Approved' : 'Pending';
+                    status = activity.status === 'approved' ? t('history.csv.approved') : t('history.csv.pending');
                 }
 
                 return [date, type, description, group, displayAmount, status];
@@ -135,10 +143,10 @@ const HistoryPage = () => {
             link.click();
             document.body.removeChild(link);
 
-            addToast(`Exported ${filteredActivities.length} activities`, 'success');
+            addToast(t('history.csv.exportSuccess', { count: filteredActivities.length }), 'success');
         } catch (error) {
             console.error('Export failed:', error);
-            addToast('Failed to export CSV', 'error');
+            addToast(t('history.csv.exportFail'), 'error');
         }
     };
 
@@ -168,9 +176,9 @@ const HistoryPage = () => {
 
         let key;
         if (date.toDateString() === today.toDateString()) {
-            key = 'Today';
+            key = t('history.time.today');
         } else if (date.toDateString() === yesterday.toDateString()) {
-            key = 'Yesterday';
+            key = t('history.time.yesterday');
         } else {
             key = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
         }
@@ -181,19 +189,19 @@ const HistoryPage = () => {
     }, {});
 
     const getTimeAgo = (timestamp) => {
-        if (!timestamp?.toDate) return 'Unknown';
+        if (!timestamp?.toDate) return t('history.time.unknown');
 
         const now = new Date();
         const past = timestamp.toDate();
         const diffMs = now - past;
         const diffMins = Math.floor(diffMs / 60000);
 
-        if (diffMins < 1) return 'Just now';
-        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffMins < 1) return t('history.time.justNow');
+        if (diffMins < 60) return t('history.time.minsAgo', { count: diffMins });
         const diffHours = Math.floor(diffMins / 60);
-        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffHours < 24) return t('history.time.hoursAgo', { count: diffHours });
         const diffDays = Math.floor(diffHours / 24);
-        if (diffDays < 7) return `${diffDays}d ago`;
+        if (diffDays < 7) return t('history.time.daysAgo', { count: diffDays });
         return past.toLocaleDateString();
     };
 
@@ -202,8 +210,8 @@ const HistoryPage = () => {
             {/* Page Heading & Actions */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div className="flex flex-col gap-2">
-                    <h1 className="text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">Activity History</h1>
-                    <p className="text-[#5c6f73] dark:text-gray-400 text-base">View your past expenses, settlements, and group updates.</p>
+                    <h1 className="text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">{t('history.title')}</h1>
+                    <p className="text-[#5c6f73] dark:text-gray-400 text-base">{t('history.subtitle')}</p>
                 </div>
                 <div className="flex gap-3">
                     <button
@@ -211,7 +219,7 @@ const HistoryPage = () => {
                         className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-amber-400 text-black text-sm font-bold shadow-md shadow-amber-900/20 hover:bg-amber-300 transition-colors"
                     >
                         <span className="material-symbols-outlined text-[20px]">download</span>
-                        <span>Export CSV</span>
+                        <span>{t('history.exportCSV')}</span>
                     </button>
                 </div>
             </div>
@@ -224,7 +232,7 @@ const HistoryPage = () => {
                     </div>
                     <input
                         className="block w-full rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 py-3 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent text-[#0d191b] dark:text-white backdrop-blur-md transition-all"
-                        placeholder="Search by description, person, or group"
+                        placeholder={t('history.searchPlaceholder')}
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -240,7 +248,7 @@ const HistoryPage = () => {
                                 : 'bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 hover:border-amber-400/50 text-[#0d191b] dark:text-white'
                                 }`}
                         >
-                            {filter === 'all' ? 'All Types' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                            {t(`history.filters.${filter}`, { defaultValue: filter === 'all' ? 'All Types' : filter.charAt(0).toUpperCase() + filter.slice(1) })}
                         </button>
                     ))}
                 </div>
@@ -251,13 +259,13 @@ const HistoryPage = () => {
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-12 text-gray-400">
                         <span className="material-symbols-outlined text-6xl animate-spin mb-4">refresh</span>
-                        <p>Loading activity history...</p>
+                        <p>{t('history.loading')}</p>
                     </div>
                 ) : filteredActivities.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-gray-400">
                         <span className="material-symbols-outlined text-6xl mb-4">history</span>
-                        <p className="text-lg font-semibold">No activity found</p>
-                        <p className="text-sm">Start adding expenses or making settlements!</p>
+                        <p className="text-lg font-semibold">{t('history.noActivity')}</p>
+                        <p className="text-sm">{t('history.noActivityDesc')}</p>
                     </div>
                 ) : (
                     Object.entries(groupedActivities).map(([dateLabel, items]) => (

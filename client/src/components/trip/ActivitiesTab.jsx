@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchNearbyPlaces, getPlaceIcon } from '../../services/overpassAPI';
 import { useCurrency } from '../../context/CurrencyContext';
+import { useToast } from '../../context/ToastContext';
 
 const CATEGORIES = [
     { id: 'all', label: 'All', icon: 'grid_view', overpassKey: null, emoji: '🌍' },
@@ -49,11 +51,14 @@ const getDurationEstimate = (type) => {
 const ACTIVITIES_PER_PAGE = 6;
 
 const ActivitiesTab = ({ trip, onUpdateTrip }) => {
+    const { t } = useTranslation();
     const { formatAmount } = useCurrency();
+    const { addToast } = useToast();
     const [places, setPlaces] = useState([]);
     const [activeCategory, setActiveCategory] = useState('all');
     const [loading, setLoading] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
+    const [showSavedModal, setShowSavedModal] = useState(false);
 
     // Read saved activities from trip or default to empty array
     const savedActivities = trip?.savedActivities || [];
@@ -120,8 +125,8 @@ const ActivitiesTab = ({ trip, onUpdateTrip }) => {
         return (
             <div className="flex flex-col items-center justify-center py-20">
                 <span className="material-symbols-outlined text-6xl text-gray-400 mb-4">local_activity</span>
-                <p className="text-gray-600 dark:text-gray-400 text-lg font-semibold">No trip selected</p>
-                <p className="text-gray-500 text-sm">Select a trip from the Destinations tab to explore activities</p>
+                <p className="text-gray-600 dark:text-gray-400 text-lg font-semibold">{t('activitiesTab.noTripTitle')}</p>
+                <p className="text-gray-500 text-sm">{t('activitiesTab.noTripDesc')}</p>
             </div>
         );
     }
@@ -135,19 +140,21 @@ const ActivitiesTab = ({ trip, onUpdateTrip }) => {
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Activity Listings</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('activitiesTab.title')}</h2>
                     <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-                        Explore food, attractions, parks & shopping near{' '}
-                        <span className="font-semibold text-amber-500">{trip.title}</span>
+                        {t('activitiesTab.subtitle', { title: trip.title })}
                     </p>
                 </div>
                 {savedActivities.length > 0 && (
-                    <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-400/30 rounded-xl px-3 py-2">
-                        <span className="material-symbols-outlined text-amber-500 text-base">bookmark</span>
-                        <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-                            {savedActivities.length} saved
-                        </span>
-                    </div>
+                    <button
+                        className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 dark:bg-amber-500 text-white dark:text-gray-900 border border-transparent rounded-xl px-4 py-2.5 shadow-md shadow-amber-500/20 transition-all font-semibold"
+                        onClick={() => {
+                            setShowSavedModal(true);
+                        }}
+                    >
+                        <span className="material-symbols-outlined text-base">bookmark</span>
+                        <span>{t('activitiesTab.savedCount', { count: savedActivities.length })}</span>
+                    </button>
                 )}
             </div>
 
@@ -163,7 +170,7 @@ const ActivitiesTab = ({ trip, onUpdateTrip }) => {
                             }`}
                     >
                         <span>{cat.emoji}</span>
-                        {cat.label}
+                        {t(`activitiesTab.categories.${cat.id}`)}
                     </button>
                 ))}
             </div>
@@ -172,7 +179,7 @@ const ActivitiesTab = ({ trip, onUpdateTrip }) => {
             {loading && (
                 <div className="flex flex-col items-center justify-center py-16">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-400 mb-4" />
-                    <p className="text-gray-500">Finding activities nearby...</p>
+                    <p className="text-gray-500">{t('activitiesTab.findingActivities')}</p>
                 </div>
             )}
 
@@ -182,14 +189,14 @@ const ActivitiesTab = ({ trip, onUpdateTrip }) => {
                     {places.length === 0 ? (
                         <div className="text-center py-16">
                             <span className="text-5xl mb-4 block">🔍</span>
-                            <p className="text-gray-600 dark:text-gray-400 font-semibold">No activities found nearby</p>
-                            <p className="text-gray-500 text-sm mt-1">Try a different category</p>
+                            <p className="text-gray-600 dark:text-gray-400 font-semibold">{t('activitiesTab.noActivitiesFound')}</p>
+                            <p className="text-gray-500 text-sm mt-1">{t('activitiesTab.tryDifferentCategory')}</p>
                         </div>
                     ) : (
                         <>
                             {/* Results count */}
                             <p className="text-sm text-gray-500">
-                                Showing <span className="font-semibold text-amber-500">{places.length}</span> activities within 10km
+                                {t('activitiesTab.showingActivities', { count: places.length })}
                             </p>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -200,104 +207,125 @@ const ActivitiesTab = ({ trip, onUpdateTrip }) => {
                                     return (
                                         <div
                                             key={place.id}
-                                            className={`bg-white dark:bg-white/5 rounded-2xl border-2 transition-all hover:shadow-lg overflow-hidden flex flex-col ${isSaved
-                                                ? 'border-amber-400 shadow-md shadow-amber-400/10'
+                                            className={`bg-gradient-to-br from-white/20 to-white/10 dark:from-white/[0.04] dark:to-transparent backdrop-blur-[2px] rounded-2xl border-2 transition-all hover:shadow-lg relative overflow-hidden group ${isSaved
+                                                ? 'border-amber-400 shadow-md shadow-amber-400/20'
                                                 : 'border-gray-200 dark:border-white/10 hover:border-amber-400/50'
                                                 }`}
                                         >
-                                            {/* Image */}
-                                            <div className="h-40 w-full relative overflow-hidden group">
-                                                <img
-                                                    src={place.image}
-                                                    alt={place.name}
-                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                                    onError={(e) => {
-                                                        e.target.onerror = null;
-                                                        e.target.src = 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?auto=format&fit=crop&q=80&w=400';
-                                                    }}
-                                                />
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60"></div>
-                                                <div className="absolute bottom-2 left-3 text-white font-medium text-xs flex items-center gap-1">
-                                                    <span className="material-symbols-outlined text-xs">photo_camera</span>
-                                                    <span>{place.website ? 'Official Photo' : 'Representative Image'}</span>
-                                                </div>
+                                            {/* Topographic pattern background */}
+                                            <div className="absolute inset-0 opacity-5 dark:opacity-[0.02] pointer-events-none"
+                                                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
                                             </div>
 
-                                            <div className="p-4 flex-1 flex flex-col">
-                                                {/* Title row */}
-                                                <div className="flex items-start gap-3 mb-3">
-                                                    <div className="flex-1 min-w-0">
-                                                        <h3 className="font-bold text-gray-900 dark:text-white text-base leading-tight truncate">
-                                                            {place.name}
-                                                        </h3>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize mt-0.5">
-                                                            {place.type?.replace(/_/g, ' ')}
-                                                            {place.cuisine && ` • ${place.cuisine}`}
-                                                        </p>
+                                            <div className="relative z-10 flex flex-col h-full">
+                                                {/* Image */}
+                                                <div className="h-40 w-full relative overflow-hidden group">
+                                                    <img
+                                                        src={place.image}
+                                                        alt={place.name}
+                                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                        onError={(e) => {
+                                                            e.target.onerror = null;
+                                                            e.target.src = 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?auto=format&fit=crop&q=80&w=400';
+                                                        }}
+                                                    />
+                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60"></div>
+                                                    <div className="absolute bottom-2 left-3 text-white font-medium text-xs flex items-center gap-1">
+                                                        <span className="material-symbols-outlined text-xs">photo_camera</span>
+                                                        <span>{place.website ? t('activitiesTab.officialPhoto') : t('activitiesTab.representativeImage')}</span>
                                                     </div>
-                                                    {/* Save button */}
-                                                    <button
-                                                        onClick={() => toggleSave(place)}
-                                                        className={`flex-shrink-0 p-1.5 rounded-lg transition-colors ${isSaved
-                                                            ? 'text-amber-500 bg-amber-50 dark:bg-amber-400/10'
-                                                            : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-400/10'
-                                                            }`}
-                                                        title={isSaved ? 'Remove from list' : 'Save activity'}
-                                                    >
-                                                        <span className="material-symbols-outlined text-lg">
-                                                            {isSaved ? 'bookmark' : 'bookmark_border'}
+                                                </div>
+
+                                                <div className="p-4 flex-1 flex flex-col">
+                                                    {/* Title row */}
+                                                    <div className="flex items-start gap-3 mb-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h3 className="font-bold text-gray-900 dark:text-white text-base leading-tight truncate">
+                                                                {place.name}
+                                                            </h3>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400 capitalize mt-0.5">
+                                                                {place.type?.replace(/_/g, ' ')}
+                                                                {place.cuisine && ` • ${place.cuisine}`}
+                                                            </p>
+                                                        </div>
+                                                        {/* Save button */}
+                                                        <button
+                                                            onClick={() => toggleSave(place)}
+                                                            className={`flex-shrink-0 p-1.5 rounded-lg transition-colors ${isSaved
+                                                                ? 'text-amber-500 bg-amber-50 dark:bg-amber-400/10'
+                                                                : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-400/10'
+                                                                }`}
+                                                            title={isSaved ? t('activitiesTab.removeFromList') : t('activitiesTab.saveActivity')}
+                                                        >
+                                                            <span className="material-symbols-outlined text-lg">
+                                                                {isSaved ? 'bookmark' : 'bookmark_border'}
+                                                            </span>
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Tags row */}
+                                                    <div className="flex flex-wrap gap-1.5 mb-3">
+                                                        {/* Distance */}
+                                                        <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 text-xs rounded-full">
+                                                            <span className="material-symbols-outlined text-xs">near_me</span>
+                                                            {place.distance} {t('activitiesTab.km')}
                                                         </span>
-                                                    </button>
-                                                </div>
+                                                        {/* Duration */}
+                                                        <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 text-xs rounded-full">
+                                                            <span className="material-symbols-outlined text-xs">schedule</span>
+                                                            {(() => {
+                                                                const durationStr = getDurationEstimate(place.type);
+                                                                if (durationStr === '1–2 hrs') return t('activitiesTab.duration.1to2');
+                                                                if (durationStr === '2–3 hrs') return t('activitiesTab.duration.2to3');
+                                                                if (durationStr === '1–3 hrs') return t('activitiesTab.duration.1to3');
+                                                                if (durationStr === '2–4 hrs') return t('activitiesTab.duration.2to4');
+                                                                return durationStr;
+                                                            })()}
+                                                        </span>
+                                                        {/* Price estimate */}
+                                                        <span className={`flex items-center gap-1 px-2 py-1 text-xs rounded-full ${getPriceBadgeClass(place.type)}`}>
+                                                            <span className="material-symbols-outlined text-xs">payments</span>
+                                                            {(() => {
+                                                                const range = PRICE_ESTIMATE[place.type] || PRICE_ESTIMATE.default;
+                                                                let suffixKey = range.suffix.replace('/', '').replace('+', '').trim();
+                                                                if (suffixKey === '') suffixKey = 'none';
 
-                                                {/* Tags row */}
-                                                <div className="flex flex-wrap gap-1.5 mb-3">
-                                                    {/* Distance */}
-                                                    <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 text-xs rounded-full">
-                                                        <span className="material-symbols-outlined text-xs">near_me</span>
-                                                        {place.distance} km
-                                                    </span>
-                                                    {/* Duration */}
-                                                    <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 text-xs rounded-full">
-                                                        <span className="material-symbols-outlined text-xs">schedule</span>
-                                                        {getDurationEstimate(place.type)}
-                                                    </span>
-                                                    {/* Price estimate */}
-                                                    <span className={`flex items-center gap-1 px-2 py-1 text-xs rounded-full ${getPriceBadgeClass(place.type)}`}>
-                                                        <span className="material-symbols-outlined text-xs">payments</span>
-                                                        {(() => {
-                                                            const range = PRICE_ESTIMATE[place.type] || PRICE_ESTIMATE.default;
-                                                            if (range.min === 0) return `Free–${formatAmount(range.max)}${range.suffix}`;
-                                                            return `${formatAmount(range.min)}–${formatAmount(range.max)}${range.suffix}`;
-                                                        })()}
-                                                    </span>
-                                                </div>
+                                                                const suffixLabel = t(`activitiesTab.priceSuffix.${suffixKey}`);
+                                                                if (range.min === 0) return `${t('activitiesTab.free')}–${formatAmount(range.max)}${suffixLabel}`;
+                                                                return `${formatAmount(range.min)}–${formatAmount(range.max)}${suffixLabel}`;
+                                                            })()}
+                                                        </span>
+                                                    </div>
 
-                                                {/* Address */}
-                                                {place.address && place.address !== 'Address not available' && (
-                                                    <p className="text-xs text-gray-500 mb-3 line-clamp-1">{place.address}</p>
-                                                )}
+                                                    {/* Address */}
+                                                    {place.address && place.address !== 'Address not available' && (
+                                                        <p className="text-xs text-gray-500 mb-3 line-clamp-1">{place.address}</p>
+                                                    )}
 
-                                                {/* Actions */}
-                                                <div className="flex gap-2 mt-auto">
-                                                    <a
-                                                        href={`https://www.google.com/maps?q=${place.lat},${place.lon}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex-1 py-2 bg-amber-400 hover:bg-amber-500 text-black text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
-                                                    >
-                                                        <span className="material-symbols-outlined text-sm">map</span>
-                                                        Directions
-                                                    </a>
-                                                    <button
-                                                        onClick={() => toggleSave(place.id)}
-                                                        className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${isSaved
-                                                            ? 'bg-amber-100 dark:bg-amber-400/20 text-amber-700 dark:text-amber-300'
-                                                            : 'bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-400/10'
-                                                            }`}
-                                                    >
-                                                        {isSaved ? '✓ Saved' : '+ Save'}
-                                                    </button>
+                                                    {/* Actions */}
+                                                    <div className="flex gap-2 mt-auto">
+                                                        <a
+                                                            href={`https://www.google.com/maps?q=${place.lat},${place.lon}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex-1 py-2 bg-amber-400 hover:bg-amber-500 text-black text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
+                                                        >
+                                                            <span className="material-symbols-outlined text-sm">map</span>
+                                                            {t('activitiesTab.directions')}
+                                                        </a>
+                                                        <button
+                                                            onClick={() => toggleSave(place)}
+                                                            className={`flex-shrink-0 p-1.5 rounded-lg transition-colors ${isSaved
+                                                                ? 'text-amber-500 bg-amber-50 dark:bg-amber-400/10'
+                                                                : 'text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-400/10'
+                                                                }`}
+                                                            title={isSaved ? t('activitiesTab.removeFromList') : t('activitiesTab.saveActivity')}
+                                                        >
+                                                            <span className="material-symbols-outlined text-lg">
+                                                                {isSaved ? 'bookmark' : 'bookmark_border'}
+                                                            </span>
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -316,7 +344,7 @@ const ActivitiesTab = ({ trip, onUpdateTrip }) => {
                                         <span className="material-symbols-outlined">chevron_left</span>
                                     </button>
                                     <span className="text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-white/5 px-4 py-2 rounded-lg">
-                                        Page {currentPage} of {totalPages}
+                                        {t('activitiesTab.pageOf', { current: currentPage, total: totalPages })}
                                     </span>
                                     <button
                                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
@@ -328,29 +356,82 @@ const ActivitiesTab = ({ trip, onUpdateTrip }) => {
                                 </div>
                             )}
                         </>
-                    )
-                    }
+                    )}
                 </>
             )}
 
             {/* Budget Tip */}
-            {
-                !loading && places.length > 0 && (
-                    <div className="bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border border-green-200 dark:border-green-400/20 rounded-2xl p-4">
-                        <div className="flex items-start gap-3">
-                            <span className="text-xl">💡</span>
-                            <div>
-                                <p className="font-semibold text-gray-900 dark:text-white text-sm">Budget Tip</p>
-                                <p className="text-gray-600 dark:text-gray-400 text-xs mt-1">
-                                    Prices shown are estimates. Museums and attractions often have group discounts —
-                                    book in advance for best rates. Parks are usually free or minimal entry fee.
-                                </p>
-                            </div>
+            {!loading && places.length > 0 && (
+                <div className="bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 border border-green-200 dark:border-green-400/20 rounded-2xl p-4">
+                    <div className="flex items-start gap-3">
+                        <span className="text-xl">💡</span>
+                        <div>
+                            <p className="font-semibold text-gray-900 dark:text-white text-sm">{t('activitiesTab.budgetTipTitle')}</p>
+                            <p className="text-gray-600 dark:text-gray-400 text-xs mt-1">
+                                {t('activitiesTab.budgetTipDesc')}
+                            </p>
                         </div>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+
+            {/* Saved Places Modal */}
+            {showSavedModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setShowSavedModal(false)}
+                    ></div>
+
+                    {/* Modal Content */}
+                    <div className="relative w-full max-w-lg bg-gray-50 dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-900">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <span className="material-symbols-outlined text-amber-500">bookmark</span>
+                                {t('activitiesTab.savedPlaces')}
+                            </h3>
+                            <button
+                                onClick={() => setShowSavedModal(false)}
+                                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        <div className="p-4 overflow-y-auto overflow-x-hidden flex-1 space-y-3">
+                            {savedActivities.length === 0 ? (
+                                <div className="text-center py-8 text-gray-500">{t('activitiesTab.noSavedPlaces')}</div>
+                            ) : (
+                                savedActivities.map(place => (
+                                    <div key={place.id} className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex items-start justify-between group">
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900 dark:text-white">{place.title}</h4>
+                                            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{place.location}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => toggleSave({ id: place.id })}
+                                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors opacity-100 md:opacity-0 group-hover:opacity-100 flex-shrink-0"
+                                            title={t('activitiesTab.remove')}
+                                        >
+                                            <span className="material-symbols-outlined text-sm">delete</span>
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <div className="p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex justify-end">
+                            <button
+                                onClick={() => setShowSavedModal(false)}
+                                className="px-4 py-2 font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                {t('activitiesTab.close')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 

@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../context/CurrencyContext';
 
 const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal, dailySpending = [], startDate, endDate }) => {
+    const { t } = useTranslation();
     const { formatAmount } = useCurrency();
     const utilizationPercent = Math.round((utilized / totalBudget) * 100);
 
@@ -55,8 +57,9 @@ const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal, daily
         const end = endDate?.toDate ? endDate.toDate() : new Date(endDate);
 
         const formatDate = (date) => {
-            const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-            return `${months[date.getMonth()]} ${date.getDate()}`;
+            const lang = t('common.save') ? (document.documentElement.lang || 'en') : 'en'; // simple fallback if i18n not available directly 
+            // Better yet, use i18n.language if we import i18n, but since we have `react-i18next`, we can use `i18n.language` by adding it from `useTranslation()`
+            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase();
         };
 
         // Generate 4 date points (start, 1/3, 2/3, end)
@@ -75,16 +78,16 @@ const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal, daily
         <div className="bg-gradient-to-br from-amber-500/10 via-amber-600/5 to-transparent border border-amber-500/20 rounded-2xl p-6 backdrop-blur-md">
             <div className="flex items-start justify-between mb-6">
                 <div>
-                    <h3 className="text-gray-900 dark:text-white font-bold text-xl mb-1">Budget Analyzer</h3>
+                    <h3 className="text-gray-900 dark:text-white font-bold text-xl mb-1">{t('budgetAnalyzer.title')}</h3>
                     <div className="flex items-center gap-2">
                         <span className="px-3 py-1 bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-semibold rounded-full border border-amber-500/30">
-                            LIVE INSIGHTS
+                            {t('budgetAnalyzer.liveInsights')}
                         </span>
                     </div>
                 </div>
 
                 <div className="text-right">
-                    <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">Budget Utilization</p>
+                    <p className="text-gray-500 dark:text-gray-400 text-xs mb-1">{t('budgetAnalyzer.budgetUtilization')}</p>
                     <p className="text-amber-600 dark:text-amber-400 font-bold text-2xl">{utilizationPercent}%</p>
                 </div>
             </div>
@@ -117,9 +120,11 @@ const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal, daily
                         </div>
                     </>
                 ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-amber-500/20 rounded-xl bg-amber-500/5">
-                        <span className="material-symbols-outlined text-amber-500/50 text-3xl mb-2">hotel_class</span>
-                        <p className="text-gray-500 text-sm font-medium">Start building your itinerary to see insights</p>
+                    <div className="w-full h-full flex flex-col items-center justify-center border border-amber-500/10 rounded-xl bg-gradient-to-t from-amber-500/5 to-transparent relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-500/10 to-transparent -translate-x-full animate-[shimmer_3s_infinite] pointer-events-none"></div>
+                        <span className="material-symbols-outlined text-amber-500/40 text-4xl mb-2 drop-shadow-md">add_chart</span>
+                        <p className="text-gray-400 dark:text-gray-500 text-sm font-semibold tracking-wide">{t('budgetAnalyzer.startBuilding')}</p>
+                        <p className="text-xs text-gray-500/70 dark:text-gray-600 mt-1">{t('budgetAnalyzer.toUnlock')}</p>
                     </div>
                 )}
             </div>
@@ -127,18 +132,18 @@ const BudgetAnalyzer = ({ totalBudget, utilized, avgDaily, estimatedFinal, daily
             {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white/5 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-                    <p className="text-gray-500 dark:text-gray-400 text-xs mb-2">AVG/DAILY</p>
+                    <p className="text-gray-500 dark:text-gray-400 text-xs mb-2">{t('budgetAnalyzer.avgDaily')}</p>
                     <p className="text-gray-900 dark:text-white font-bold text-lg">{formatAmount(avgDaily)}</p>
                 </div>
                 <div className="bg-white/5 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-                    <p className="text-gray-500 dark:text-gray-400 text-xs mb-2">EST. FINAL</p>
+                    <p className="text-gray-500 dark:text-gray-400 text-xs mb-2">{t('budgetAnalyzer.estFinal')}</p>
                     <p className="text-green-600 dark:text-green-400 font-bold text-lg">{formatAmount(estimatedFinal)}</p>
                 </div>
             </div>
 
             {/* Footnote */}
-            <p className="text-gray-500 text-xs mt-4">
-                {formatAmount(utilized)} OF {formatAmount(totalBudget)} USED
+            <p className="text-gray-500 text-xs mt-4 uppercase">
+                {formatAmount(utilized)} {t('budgetAnalyzer.of')} {formatAmount(totalBudget)} {t('budgetAnalyzer.used')}
             </p>
         </div>
     );

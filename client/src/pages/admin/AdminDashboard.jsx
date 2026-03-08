@@ -88,17 +88,19 @@ const AdminDashboard = () => {
     return (
         <AdminLayout>
             {/* Header */}
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-[#0d191b] dark:text-white mb-2">Admin Dashboard</h1>
-                <p className="text-gray-600 dark:text-gray-400">Welcome back! Here's what's happening on your platform.</p>
+            <div className="mb-6 md:mb-8">
+                <h1 className="text-2xl md:text-3xl font-bold text-[#0d191b] dark:text-white mb-2">Admin Dashboard</h1>
+                <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">Welcome back! Here's what's happening on your platform.</p>
             </div>
 
             {/* System Health Dashboard */}
-            <div className="mb-8 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800/30 rounded-2xl p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <span className="material-symbols-outlined text-green-600 dark:text-green-400 text-3xl">health_and_safety</span>
-                    <h2 className="text-2xl font-bold text-green-900 dark:text-green-100">System Health</h2>
-                    <span className="ml-auto px-4 py-2 bg-green-500 text-white rounded-full text-sm font-bold flex items-center gap-2">
+            <div className="mb-6 md:mb-8 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800/30 rounded-2xl p-4 md:p-6">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-3 mb-4">
+                    <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-green-600 dark:text-green-400 text-2xl md:text-3xl">health_and_safety</span>
+                        <h2 className="text-xl md:text-2xl font-bold text-green-900 dark:text-green-100">System Health</h2>
+                    </div>
+                    <span className="md:ml-auto px-3 py-1.5 md:px-4 md:py-2 bg-green-500 text-white rounded-full text-xs md:text-sm font-bold flex items-center gap-2">
                         <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                         {systemHealth.status.toUpperCase()}
                     </span>
@@ -125,19 +127,19 @@ const AdminDashboard = () => {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
                 {statCards.map((card, index) => (
                     <div
                         key={index}
-                        className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6 hover:shadow-xl transition-all"
+                        className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-4 md:p-6 hover:shadow-xl transition-all"
                     >
-                        <div className="flex items-center justify-between mb-4">
-                            <div className={`w-12 h-12 bg-${card.color}-100 dark:bg-${card.color}-900/20 rounded-xl flex items-center justify-center`}>
-                                <span className={`material-symbols-outlined text-${card.color}-500 text-2xl`}>{card.icon}</span>
+                        <div className="flex items-center justify-between mb-3 md:mb-4">
+                            <div className={`w-10 h-10 md:w-12 md:h-12 bg-${card.color}-100 dark:bg-${card.color}-900/20 rounded-xl flex items-center justify-center`}>
+                                <span className={`material-symbols-outlined text-${card.color}-500 text-xl md:text-2xl`}>{card.icon}</span>
                             </div>
                         </div>
-                        <h3 className="text-3xl font-bold text-[#0d191b] dark:text-white mb-1">{card.value}</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">{card.label}</p>
+                        <h3 className="text-xl md:text-3xl font-bold text-[#0d191b] dark:text-white mb-1 truncate">{card.value}</h3>
+                        <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400 truncate">{card.label}</p>
                     </div>
                 ))}
             </div>
@@ -145,12 +147,12 @@ const AdminDashboard = () => {
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 {/* User Growth Chart */}
-                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6">
-                    <h2 className="text-xl font-bold text-[#0d191b] dark:text-white mb-4 flex items-center gap-2">
+                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-4 md:p-6">
+                    <h2 className="text-lg md:text-xl font-bold text-[#0d191b] dark:text-white mb-3 md:mb-4 flex items-center gap-2">
                         <span className="material-symbols-outlined text-blue-500">trending_up</span>
                         User Growth (Last 30 Days)
                     </h2>
-                    <div className="h-80">
+                    <div className="h-80 w-full min-h-[320px]">
                         {chartData.userGrowth.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={chartData.userGrowth}>
@@ -191,12 +193,12 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Expense Trends */}
-                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6">
-                    <h2 className="text-xl font-bold text-[#0d191b] dark:text-white mb-4 flex items-center gap-2">
+                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-4 md:p-6">
+                    <h2 className="text-lg md:text-xl font-bold text-[#0d191b] dark:text-white mb-3 md:mb-4 flex items-center gap-2">
                         <span className="material-symbols-outlined text-amber-500">bar_chart</span>
                         Expense Trends (6 Months)
                     </h2>
-                    <div className="h-80">
+                    <div className="h-80 w-full min-h-[320px]">
                         {chartData.expenseTrends.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={chartData.expenseTrends}>
@@ -232,13 +234,13 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Group Status Pie Chart */}
-                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6">
-                    <h2 className="text-xl font-bold text-[#0d191b] dark:text-white mb-4 flex items-center gap-2">
+                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-4 md:p-6">
+                    <h2 className="text-lg md:text-xl font-bold text-[#0d191b] dark:text-white mb-3 md:mb-4 flex items-center gap-2">
                         <span className="material-symbols-outlined text-purple-500">donut_small</span>
                         Group Status
                     </h2>
-                    <div className="h-80 flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-80 w-full min-h-[320px] flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height="100%" minHeight={320}>
                             <PieChart>
                                 <Pie
                                     data={chartData.groupStatus}
@@ -264,37 +266,37 @@ const AdminDashboard = () => {
             </div>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
                 <button
                     onClick={() => navigate('/admin/users')}
-                    className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-2xl hover:shadow-xl transition-all flex items-center gap-4 group"
+                    className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 md:p-6 rounded-2xl hover:shadow-xl transition-all flex items-center gap-3 md:gap-4 group"
                 >
-                    <span className="material-symbols-outlined text-4xl group-hover:scale-110 transition-transform">group</span>
+                    <span className="material-symbols-outlined text-3xl md:text-4xl group-hover:scale-110 transition-transform">group</span>
                     <div className="text-left">
-                        <h3 className="font-bold text-lg">Manage Users</h3>
-                        <p className="text-sm text-blue-100">View, ban, or promote users</p>
+                        <h3 className="font-bold text-base md:text-lg">Manage Users</h3>
+                        <p className="text-xs md:text-sm text-blue-100">View, ban, or promote users</p>
                     </div>
                 </button>
 
                 <button
                     onClick={() => navigate('/admin/groups')}
-                    className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-2xl hover:shadow-xl transition-all flex items-center gap-4 group"
+                    className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4 md:p-6 rounded-2xl hover:shadow-xl transition-all flex items-center gap-3 md:gap-4 group"
                 >
-                    <span className="material-symbols-outlined text-4xl group-hover:scale-110 transition-transform">groups</span>
+                    <span className="material-symbols-outlined text-3xl md:text-4xl group-hover:scale-110 transition-transform">groups</span>
                     <div className="text-left">
-                        <h3 className="font-bold text-lg">Manage Groups</h3>
-                        <p className="text-sm text-purple-100">Oversee and moderate groups</p>
+                        <h3 className="font-bold text-base md:text-lg">Manage Groups</h3>
+                        <p className="text-xs md:text-sm text-purple-100">Oversee and moderate groups</p>
                     </div>
                 </button>
 
                 <button
                     onClick={() => navigate('/admin/analytics')}
-                    className="bg-gradient-to-br from-amber-500 to-amber-600 text-white p-6 rounded-2xl hover:shadow-xl transition-all flex items-center gap-4 group"
+                    className="bg-gradient-to-br from-amber-500 to-amber-600 text-white p-4 md:p-6 rounded-2xl hover:shadow-xl transition-all flex items-center gap-3 md:gap-4 group"
                 >
-                    <span className="material-symbols-outlined text-4xl group-hover:scale-110 transition-transform">analytics</span>
+                    <span className="material-symbols-outlined text-3xl md:text-4xl group-hover:scale-110 transition-transform">analytics</span>
                     <div className="text-left">
-                        <h3 className="font-bold text-lg">View Analytics</h3>
-                        <p className="text-sm text-amber-100">See platform trends</p>
+                        <h3 className="font-bold text-base md:text-lg">View Analytics</h3>
+                        <p className="text-xs md:text-sm text-amber-100">See platform trends</p>
                     </div>
                 </button>
             </div>
@@ -316,20 +318,22 @@ const AdminDashboard = () => {
                                     alt={user.displayName}
                                     className="w-12 h-12 rounded-full border-2 border-gray-200 dark:border-white/10"
                                 />
-                                <div className="flex-1">
-                                    <p className="font-semibold text-[#0d191b] dark:text-white">{user.displayName}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-[#0d191b] dark:text-white truncate">{user.displayName}</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
                                 </div>
-                                {user.isBanned && (
-                                    <span className="px-3 py-1 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-full text-xs font-bold">
-                                        Banned
-                                    </span>
-                                )}
-                                {user.isAdmin && (
-                                    <span className="px-3 py-1 bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-full text-xs font-bold">
-                                        Admin
-                                    </span>
-                                )}
+                                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end max-w-[80px] md:max-w-none">
+                                    {user.isBanned && (
+                                        <span className="px-2 py-1 md:px-3 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-full text-[10px] md:text-xs font-bold leading-tight md:leading-normal">
+                                            Banned
+                                        </span>
+                                    )}
+                                    {user.isAdmin && (
+                                        <span className="px-2 py-1 md:px-3 bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-full text-[10px] md:text-xs font-bold leading-tight md:leading-normal">
+                                            Admin
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         ))
                     )}

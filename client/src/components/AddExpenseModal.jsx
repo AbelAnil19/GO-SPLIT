@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
-import { getUserGroups } from '../firebase/firestore';
+import { getUserGroups, getUserDocument } from '../firebase/firestore';
 import { createExpense } from '../firebase/firestore';
 import { calculateSplit } from '../utils/expenseCalculator';
 import MinimalToast from './ui/MinimalToast';
 import { useCurrency } from '../context/CurrencyContext';
 import ReceiptUpload from './ReceiptUpload';
+import TwoFactorPromptModal from './TwoFactorPromptModal';
 
-const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
+const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded, preselectedGroup }) => {
     const { currentUser } = useAuth();
     const { addToast } = useToast();
     const { currency, currencySymbol, formatAmount } = useCurrency(); //Get user's current currency
@@ -26,6 +27,10 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
     const [splitType, setSplitType] = useState('equal'); // 'equal' or 'custom'
     const [customAmounts, setCustomAmounts] = useState({}); // { userId: amount }
     const [receiptData, setReceiptData] = useState(null); // Receipt upload data
+
+    // 2FA states
+    const [is2FAPromptOpen, setIs2FAPromptOpen] = useState(false);
+    const [pendingExpenseData, setPendingExpenseData] = useState(null);
 
     // Live validation errors
     const [errors, setErrors] = useState({
@@ -108,9 +113,12 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
         try {
             const userGroups = await getUserGroups(currentUser.uid);
             setGroups(userGroups);
-            if (userGroups.length > 0 && !selectedGroup) {
+            // If a preselected group is provided (opened from GroupDetailsPage), use it
+            if (preselectedGroup) {
+                setSelectedGroup(preselectedGroup);
+                setSplitWith(preselectedGroup.members || []);
+            } else if (userGroups.length > 0 && !selectedGroup) {
                 setSelectedGroup(userGroups[0]);
-                // Initialize split with all members
                 setSplitWith(userGroups[0].members);
             }
         } catch (error) {
@@ -118,6 +126,14 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
             addToast('Failed to load groups', 'error');
         }
     };
+
+    // When preselectedGroup changes (e.g. navigating between group pages), update selection
+    useEffect(() => {
+        if (preselectedGroup && isOpen) {
+            setSelectedGroup(preselectedGroup);
+            setSplitWith(preselectedGroup.members || []);
+        }
+    }, [preselectedGroup, isOpen]);
 
     const handleGroupChange = (groupId) => {
         const group = groups.find(g => g.id === groupId);
@@ -258,7 +274,30 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                 })
             };
 
-            await createExpense(expenseData);
+            // Before actually sending to DB, check if the user has 2FA enabled
+            const userData = await getUserDocument(currentUser.uid);
+            if (userData?.is2FAEnabled) {
+                // Temporarily store the package, and open the modal
+                setPendingExpenseData(expenseData);
+                setIs2FAPromptOpen(true);
+                setLoading(false); // Stop loader so modal can take over
+                return;
+            }
+
+            // Otherwise, proceeed immediately
+            await executeExpenseCreation(expenseData);
+
+        } catch (error) {
+            console.error('Error preparing expense:', error);
+            addToast('Failed to process expense', 'error');
+            setLoading(false);
+        }
+    };
+
+    const executeExpenseCreation = async (dataToSubmit) => {
+        setLoading(true);
+        try {
+            await createExpense(dataToSubmit);
 
             addToast('Expense added successfully!', 'success');
 
@@ -268,6 +307,7 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
             setCategory('food');
             setSplitWith(selectedGroup.members);
             setReceiptData(null); // Reset receipt data
+            setPendingExpenseData(null);
 
             if (onExpenseAdded) {
                 onExpenseAdded();
@@ -350,6 +390,11 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                                 type="text"
                                 value={amount}
                                 onChange={handleAmountChange}
+                                onKeyDown={(e) => {
+                                    if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                        e.preventDefault();
+                                    }
+                                }}
                                 placeholder="0.00"
                                 className={`w-full px-4 py-3 rounded-xl border ${errors.amount ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-white/5 text-[#0d191b] dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all`}
                                 required
@@ -503,6 +548,11 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                                                 ...prev,
                                                 [member.userId]: e.target.value
                                             }))}
+                                            onKeyDown={(e) => {
+                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                    e.preventDefault();
+                                                }
+                                            }}
                                             className="w-28 px-3 py-2 rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none"
                                         />
                                         <span className="text-gray-500 dark:text-gray-400">{currencySymbol}</span>
@@ -582,6 +632,22 @@ const AddExpenseModal = ({ isOpen, onClose, onExpenseAdded }) => {
                 onClose={() => setValidationToast(prev => ({ ...prev, open: false }))}
                 message={validationToast.message}
                 type={validationToast.type}
+            />
+
+            {/* 2FA Shield Component */}
+            <TwoFactorPromptModal
+                isOpen={is2FAPromptOpen}
+                onClose={() => {
+                    setIs2FAPromptOpen(false);
+                    setPendingExpenseData(null);
+                }}
+                onVerifySuccess={() => {
+                    setIs2FAPromptOpen(false);
+                    if (pendingExpenseData) {
+                        executeExpenseCreation(pendingExpenseData);
+                    }
+                }}
+                actionName="Adding an Expense"
             />
         </div>
     );

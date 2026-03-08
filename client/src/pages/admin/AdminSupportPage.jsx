@@ -97,8 +97,8 @@ const AdminSupportPage = () => {
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                            <span className="material-symbols-outlined text-amber-500 text-3xl">support_agent</span>
+                        <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white flex items-center gap-2 md:gap-3">
+                            <span className="material-symbols-outlined text-amber-500 text-2xl md:text-3xl">support_agent</span>
                             Support Inbox
                         </h1>
                         <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
@@ -108,10 +108,10 @@ const AdminSupportPage = () => {
                 </div>
 
                 {/* Main Chat Interface */}
-                <div className="flex gap-4 h-[75vh] bg-white dark:bg-[#1a1c23] rounded-2xl border border-gray-200 dark:border-white/10 overflow-hidden shadow-xl">
+                <div className="flex flex-col md:flex-row gap-0 md:gap-4 h-[80vh] md:h-[75vh] bg-white dark:bg-[#1a1c23] rounded-2xl border border-gray-200 dark:border-white/10 overflow-hidden shadow-xl">
 
                     {/* Left Panel — Chat List */}
-                    <div className="w-80 flex-shrink-0 border-r border-gray-200 dark:border-white/10 flex flex-col">
+                    <div className={`${selectedChat ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0 border-r-0 md:border-r border-b md:border-b-0 border-gray-200 dark:border-white/10 flex-col h-full md:h-auto`}>
                         <div className="p-4 border-b border-gray-200 dark:border-white/10">
                             <h2 className="font-bold text-gray-900 dark:text-white text-sm uppercase tracking-wider">
                                 User Conversations ({chats.length})
@@ -186,12 +186,18 @@ const AdminSupportPage = () => {
                     </div>
 
                     {/* Right Panel — Chat Window */}
-                    <div className="flex-1 flex flex-col min-w-0">
+                    <div className={`${!selectedChat ? 'hidden md:flex' : 'flex'} flex-1 flex-col min-w-0 h-full md:h-auto`}>
                         {selectedChat ? (
                             <>
                                 {/* Chat Header */}
-                                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-white/10">
-                                    <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 dark:border-white/10">
+                                    <button
+                                        onClick={() => setSelectedChat(null)}
+                                        className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 dark:text-gray-400"
+                                    >
+                                        <span className="material-symbols-outlined">arrow_back</span>
+                                    </button>
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
                                         {selectedChat.userPhotoURL ? (
                                             <img src={selectedChat.userPhotoURL} alt="" className="w-9 h-9 rounded-full object-cover" />
                                         ) : (
@@ -207,16 +213,16 @@ const AdminSupportPage = () => {
                                     {selectedChat.status !== 'resolved' && (
                                         <button
                                             onClick={handleResolve}
-                                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs font-semibold hover:bg-green-200 dark:hover:bg-green-900/40 transition-colors"
+                                            className="flex-shrink-0 flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs font-semibold hover:bg-green-200 dark:hover:bg-green-900/40 transition-colors"
                                         >
-                                            <span className="material-symbols-outlined text-sm">check_circle</span>
-                                            Mark Resolved
+                                            <span className="material-symbols-outlined text-sm md:text-base">check_circle</span>
+                                            <span className="hidden md:inline">Mark Resolved</span>
                                         </button>
                                     )}
                                 </div>
 
                                 {/* Messages Area */}
-                                <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-3">
+                                <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 flex flex-col gap-3">
                                     {messages.length === 0 ? (
                                         <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
                                             <span className="material-symbols-outlined text-5xl mb-3 opacity-40">chat_bubble_outline</span>
@@ -256,8 +262,8 @@ const AdminSupportPage = () => {
                                 </div>
 
                                 {/* Input Area */}
-                                <div className="px-6 py-4 border-t border-gray-200 dark:border-white/10">
-                                    <div className="flex items-center gap-3 bg-gray-50 dark:bg-white/5 rounded-xl px-4 py-2 border border-gray-200 dark:border-white/10 focus-within:border-amber-400/50 transition-colors">
+                                <div className="px-4 md:px-6 py-3 md:py-4 border-t border-gray-200 dark:border-white/10 pb-6 md:pb-4">
+                                    <div className="flex items-center gap-2 md:gap-3 bg-gray-50 dark:bg-white/5 rounded-xl px-3 md:px-4 py-2 border border-gray-200 dark:border-white/10 focus-within:border-amber-400/50 transition-colors">
                                         <input
                                             type="text"
                                             className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 text-sm outline-none"

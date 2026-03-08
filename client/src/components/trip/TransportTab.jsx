@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchNearbyPlacesGeoapify } from '../../services/geoapifyService';
 import { useCurrency } from '../../context/CurrencyContext';
 
@@ -79,6 +80,7 @@ const getBadgeClasses = (color) => {
 };
 
 const TransportTab = ({ trip }) => {
+    const { t } = useTranslation();
     const { formatAmount } = useCurrency();
     const [nearbyStops, setNearbyStops] = useState([]);
     const [loadingStops, setLoadingStops] = useState(false);
@@ -112,8 +114,8 @@ const TransportTab = ({ trip }) => {
         return (
             <div className="flex flex-col items-center justify-center py-20">
                 <span className="material-symbols-outlined text-6xl text-gray-400 mb-4">directions_bus</span>
-                <p className="text-gray-600 dark:text-gray-400 text-lg font-semibold">No trip selected</p>
-                <p className="text-gray-500 text-sm">Select a trip from the Destinations tab to plan transport</p>
+                <p className="text-gray-600 dark:text-gray-400 text-lg font-semibold">{t('transportTab.noTripTitle')}</p>
+                <p className="text-gray-500 text-sm">{t('transportTab.noTripDesc')}</p>
             </div>
         );
     }
@@ -123,9 +125,9 @@ const TransportTab = ({ trip }) => {
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Transport Discovery</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t('transportTab.title')}</h2>
                     <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-                        Bus, Auto, Taxi & Cab options for <span className="font-semibold text-amber-500">{trip.title}</span>
+                        {t('transportTab.subtitle', { title: trip.title })}
                     </p>
                 </div>
                 <span className="text-4xl">🗺️</span>
@@ -135,7 +137,7 @@ const TransportTab = ({ trip }) => {
             <div className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] backdrop-blur-[2px] border border-gray-200 dark:border-white/10 rounded-2xl p-5 shadow-sm dark:shadow-none">
                 <div className="flex items-center gap-3 mb-4">
                     <span className="material-symbols-outlined text-amber-500">route</span>
-                    <h3 className="font-semibold text-gray-900 dark:text-white">Estimate Your Journey Distance</h3>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">{t('transportTab.estimateDistance')}</h3>
                 </div>
                 <div className="flex items-center gap-4">
                     <input
@@ -146,9 +148,9 @@ const TransportTab = ({ trip }) => {
                         onChange={(e) => setDistanceKm(Number(e.target.value))}
                         className="flex-1 accent-amber-400"
                     />
-                    <span className="text-2xl font-black text-amber-500 w-20 text-right">{distanceKm} km</span>
+                    <span className="text-2xl font-black text-amber-500 w-20 text-right">{distanceKm} {t('transportTab.km')}</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">Slide to adjust distance — fare estimates update automatically</p>
+                <p className="text-xs text-gray-500 mt-2">{t('transportTab.slideInstruct')}</p>
             </div>
 
             {/* Transport Mode Cards */}
@@ -174,26 +176,26 @@ const TransportTab = ({ trip }) => {
                                         {mode.emoji}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-gray-900 dark:text-white text-lg">{mode.label}</h3>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">{mode.description}</p>
+                                        <h3 className="font-bold text-gray-900 dark:text-white text-lg">{t(`transportTab.modes.${mode.id}`)}</h3>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">{t(`transportTab.modes.desc.${mode.id}`)}</p>
                                     </div>
                                 </div>
 
                                 {/* Price badge */}
                                 <div className={`text-right px-3 py-2 rounded-xl ${getBadgeClasses(mode.color)}`}>
-                                    <div className="text-xs font-medium opacity-75">~Fare</div>
+                                    <div className="text-xs font-medium opacity-75">{t('transportTab.fare')}</div>
                                     <div className="font-black text-lg">{formatAmount(price, 'INR')}</div>
                                 </div>
                             </div>
 
                             {/* Price breakdown */}
                             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-4">
-                                Base {formatAmount(mode.basePrice, 'INR')} + {formatAmount(mode.pricePerKm, 'INR')}/km × {distanceKm}km
+                                {t('transportTab.base')} {formatAmount(mode.basePrice, 'INR')} + {formatAmount(mode.pricePerKm, 'INR')}/{t('transportTab.km')} × {distanceKm}{t('transportTab.km')}
                             </div>
 
                             {/* Pros */}
                             <div className="flex flex-wrap gap-2 mb-4">
-                                {mode.pros.map((pro, i) => (
+                                {t(`transportTab.modes.pros.${mode.id}`, { returnObjects: true }).map((pro, i) => (
                                     <span
                                         key={i}
                                         className="px-2 py-1 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 text-xs rounded-full"
@@ -213,12 +215,14 @@ const TransportTab = ({ trip }) => {
                                     className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-400 hover:bg-amber-500 text-black font-semibold rounded-xl text-sm transition-colors"
                                 >
                                     <span className="material-symbols-outlined text-sm">open_in_new</span>
-                                    {mode.bookingLabel}
+                                    {mode.id === 'bus' ? t('transportTab.modes.bookingLabel.redbus') :
+                                        mode.id === 'taxi' ? t('transportTab.modes.bookingLabel.ola') :
+                                            t('transportTab.modes.bookingLabel.uber')}
                                 </a>
                             ) : (
                                 <div className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 rounded-xl text-sm">
                                     <span className="material-symbols-outlined text-sm">hail</span>
-                                    {mode.bookingLabel}
+                                    {t('transportTab.modes.bookingLabel.street')}
                                 </div>
                             )}
                         </div>
@@ -230,19 +234,19 @@ const TransportTab = ({ trip }) => {
             <div className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] backdrop-blur-[2px] border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-4">
                     <span className="text-xl">📊</span>
-                    <h3 className="font-bold text-gray-900 dark:text-white">Price Comparison for {distanceKm}km</h3>
+                    <h3 className="font-bold text-gray-900 dark:text-white">{t('transportTab.priceComparison', { distance: distanceKm })}</h3>
                 </div>
                 <div className="grid grid-cols-4 gap-3">
                     {TRANSPORT_MODES.map(mode => (
                         <div key={mode.id} className="text-center">
                             <div className="text-2xl mb-1">{mode.emoji}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{mode.label}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{t(`transportTab.modes.${mode.id}`)}</div>
                             <div className="font-bold text-gray-900 dark:text-white">{formatAmount(estimatePrice(mode), 'INR')}</div>
                         </div>
                     ))}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">
-                    * Prices are estimates. Actual fares may vary based on traffic, time, and city.
+                    {t('transportTab.priceDisclaimer')}
                 </p>
             </div>
 
@@ -251,12 +255,12 @@ const TransportTab = ({ trip }) => {
                 <div>
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                         <span className="material-symbols-outlined text-amber-500">location_on</span>
-                        Nearby Transport Hubs
+                        {t('transportTab.nearbyHubs')}
                     </h3>
                     {loadingStops ? (
                         <div className="flex items-center gap-3 text-gray-500">
                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-amber-400" />
-                            Finding nearby stations...
+                            {t('transportTab.findingStations')}
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -281,7 +285,7 @@ const TransportTab = ({ trip }) => {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{stop.name}</p>
-                                        <p className="text-xs text-gray-500">{stop.distance} km away</p>
+                                        <p className="text-xs text-gray-500">{stop.distance} {t('transportTab.km')} {t('transportTab.away')}</p>
                                     </div>
                                     <span className="material-symbols-outlined text-gray-400 text-base">open_in_new</span>
                                 </a>

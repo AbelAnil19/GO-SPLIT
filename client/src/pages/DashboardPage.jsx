@@ -14,6 +14,8 @@ import { PaymentsIcon } from '../components/icons/PaymentsIcon';
 import { TrendingDownIcon } from '../components/icons/TrendingDownIcon';
 import { TrendingUpIcon } from '../components/icons/TrendingUpIcon';
 import ShareWidget from '../components/ShareWidget';
+import { useTranslation } from 'react-i18next';
+import TwoFactorPromptModal from '../components/TwoFactorPromptModal';
 
 const StatCard = ({ IconComponent, label, value, trend, trendLabel, trendUp, color }) => {
     const iconRef = React.useRef(null);
@@ -49,6 +51,7 @@ const GroupCard = ({ name, lastActive, settled, oweAmount, onOpen, customization
     const icon = customization?.icon || 'groups';
     const color = customization?.color || '#F59E0B'; // Amber default
     const isEmoji = true; // All new icons are emojis
+    const { t } = useTranslation();
 
     return (
         <div
@@ -69,10 +72,10 @@ const GroupCard = ({ name, lastActive, settled, oweAmount, onOpen, customization
                     </span>
                 </div>
                 {settled ? (
-                    <span className="px-2 py-1 bg-green-500/10 text-green-400 rounded-lg text-xs font-bold border border-green-500/20">Settled</span>
+                    <span className="px-2 py-1 bg-green-500/10 text-green-400 rounded-lg text-xs font-bold border border-green-500/20">{t('dashboard.settledGroup')}</span>
                 ) : (
-                    <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20">
-                        You owe <ConvertedAmount amount={oweAmount || 0} originalCurrency="INR" />
+                    <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20 flex gap-1 items-center">
+                        {t('dashboard.youOweGroup')} <ConvertedAmount amount={oweAmount || 0} originalCurrency="INR" />
                     </span>
                 )}
             </div>
@@ -103,7 +106,7 @@ const GroupCard = ({ name, lastActive, settled, oweAmount, onOpen, customization
                         </div>
                     )}
                 </div>
-                <button className="text-sm font-bold text-amber-400 hover:text-amber-300 transition-colors">View Ledger</button>
+                <button className="text-sm font-bold text-amber-400 hover:text-amber-300 transition-colors">{t('dashboard.viewLedger')}</button>
             </div>
         </div>
     );
@@ -111,6 +114,7 @@ const GroupCard = ({ name, lastActive, settled, oweAmount, onOpen, customization
 
 const CreateGroupModal = ({ isOpen, onClose, onCreate }) => {
     const [groupName, setGroupName] = useState('');
+    const { t } = useTranslation();
 
     if (!isOpen) return null;
 
@@ -124,7 +128,7 @@ const CreateGroupModal = ({ isOpen, onClose, onCreate }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
             <div className="relative bg-white dark:bg-[#1a1c23] border-2 border-gray-300 dark:border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in-up">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Create New Group</h2>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t('dashboard.createGroup')}</h2>
                 <form onSubmit={handleSubmit}>
                     <div className="mb-4">
                         <label className="block text-gray-700 dark:text-gray-400 text-sm font-bold mb-2">Group Name</label>
@@ -143,13 +147,13 @@ const CreateGroupModal = ({ isOpen, onClose, onCreate }) => {
                             onClick={onClose}
                             className="px-4 py-2 text-gray-700 dark:text-gray-400 font-bold hover:text-gray-900 dark:hover:text-white transition-colors"
                         >
-                            Cancel
+                            {t('common.cancel')}
                         </button>
                         <button
                             type="submit"
                             className="px-6 py-2 bg-amber-400 text-black font-bold rounded-xl hover:bg-amber-300 transition-colors"
                         >
-                            Create Group
+                            {t('dashboard.createGroup')}
                         </button>
                     </div>
                 </form>
@@ -186,6 +190,7 @@ const getActivityColor = (type) => {
 };
 
 const DashboardPage = () => {
+    const { t } = useTranslation();
     const { addToast } = useToast();
     const { currentUser } = useAuth();
     const { currencySymbol, formatAmount } = useCurrency();
@@ -206,6 +211,10 @@ const DashboardPage = () => {
     const [settlements, setSettlements] = useState([]);
     const [recentActivity, setRecentActivity] = useState([]);
     const [paymentModal, setPaymentModal] = useState({ isOpen: false, data: null });
+
+    // 2FA States
+    const [is2FAPromptOpen, setIs2FAPromptOpen] = useState(false);
+    const [pendingSettlementData, setPendingSettlementData] = useState(null);
 
     // Cache for enriched profiles to prevent flickering on re-renders
     const enrichedProfilesRef = React.useRef({});
@@ -426,10 +435,29 @@ const DashboardPage = () => {
         if (!currentUser) return;
 
         try {
-            const { personId, name, amount, photoURL } = settlement;
+            // Check if user has 2FA enabled before processing
+            const userData = await getUserDocument(currentUser.uid);
 
-            // Get receiver data
-            const receiverData = await getUserDocument(personId);
+            if (userData?.is2FAEnabled) {
+                // Store the settlement data temporarily and open the prompt
+                setPendingSettlementData({ settlement, receiverData: await getUserDocument(settlement.personId) });
+                setIs2FAPromptOpen(true);
+                return;
+            }
+
+            // If no 2FA, proceed immediately
+            const receiverData = await getUserDocument(settlement.personId);
+            await executeSettlementCreation(settlement, receiverData);
+
+        } catch (error) {
+            console.error('Error preparing settlement:', error);
+            addToast('Failed to prepare settlement', 'error');
+        }
+    };
+
+    const executeSettlementCreation = async (settlement, receiverData) => {
+        try {
+            const { personId, name, amount } = settlement;
 
             // Create settlement record
             await createSettlement(
@@ -442,6 +470,10 @@ const DashboardPage = () => {
 
             addToast(`Settlement request sent to ${name}`, 'success');
             setPaymentModal({ isOpen: false, data: null });
+
+            // Clear pending data
+            setPendingSettlementData(null);
+            setIs2FAPromptOpen(false);
         } catch (error) {
             console.error('Error processing settlement:', error);
             addToast('Failed to record settlement', 'error');
@@ -497,41 +529,46 @@ const DashboardPage = () => {
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 <StatCard
                     IconComponent={WalletIcon}
-                    label="Total Balance"
-                    value={<ConvertedAmount amount={Math.abs(stats.totalBalance)} originalCurrency="INR" />}
+                    label={t('dashboard.totalBalance')}
+                    value={
+                        <span className="flex items-center">
+                            {stats.totalBalance < 0 ? '-' : ''}
+                            <ConvertedAmount amount={Math.abs(stats.totalBalance || 0)} originalCurrency="INR" />
+                        </span>
+                    }
                     trend={formatAmount(Math.abs(stats.balanceTrend || 0))}
-                    trendLabel="change this month"
+                    trendLabel={t('dashboard.changeThisMonth')}
                     trendUp={(stats.balanceTrend || 0) >= 0}
                     color={(stats.totalBalance || 0) >= 0 ? 'green' : 'red'}
                 />
                 <StatCard
                     IconComponent={PaymentsIcon}
-                    label="Expenses (Month)"
+                    label={t('dashboard.expensesMonth')}
                     value={<ConvertedAmount amount={stats.monthlySpending} originalCurrency="INR" />}
                     trend={`${stats.spendingTrend?.diffPercent || 0}%`}
-                    trendLabel={`${stats.spendingTrend?.isHigher ? 'more' : 'less'} than last month`}
+                    trendLabel={stats.spendingTrend?.isHigher ? t('dashboard.moreThanLastMonth') : t('dashboard.lessThanLastMonth')}
                     trendUp={!stats.spendingTrend?.isHigher}
                     color="amber"
                 />
                 <StatCard
                     IconComponent={TrendingDownIcon}
-                    label="You Owe"
+                    label={t('dashboard.youOwe')}
                     value={<ConvertedAmount amount={stats.youOwe} originalCurrency="INR" />}
                     trend={pendingSettlements.filter(s => s.type === 'owe').length > 0
                         ? pendingSettlements.filter(s => s.type === 'owe').length
-                        : "All settled up"}
-                    trendLabel={pendingSettlements.filter(s => s.type === 'owe').length > 0 ? "people pending" : ""}
+                        : t('dashboard.allSettledUp')}
+                    trendLabel={pendingSettlements.filter(s => s.type === 'owe').length > 0 ? t('dashboard.peoplePending') : ""}
                     trendUp={false}
                     color="red"
                 />
                 <StatCard
                     IconComponent={TrendingUpIcon}
-                    label="You Are Owed"
+                    label={t('dashboard.youAreOwed')}
                     value={<ConvertedAmount amount={stats.youreOwed} originalCurrency="INR" />}
                     trend={pendingSettlements.filter(s => s.type === 'owed').length > 0
                         ? pendingSettlements.filter(s => s.type === 'owed').length
-                        : "No pending payments"}
-                    trendLabel={pendingSettlements.filter(s => s.type === 'owed').length > 0 ? "people pending" : ""}
+                        : t('dashboard.noPendingPayments')}
+                    trendLabel={pendingSettlements.filter(s => s.type === 'owed').length > 0 ? t('dashboard.peoplePending') : ""}
                     trendUp={true}
                     color="green"
                 />
@@ -543,9 +580,9 @@ const DashboardPage = () => {
                     {/* Settlements Section */}
                     <section>
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                            <h2 className="text-lg md:text-xl font-bold text-[#0d191b] dark:text-white">Pending Settlements</h2>
+                            <h2 className="text-lg md:text-xl font-bold text-[#0d191b] dark:text-white">{t('dashboard.pendingSettlements')}</h2>
                             {pendingSettlements.length > 0 && (
-                                <Link to="/dashboard/expenses" className="text-amber-400 text-sm font-semibold hover:text-amber-300">View all</Link>
+                                <Link to="/dashboard/expenses" className="text-amber-400 text-sm font-semibold hover:text-amber-300">{t('dashboard.viewAll')}</Link>
                             )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -554,8 +591,8 @@ const DashboardPage = () => {
                                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 dark:from-green-500 dark:to-emerald-600 flex items-center justify-center text-white mb-3 shadow-lg shadow-green-500/20">
                                         <span className="material-symbols-outlined text-2xl">check</span>
                                     </div>
-                                    <p className="font-bold text-lg text-[#0d191b] dark:text-white mb-1">All settled up!</p>
-                                    <p className="text-sm text-[#5c6f73] dark:text-gray-400">You don't owe anyone anything right now.</p>
+                                    <p className="font-bold text-lg text-[#0d191b] dark:text-white mb-1">{t('dashboard.allSettledUp')}</p>
+                                    <p className="text-sm text-[#5c6f73] dark:text-gray-400">{t('dashboard.allSettledUpDesc')}</p>
                                 </div>
                             ) : (
                                 pendingSettlements.map((settlement) => (
@@ -571,20 +608,21 @@ const DashboardPage = () => {
                                             <div>
                                                 <p className="font-bold text-[#0d191b] dark:text-white text-sm">{settlement.name}</p>
                                                 <p className="text-xs text-[#5c6f73] dark:text-gray-400">
-                                                    {settlement.type === 'owe' ? 'you owe' : 'owes you'}
+                                                    {settlement.type === 'owe' ? t('dashboard.youOweText') : t('dashboard.owesYouText')}
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className={`font-bold mb-1 ${settlement.type === 'owed' ? 'text-green-500' : 'text-red-500'}`}>
-                                                {settlement.type === 'owed' ? '+' : '-'}{formatAmount(settlement.amount)}
+                                        <div className="text-right flex flex-col items-end">
+                                            <p className={`font-bold mb-1 flex items-center ${settlement.type === 'owed' ? 'text-green-500' : 'text-red-500'}`}>
+                                                {settlement.type === 'owed' ? '+' : '-'}
+                                                <ConvertedAmount amount={settlement.amount} originalCurrency="INR" className="ml-0.5" />
                                             </p>
                                             <div className="flex gap-2 justify-end">
                                                 {pendingApprovals[settlement.personId] ? (
                                                     pendingApprovals[settlement.personId].type === 'outgoing' ? (
                                                         <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-700/50 flex items-center gap-1">
                                                             <span className="material-symbols-outlined text-[14px]">hourglass_empty</span>
-                                                            Pending Approval
+                                                            {t('dashboard.pendingApproval')}
                                                         </span>
                                                     ) : (
                                                         <div className="flex gap-2">
@@ -592,14 +630,14 @@ const DashboardPage = () => {
                                                                 onClick={() => handleRejectPayment(pendingApprovals[settlement.personId].settlementId, settlement.name)}
                                                                 className="text-xs font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors"
                                                             >
-                                                                Reject
+                                                                {t('dashboard.reject')}
                                                             </button>
                                                             <button
                                                                 onClick={() => handleApprovePayment(pendingApprovals[settlement.personId].settlementId, settlement.name)}
                                                                 className="text-xs font-bold px-3 py-1.5 rounded-full bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50 transition-colors flex items-center gap-1"
                                                             >
                                                                 <span className="material-symbols-outlined text-[14px]">check</span>
-                                                                Verify
+                                                                {t('dashboard.approve')}
                                                             </button>
                                                         </div>
                                                     )
@@ -611,7 +649,7 @@ const DashboardPage = () => {
                                                             : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
                                                             }`}
                                                     >
-                                                        {settlement.type === 'owed' ? 'Remind' : 'Settle Up'}
+                                                        {settlement.type === 'owed' ? t('dashboard.remind') : t('dashboard.settleUp')}
                                                     </button>
                                                 )}
                                             </div>
@@ -625,30 +663,28 @@ const DashboardPage = () => {
                     {/* Your Groups Section */}
                     <section>
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                            <h2 className="text-lg md:text-xl font-bold text-[#0d191b] dark:text-white">Your Groups</h2>
+                            <h2 className="text-lg md:text-xl font-bold text-[#0d191b] dark:text-white">{t('dashboard.yourGroups')}</h2>
                             <button
                                 onClick={() => setIsCreateModalOpen(true)}
                                 className="flex items-center gap-2 bg-amber-400 text-black px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold hover:bg-amber-300 transition-colors shadow-lg shadow-amber-900/20"
                             >
                                 <span className="material-symbols-outlined text-lg md:text-xl">add</span>
-                                <span className="hidden sm:inline">Create Group</span>
-                                <span className="sm:hidden">Create</span>
+                                <span className="hidden sm:inline">{t('dashboard.createGroup')}</span>
+                                <span className="sm:hidden">{t('common.add')}</span>
                             </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Loading State */}
                             {loading && (
                                 <div className="bg-white/5 p-6 rounded-2xl border border-white/10 flex flex-col items-center justify-center gap-2 min-h-[140px] col-span-2">
                                     <span className="material-symbols-outlined text-4xl text-amber-400 animate-spin">refresh</span>
-                                    <p className="text-white/60">Loading groups...</p>
+                                    <p className="text-white/60">{t('dashboard.loadingGroups')}</p>
                                 </div>
                             )}
 
-                            {/* No Groups State */}
                             {!loading && groups.length === 0 && (
                                 <div className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] p-6 rounded-2xl border-2 border-gray-200 dark:border-white/10 flex flex-col items-center justify-center gap-2 min-h-[140px] col-span-2 shadow-md dark:shadow-none backdrop-blur-[2px]">
                                     <span className="material-symbols-outlined text-4xl text-gray-400 dark:text-white/40">group_off</span>
-                                    <p className="text-gray-600 dark:text-white/60">No groups yet. Create one to get started!</p>
+                                    <p className="text-gray-600 dark:text-white/60">{t('dashboard.noGroups')}</p>
                                 </div>
                             )}
 
@@ -670,26 +706,32 @@ const DashboardPage = () => {
 
                 {/* Right Column (Activity Feed) */}
                 <aside className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] p-6 rounded-3xl border-2 border-gray-200 dark:border-white/10 h-full backdrop-blur-[2px] shadow-md dark:shadow-none">
-                    <h2 className="text-lg font-bold text-[#0d191b] dark:text-white mb-6">Recent Activity</h2>
-                    <div className="relative pl-4 border-l border-gray-200 dark:border-white/10 space-y-6">
-                        {recentActivity.length === 0 ? (
-                            <p className="text-gray-400 text-sm italic">No recent activity</p>
-                        ) : (
-                            recentActivity.map((item) => (
-                                <div key={item.id} className="relative group">
-                                    <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-${getActivityColor(item.type)}-500 ring-4 ring-[#0f172a] group-hover:scale-125 transition-transform`}></div>
-                                    <div className="flex flex-col gap-1">
-                                        <p className="text-sm text-[#5c6f73] dark:text-gray-300 leading-relaxed">
-                                            {item.description}
-                                        </p>
-                                        <span className="text-xs text-[#5c6f73] dark:text-gray-500 font-medium">{timeAgo(item.timestamp)}</span>
+                    <h2 className="text-lg font-bold text-[#0d191b] dark:text-white mb-6">{t('dashboard.recentActivity')}</h2>
+                    {/* Scrollable Activity List with Red Limit Line */}
+                    <div className="relative">
+                        <div className="relative pl-4 border-l border-gray-200 dark:border-white/10 space-y-6 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
+                            {recentActivity.length === 0 ? (
+                                <p className="text-gray-400 text-sm italic">{t('dashboard.noRecentActivity')}</p>
+                            ) : (
+                                recentActivity.map((item) => (
+                                    <div key={item.id} className="relative group">
+                                        <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-${getActivityColor(item.type)}-500 ring-4 ring-[#0f172a] group-hover:scale-125 transition-transform`}></div>
+                                        <div className="flex flex-col gap-1">
+                                            <p className="text-sm text-[#5c6f73] dark:text-gray-300 leading-relaxed">
+                                                {item.description}
+                                            </p>
+                                            <span className="text-xs text-[#5c6f73] dark:text-gray-500 font-medium">{timeAgo(item.timestamp)}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            ))
-                        )}
+                                ))
+                            )}
+                        </div>
+
+
                     </div>
+
                     <Link to="/dashboard/history" className="block w-full text-center mt-8 py-3 text-sm font-bold text-gray-400 hover:text-white transition-colors border border-white/10 rounded-xl hover:bg-white/5 hover:border-white/20">
-                        View Full History
+                        {t('dashboard.viewFullHistory')}
                     </Link>
 
                     {/* Pro Upgrade Card */}
@@ -715,7 +757,7 @@ const DashboardPage = () => {
                         <div className="w-16 h-16 rounded-full bg-amber-400 mx-auto flex items-center justify-center text-black font-bold text-2xl mb-4">
                             {paymentModal.data.name.charAt(0)}
                         </div>
-                        <h2 className="text-xl font-bold text-[#0d191b] dark:text-white mb-1">Pay {paymentModal.data.name}</h2>
+                        <h2 className="text-xl font-bold text-[#0d191b] dark:text-white mb-1">{t('common.pay')} {paymentModal.data.name}</h2>
                         <p className="text-[#5c6f73] dark:text-gray-400 mb-6 font-mono text-sm">{paymentModal.data.upiId}</p>
 
                         <div className="bg-white p-4 rounded-xl mx-auto w-fit mb-6 border border-gray-200 shadow-inner">
@@ -734,13 +776,13 @@ const DashboardPage = () => {
                                 className="w-full py-3 bg-amber-400 text-black font-bold rounded-xl hover:bg-amber-300 transition-colors shadow-lg shadow-amber-900/20 flex items-center justify-center gap-2"
                             >
                                 <span className="material-symbols-outlined">payments</span>
-                                Pay via UPI App
+                                {t('dashboard.payViaUpi')}
                             </a>
                             <button
                                 onClick={() => processSettlement(paymentModal.data)}
                                 className="w-full py-3 bg-gray-100 dark:bg-white/5 text-[#0d191b] dark:text-white font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
                             >
-                                Record as Paid manually
+                                {t('dashboard.recordPaidManually')}
                             </button>
                         </div>
                     </div>
@@ -751,6 +793,21 @@ const DashboardPage = () => {
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}
                 onCreate={handleCreateGroup}
+            />
+
+            <TwoFactorPromptModal
+                isOpen={is2FAPromptOpen}
+                onClose={() => {
+                    setIs2FAPromptOpen(false);
+                    setPendingSettlementData(null);
+                }}
+                onVerifySuccess={() => {
+                    setIs2FAPromptOpen(false);
+                    if (pendingSettlementData) {
+                        executeSettlementCreation(pendingSettlementData.settlement, pendingSettlementData.receiverData);
+                    }
+                }}
+                actionName="Settling Up"
             />
 
             {/* Share Widget - Fixed on Right Side */}

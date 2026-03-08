@@ -1,20 +1,42 @@
 import { TIME_SLOT_LABELS } from '../../utils/itineraryUtils';
 import { useCurrency } from '../../context/CurrencyContext';
+import { useTranslation } from 'react-i18next';
 
 const ActivitySlot = ({ timeSlot, activities, onAddActivity, onRemoveActivity }) => {
     const { formatAmount } = useCurrency();
+    const { t } = useTranslation();
     const slotInfo = TIME_SLOT_LABELS[timeSlot];
 
-    const getSlotColor = () => {
+    const getSlotStyles = () => {
         switch (timeSlot) {
-            case 'morning': return 'amber';
-            case 'afternoon': return 'orange';
-            case 'evening': return 'purple';
-            default: return 'gray';
+            case 'morning': return {
+                btnBg: 'bg-amber-400/20 hover:bg-amber-400/30',
+                btnText: 'text-amber-700 dark:text-amber-400',
+                cardBg: 'bg-amber-50 dark:bg-amber-900/10',
+                cardBorder: 'border-amber-200/40 dark:border-amber-400/20'
+            };
+            case 'afternoon': return {
+                btnBg: 'bg-orange-400/20 hover:bg-orange-400/30',
+                btnText: 'text-orange-700 dark:text-orange-400',
+                cardBg: 'bg-orange-50 dark:bg-orange-900/10',
+                cardBorder: 'border-orange-200/40 dark:border-orange-400/20'
+            };
+            case 'evening': return {
+                btnBg: 'bg-purple-400/20 hover:bg-purple-400/30',
+                btnText: 'text-purple-700 dark:text-purple-400',
+                cardBg: 'bg-purple-50 dark:bg-purple-900/10',
+                cardBorder: 'border-purple-200/40 dark:border-purple-400/20'
+            };
+            default: return {
+                btnBg: 'bg-gray-400/20 hover:bg-gray-400/30',
+                btnText: 'text-gray-700 dark:text-gray-400',
+                cardBg: 'bg-gray-50 dark:bg-gray-900/10',
+                cardBorder: 'border-gray-200/40 dark:border-gray-400/20'
+            };
         }
     };
 
-    const color = getSlotColor();
+    const styles = getSlotStyles();
 
     return (
         <div className="space-y-2">
@@ -23,17 +45,17 @@ const ActivitySlot = ({ timeSlot, activities, onAddActivity, onRemoveActivity })
                 <div className="flex items-center gap-2">
                     <span className="text-2xl">{slotInfo.icon}</span>
                     <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white">{slotInfo.label}</h4>
+                        <h4 className="font-semibold text-gray-900 dark:text-white">{t(`itineraryBuilder.${timeSlot}Label`, slotInfo.label)}</h4>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{slotInfo.time}</p>
                     </div>
                 </div>
 
                 <button
                     onClick={onAddActivity}
-                    className={`px-3 py-1.5 bg-${color}-400/20 hover:bg-${color}-400/30 text-${color}-700 dark:text-${color}-400 rounded-lg text-sm font-medium transition-colors flex items-center gap-1`}
+                    className={`px-3 py-1.5 ${styles.btnBg} ${styles.btnText} rounded-lg text-sm font-medium transition-colors flex items-center gap-1`}
                 >
                     <span className="material-symbols-outlined text-base">add</span>
-                    Add
+                    {t('itineraryBuilder.add')}
                 </button>
             </div>
 
@@ -43,7 +65,7 @@ const ActivitySlot = ({ timeSlot, activities, onAddActivity, onRemoveActivity })
                     {activities.map((activity) => (
                         <div
                             key={activity.id}
-                            className={`bg-${color}-50 dark:bg-${color}-900/10 border border-${color}-200/40 dark:border-${color}-400/20 rounded-xl p-3 group hover:shadow-md transition-all`}
+                            className={`${styles.cardBg} border ${styles.cardBorder} rounded-xl p-3 group hover:shadow-md transition-all`}
                         >
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex-1 min-w-0">
@@ -92,7 +114,7 @@ const ActivitySlot = ({ timeSlot, activities, onAddActivity, onRemoveActivity })
                 </div>
             ) : (
                 <div className="text-center py-6 text-sm text-gray-400 dark:text-gray-500 italic">
-                    No activities planned for {slotInfo.label.toLowerCase()}
+                    {t('itineraryBuilder.noActivities', { slot: t(`itineraryBuilder.${timeSlot}Label`, slotInfo.label).toLowerCase() })}
                 </div>
             )}
         </div>

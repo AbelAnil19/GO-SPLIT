@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../context/CurrencyContext';
 
 const DestinationCard = ({ destination, onFavorite, onViewDetails, onDelete, onPlanTrip, isActivePlan }) => {
+    const { t } = useTranslation();
     const { formatAmount } = useCurrency();
     const getTagColor = (tag) => {
         switch (tag) {
@@ -33,7 +35,15 @@ const DestinationCard = ({ destination, onFavorite, onViewDetails, onDelete, onP
                 )}
                 {/* Tag Badge */}
                 <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-semibold border ${getTagColor(destination.tags?.[0])} backdrop-blur-md`}>
-                    {destination.tags?.[0] || 'Custom Trip'}
+                    {destination.tags?.[0] === 'Custom Trip'
+                        ? t('destinationCard.customTrip')
+                        : destination.tags?.[0] === 'Budget-Friendly'
+                            ? t('destinationCard.budgetFriendly', 'Budget-Friendly') // Fallback provided directly
+                            : destination.tags?.[0] === 'Premium'
+                                ? t('destinationCard.premium', 'Premium')
+                                : destination.tags?.[0] === 'Best Value'
+                                    ? t('destinationCard.bestValue', 'Best Value')
+                                    : (destination.tags?.[0] || t('destinationCard.customTrip'))}
                 </div>
                 {/* Action Buttons */}
                 <div className="absolute top-3 right-3 flex gap-2">
@@ -42,7 +52,7 @@ const DestinationCard = ({ destination, onFavorite, onViewDetails, onDelete, onP
                         <button
                             onClick={(e) => { e.stopPropagation(); onDelete(destination.id); }}
                             className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center hover:bg-red-600/80 transition-colors"
-                            title="Delete trip"
+                            title={t('destinationCard.deleteTrip')}
                         >
                             <span className="material-symbols-outlined text-xl text-white">delete</span>
                         </button>
@@ -75,12 +85,12 @@ const DestinationCard = ({ destination, onFavorite, onViewDetails, onDelete, onP
                 {/* Stats */}
                 <div className="flex items-center justify-between mb-4">
                     <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">EST. COST</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('destinationCard.estCost')}</p>
                         <p className="text-amber-500 dark:text-amber-400 font-bold text-xl">{formatAmount(destination.estimatedCost || 0)}</p>
                     </div>
                     <div className="text-right">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Duration</p>
-                        <p className="text-gray-900 dark:text-white text-sm font-medium">{destination.duration || 'N/A'}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('destinationCard.duration')}</p>
+                        <p className="text-gray-900 dark:text-white text-sm font-medium">{destination.duration || t('destinationCard.na')}</p>
                     </div>
                 </div>
 
@@ -91,7 +101,7 @@ const DestinationCard = ({ destination, onFavorite, onViewDetails, onDelete, onP
                         className="flex-1 py-3 bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20 text-gray-800 dark:text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
                     >
                         <span className="material-symbols-outlined text-lg">info</span>
-                        Details
+                        {t('destinationCard.details')}
                     </button>
                     {onPlanTrip && (
                         <button
@@ -104,7 +114,7 @@ const DestinationCard = ({ destination, onFavorite, onViewDetails, onDelete, onP
                             <span className="material-symbols-outlined text-lg">
                                 {isActivePlan ? 'check_circle' : 'explore'}
                             </span>
-                            {isActivePlan ? 'Active' : 'Plan Trip'}
+                            {isActivePlan ? t('destinationCard.active') : t('destinationCard.planTrip')}
                         </button>
                     )}
                 </div>

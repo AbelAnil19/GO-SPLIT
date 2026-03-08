@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
-import AIInsightsBubble from './ai/AIInsightsBubble';
+
+import background from '../assets/background.jpg';
 
 const Layout = () => {
     return (
@@ -8,7 +9,7 @@ const Layout = () => {
             {/* Background Image Layer */}
             <div className="fixed inset-0 z-[-1]">
                 <img
-                    src="/src/assets/background.jpg"
+                    src={background}
                     alt="Background"
                     className="w-full h-full object-cover"
                 />
@@ -20,8 +21,7 @@ const Layout = () => {
                 <Outlet />
             </main>
 
-            {/* AI Insights Chat Bubble */}
-            <AIInsightsBubble />
+
         </div>
     );
 };

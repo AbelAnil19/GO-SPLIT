@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../context/CurrencyContext';
 import { useToast } from '../../context/ToastContext';
 import MinimalToast from '../ui/MinimalToast';
 
 const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
+    const { t } = useTranslation();
     const { addToast } = useToast();
     const { currencySymbol, currency } = useCurrency();
 
@@ -57,7 +59,7 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
 
         // Validation with MinimalToast
         if (!budgetData.total || parseFloat(budgetData.total) <= 0) {
-            showValidationError('Please enter a valid budget amount (must be greater than 0)');
+            showValidationError(t('setBudgetModal.errorInvalidAmount'));
             return;
         }
 
@@ -67,14 +69,14 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
             const selectedDate = new Date(budgetData.startDate);
 
             if (selectedDate < today) {
-                showValidationError('Start date cannot be in the past');
+                showValidationError(t('setBudgetModal.errorPastStart'));
                 return;
             }
         }
 
         if (budgetData.startDate && budgetData.endDate) {
             if (new Date(budgetData.startDate) >= new Date(budgetData.endDate)) {
-                showValidationError('End date must be after start date');
+                showValidationError(t('setBudgetModal.errorEndBeforeStart'));
                 return;
             }
         }
@@ -89,11 +91,11 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
                 endDate: budgetData.endDate ? new Date(budgetData.endDate) : null,
                 notes: budgetData.notes
             });
-            addToast('Budget saved successfully!', 'success');
+            addToast(t('setBudgetModal.successSaved'), 'success');
             onClose();
         } catch (error) {
             console.error('Error saving budget:', error);
-            showValidationError('Failed to save budget');
+            showValidationError(t('setBudgetModal.errorSaveFailed'));
         } finally {
             setLoading(false);
         }
@@ -105,7 +107,7 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-white/10">
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {currentBudget ? 'Edit Budget' : 'Set Budget'}
+                        {currentBudget ? t('setBudgetModal.editBudget') : t('setBudgetModal.setBudget')}
                     </h2>
                     <button
                         onClick={onClose}
@@ -120,7 +122,7 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
                     {/* Budget Amount */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Total Budget *
+                            {t('setBudgetModal.totalBudget')}
                         </label>
                         <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">{currencySymbol}</span>
@@ -145,7 +147,7 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Start Date
+                                {t('setBudgetModal.startDate')}
                             </label>
                             <input
                                 type="date"
@@ -156,7 +158,7 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                End Date
+                                {t('setBudgetModal.endDate')}
                             </label>
                             <input
                                 type="date"
@@ -170,12 +172,12 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
                     {/* Notes */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Notes (Optional)
+                            {t('setBudgetModal.notesOptional')}
                         </label>
                         <textarea
                             value={budgetData.notes}
                             onChange={(e) => setBudgetData({ ...budgetData, notes: e.target.value })}
-                            placeholder="e.g., Summer vacation budget"
+                            placeholder={t('setBudgetModal.notesPlaceholder')}
                             rows={3}
                             className="w-full px-4 py-3 bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-amber-400/50 resize-none"
                         />
@@ -188,14 +190,14 @@ const SetBudgetModal = ({ isOpen, onClose, onSave, currentBudget = null }) => {
                             onClick={onClose}
                             className="flex-1 px-4 py-3 bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-xl font-semibold hover:bg-gray-300 dark:hover:bg-white/20 transition-colors"
                         >
-                            Cancel
+                            {t('setBudgetModal.cancel')}
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
                             className="flex-1 px-4 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {loading ? 'Saving...' : 'Save Budget'}
+                            {loading ? t('setBudgetModal.saving') : t('setBudgetModal.saveBudget')}
                         </button>
                     </div>
                 </form>

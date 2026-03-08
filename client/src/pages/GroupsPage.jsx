@@ -8,14 +8,17 @@ import { listenToUserGroups, createGroup, deleteGroup, getUserDocument } from '.
 import AddMemberModal from '../components/AddMemberModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import GroupInvitations from '../components/GroupInvitations';
+import { useTranslation } from 'react-i18next';
 
 const GroupsPage = () => {
     const { currentUser } = useAuth();
+    const { t } = useTranslation();
     const { addToast } = useToast();
     const { currencySymbol } = useCurrency();
     const navigate = useNavigate();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
+    const [newGroupNameError, setNewGroupNameError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -78,22 +81,28 @@ const GroupsPage = () => {
     }, [groups]);
 
     const handleCreateGroup = async () => {
-        if (!newGroupName.trim()) {
-            addToast('Please enter a group name', 'error');
+        const trimmedName = newGroupName.trim();
+        if (!trimmedName) {
+            setNewGroupNameError(t('groups.enterGroupNameError'));
+            return;
+        }
+        if (trimmedName.length < 2) {
+            setNewGroupNameError('Group name must be at least 2 characters.');
             return;
         }
 
         try {
-            await createGroup(newGroupName, currentUser.uid, {
+            await createGroup(trimmedName, currentUser.uid, {
                 displayName: currentUser.displayName,
                 photoURL: currentUser.photoURL
             });
-            addToast(`Group "${newGroupName}" created!`, 'success');
+            addToast(`${t('groups.groupCreated')} "${trimmedName}"`, 'success');
             setIsCreateModalOpen(false);
             setNewGroupName('');
+            setNewGroupNameError('');
         } catch (error) {
             console.error('Error creating group:', error);
-            addToast('Failed to create group', 'error');
+            addToast(t('groups.failedLoadGroup'), 'error');
         }
     };
 
@@ -107,16 +116,16 @@ const GroupsPage = () => {
             {/* Page Heading & Actions */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div className="flex flex-col gap-1">
-                    <h2 className="text-3xl md:text-4xl font-extrabold text-[#0d191b] dark:text-white tracking-tight">Your Groups</h2>
-                    <p className="text-[#5c6f73] dark:text-gray-400">Manage your shared expenses and group balances</p>
+                    <h2 className="text-3xl md:text-4xl font-extrabold text-[#0d191b] dark:text-white tracking-tight">{t('dashboard.yourGroups')}</h2>
+                    <p className="text-[#5c6f73] dark:text-gray-400">{t('groups.subtitle')}</p>
                 </div>
                 <button
                     onClick={() => setIsCreateModalOpen(true)}
                     className="bg-amber-400 text-black px-4 md:px-6 py-2 md:py-3 rounded-xl text-sm md:text-base font-bold hover:bg-amber-300 transition-all flex items-center gap-2 shadow-lg shadow-amber-900/20 transition-all transform active:scale-95"
                 >
                     <span className="material-symbols-outlined text-lg md:text-xl">add</span>
-                    <span className="hidden sm:inline">Create New Group</span>
-                    <span className="sm:hidden">Create</span>
+                    <span className="hidden sm:inline">{t('groups.createNewGroup')}</span>
+                    <span className="sm:hidden">{t('common.add')}</span>
                 </button>
             </div>
 
@@ -127,21 +136,21 @@ const GroupsPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2 rounded-2xl p-6 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
                     <div className="flex items-center justify-between">
-                        <p className="text-[#5c6f73] dark:text-gray-400 font-medium">Total Groups</p>
+                        <p className="text-[#5c6f73] dark:text-gray-400 font-medium">{t('groups.totalGroups')}</p>
                         <span className="material-symbols-outlined text-amber-400 bg-amber-400/10 p-1.5 rounded-lg">groups</span>
                     </div>
                     <p className="text-[#0d191b] dark:text-white text-3xl font-bold tracking-tight">{groups.length}</p>
-                    <p className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium mt-1">active groups</p>
+                    <p className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium mt-1">{t('groups.activeGroups')}</p>
                 </div>
                 <div className="flex flex-col gap-2 rounded-2xl p-6 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
                     <div className="flex items-center justify-between">
-                        <p className="text-[#5c6f73] dark:text-gray-400 font-medium">Total Members</p>
+                        <p className="text-[#5c6f73] dark:text-gray-400 font-medium">{t('groups.totalMembers')}</p>
                         <span className="material-symbols-outlined text-blue-400 bg-blue-400/10 p-1.5 rounded-lg">people</span>
                     </div>
                     <p className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">
                         {groups.reduce((sum, g) => sum + (g.members?.length || 0), 0)}
                     </p>
-                    <p className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium mt-1">across all groups</p>
+                    <p className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium mt-1">{t('groups.acrossAllGroups')}</p>
                 </div>
             </div>
 
@@ -150,7 +159,7 @@ const GroupsPage = () => {
                 <div className="flex-1 relative">
                     <input
                         className="w-full h-12 pl-11 pr-4 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all backdrop-blur-md"
-                        placeholder="Search groups by name..."
+                        placeholder={t('groups.searchGroups')}
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -165,7 +174,7 @@ const GroupsPage = () => {
                 {loading && (
                     <div className="col-span-full flex flex-col items-center justify-center gap-4 py-12">
                         <span className="material-symbols-outlined text-6xl text-amber-400 animate-spin">refresh</span>
-                        <p className="text-white/60">Loading groups...</p>
+                        <p className="text-white/60">{t('groups.loadingGroups')}</p>
                     </div>
                 )}
 
@@ -173,7 +182,7 @@ const GroupsPage = () => {
                 {!loading && filteredGroups.length === 0 && !searchQuery && (
                     <div className="col-span-full flex flex-col items-center justify-center gap-4 py-12">
                         <span className="material-symbols-outlined text-6xl text-white/20">group_off</span>
-                        <p className="text-white/60">No groups yet. Create your first group!</p>
+                        <p className="text-white/60">{t('groups.noGroups')}</p>
                     </div>
                 )}
 
@@ -181,7 +190,7 @@ const GroupsPage = () => {
                 {!loading && filteredGroups.length === 0 && searchQuery && (
                     <div className="col-span-full flex flex-col items-center justify-center gap-4 py-12">
                         <span className="material-symbols-outlined text-6xl text-white/20">search_off</span>
-                        <p className="text-white/60">No groups found matching "{searchQuery}"</p>
+                        <p className="text-white/60">{t('groups.noSearchResults')} "{searchQuery}"</p>
                     </div>
                 )}
 
@@ -214,10 +223,10 @@ const GroupsPage = () => {
                                 </div>
                                 <h3 className="text-lg font-bold text-[#0d191b] dark:text-white mb-1">{group.name}</h3>
                                 <p className="text-sm text-[#5c6f73] dark:text-gray-400 mb-4 line-clamp-2">
-                                    {group.customization?.description || `${group.members?.length || 0} member${(group.members?.length || 0) !== 1 ? 's' : ''}`}
+                                    {group.customization?.description || `${group.members?.length || 0} ${t('dashboard.members')}`}
                                 </p>
                                 <div className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Expenses</p>
+                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{t('groups.totalExpenses')}</p>
                                     <p className="text-xl font-bold text-[#0d191b] dark:text-white"><ConvertedAmount amount={group.totalExpenses || 0} originalCurrency="INR" /></p>
                                 </div>
                             </div>
@@ -259,10 +268,10 @@ const GroupsPage = () => {
                                             setDeleteConfirmation({ isOpen: true, group });
                                         }}
                                         className="text-xs font-semibold text-red-500 hover:text-red-400 transition-colors flex items-center gap-1"
-                                        title="Delete Group"
+                                        title={t('groups.deleteConfirmTitle')}
                                     >
                                         <span className="material-symbols-outlined text-sm">delete</span>
-                                        Delete
+                                        {t('common.delete')}
                                     </button>
                                 )}
                             </div>
@@ -280,8 +289,8 @@ const GroupsPage = () => {
                             <span className="material-symbols-outlined text-amber-400 text-3xl">add</span>
                         </div>
                         <div className="text-center">
-                            <h3 className="text-lg font-bold text-[#0d191b] dark:text-white group-hover:text-amber-400 transition-colors">Create New Group</h3>
-                            <p className="text-sm text-[#5c6f73] dark:text-gray-400 mt-1">Start sharing expenses</p>
+                            <h3 className="text-lg font-bold text-[#0d191b] dark:text-white group-hover:text-amber-400 transition-colors">{t('groups.createNewGroup')}</h3>
+                            <p className="text-sm text-[#5c6f73] dark:text-gray-400 mt-1">{t('groups.startSharing')}</p>
                         </div>
                     </button>
                 )}
@@ -292,31 +301,48 @@ const GroupsPage = () => {
                 isCreateModalOpen && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                         <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl border-2 border-gray-300 dark:border-white/10">
-                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Create New Group</h3>
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">{t('groups.createNewGroup')}</h3>
                             <input
                                 type="text"
                                 value={newGroupName}
-                                onChange={(e) => setNewGroupName(e.target.value)}
-                                placeholder="Enter group name..."
-                                className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent mb-6"
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setNewGroupName(val);
+                                    if (!val.trim()) {
+                                        setNewGroupNameError(t('groups.enterGroupNameError'));
+                                    } else if (val.trim().length < 2) {
+                                        setNewGroupNameError('Group name must be at least 2 characters.');
+                                    } else {
+                                        setNewGroupNameError('');
+                                    }
+                                }}
+                                placeholder={t('groups.enterGroupName')}
+                                className={`w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border ${newGroupNameError ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/10'} rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent mb-1`}
                                 onKeyPress={(e) => e.key === 'Enter' && handleCreateGroup()}
                                 autoFocus
                             />
+                            {newGroupNameError && (
+                                <p className="text-xs text-red-500 mb-5 flex items-center gap-1">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                    {newGroupNameError}
+                                </p>
+                            )}
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => {
                                         setIsCreateModalOpen(false);
                                         setNewGroupName('');
+                                        setNewGroupNameError('');
                                     }}
                                     className="flex-1 px-4 py-3 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-900 dark:text-white rounded-xl font-semibold transition-colors"
                                 >
-                                    Cancel
+                                    {t('common.cancel')}
                                 </button>
                                 <button
                                     onClick={handleCreateGroup}
                                     className="flex-1 px-4 py-3 bg-amber-400 hover:bg-amber-300 text-black rounded-xl font-semibold transition-colors"
                                 >
-                                    Create Group
+                                    {t('groups.createNewGroup')}
                                 </button>
                             </div>
                         </div>
@@ -340,17 +366,17 @@ const GroupsPage = () => {
                 onConfirm={async () => {
                     try {
                         await deleteGroup(deleteConfirmation.group?.id, currentUser.uid);
-                        addToast(`Group "${deleteConfirmation.group?.name}" deleted successfully`, 'success');
+                        addToast(`"${deleteConfirmation.group?.name}" ${t('groups.groupDeleted')}`, 'success');
                         setDeleteConfirmation({ isOpen: false, group: null });
                     } catch (error) {
-                        addToast(error.message || 'Failed to delete group', 'error');
+                        addToast(error.message || t('groups.failedDeleteGroup'), 'error');
                         setDeleteConfirmation({ isOpen: false, group: null });
                     }
                 }}
-                title="Delete Group?"
-                message={`Are you sure you want to delete "${deleteConfirmation.group?.name}"? This action cannot be undone and all expenses in this group will be lost.`}
-                confirmText="Delete"
-                cancelText="Cancel"
+                title={t('groups.deleteConfirmTitle')}
+                message={`${t('groups.deleteConfirmMsg')} "${deleteConfirmation.group?.name}"${t('groups.deleteConfirmMsgEnd')}`}
+                confirmText={t('common.delete')}
+                cancelText={t('common.cancel')}
                 type="danger"
             />
 

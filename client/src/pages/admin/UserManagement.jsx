@@ -19,6 +19,8 @@ const UserManagement = () => {
     const [statusFilter, setStatusFilter] = useState('all'); // all, active, banned
     const [roleFilter, setRoleFilter] = useState('all'); // all, admin, regular
     const [sortBy, setSortBy] = useState('name'); // name, email, date
+    const [dateFilter, setDateFilter] = useState('all'); // all, week, month, year, older
+    const [activityFilter, setActivityFilter] = useState('all'); // all, active30, inactive90
 
     useEffect(() => {
         loadUsers();
@@ -26,7 +28,8 @@ const UserManagement = () => {
 
     useEffect(() => {
         applyFilters();
-    }, [users, statusFilter, roleFilter, sortBy, searchTerm]);
+    }, [users, statusFilter, roleFilter, sortBy, searchTerm, dateFilter, activityFilter]);
+
 
     const loadUsers = async () => {
         try {
@@ -42,6 +45,7 @@ const UserManagement = () => {
 
     const applyFilters = () => {
         let filtered = [...users];
+        const now = new Date();
 
         // Apply search
         if (searchTerm.trim()) {
@@ -63,6 +67,32 @@ const UserManagement = () => {
             filtered = filtered.filter(u => u.isAdmin);
         } else if (roleFilter === 'regular') {
             filtered = filtered.filter(u => !u.isAdmin);
+        }
+
+        // Apply date joined filter
+        if (dateFilter !== 'all') {
+            filtered = filtered.filter(u => {
+                const created = u.createdAt?.toDate ? u.createdAt.toDate() : u.createdAt ? new Date(u.createdAt) : null;
+                if (!created) return dateFilter === 'older'; // no date = treat as oldest
+                const diffDays = (now - created) / (1000 * 60 * 60 * 24);
+                if (dateFilter === 'week') return diffDays <= 7;
+                if (dateFilter === 'month') return diffDays <= 30;
+                if (dateFilter === 'year') return diffDays <= 365;
+                if (dateFilter === 'older') return diffDays > 365;
+                return true;
+            });
+        }
+
+        // Apply activity level filter (based on lastLoginAt)
+        if (activityFilter !== 'all') {
+            filtered = filtered.filter(u => {
+                const lastLogin = u.lastLoginAt?.toDate ? u.lastLoginAt.toDate() : u.lastLoginAt ? new Date(u.lastLoginAt) : null;
+                if (!lastLogin) return activityFilter === 'inactive90';
+                const diffDays = (now - lastLogin) / (1000 * 60 * 60 * 24);
+                if (activityFilter === 'active30') return diffDays <= 30;
+                if (activityFilter === 'inactive90') return diffDays > 90;
+                return true;
+            });
         }
 
         // Apply sorting
@@ -87,6 +117,8 @@ const UserManagement = () => {
         setStatusFilter('all');
         setRoleFilter('all');
         setSortBy('name');
+        setDateFilter('all');
+        setActivityFilter('all');
     };
 
     const handleBanUser = async () => {
@@ -148,26 +180,26 @@ const UserManagement = () => {
     return (
         <AdminLayout>
             {/* Header */}
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-[#0d191b] dark:text-white mb-2">User Management</h1>
-                <p className="text-gray-600 dark:text-gray-400">Manage all users on the platform</p>
+            <div className="mb-6 md:mb-8">
+                <h1 className="text-2xl md:text-3xl font-bold text-[#0d191b] dark:text-white mb-2">User Management</h1>
+                <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">Manage all users on the platform</p>
             </div>
 
             {/* Search & Filters */}
-            <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6 mb-6">
+            <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-4 md:p-6 mb-6">
                 <div className="flex flex-col gap-4">
                     {/* Search Bar */}
-                    <div className="flex gap-4">
+                    <div className="flex flex-col md:flex-row gap-3 md:gap-4">
                         <input
                             type="text"
                             placeholder="Search by name or email..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="flex-1 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl px-4 py-3 text-[#0d191b] dark:text-white focus:outline-none focus:border-amber-400"
+                            className="w-full md:flex-1 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl px-4 py-3 text-[#0d191b] dark:text-white focus:outline-none focus:border-amber-400"
                         />
                         <button
                             onClick={clearFilters}
-                            className="px-6 py-3 bg-gray-200 dark:bg-white/10 text-[#0d191b] dark:text-white font-semibold rounded-xl hover:bg-gray-300 dark:hover:bg-white/20 transition-colors flex items-center gap-2"
+                            className="w-full md:w-auto px-6 py-3 bg-gray-200 dark:bg-white/10 text-[#0d191b] dark:text-white font-semibold rounded-xl hover:bg-gray-300 dark:hover:bg-white/20 transition-colors flex items-center justify-center gap-2 flex-shrink-0"
                         >
                             <span className="material-symbols-outlined text-sm">filter_alt_off</span>
                             Clear All
@@ -175,7 +207,7 @@ const UserManagement = () => {
                     </div>
 
                     {/* Filter Dropdowns */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                         {/* Status Filter */}
                         <div>
                             <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">Status</label>
@@ -184,9 +216,9 @@ const UserManagement = () => {
                                 onChange={(e) => setStatusFilter(e.target.value)}
                                 className="w-full bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl px-4 py-3 text-[#0d191b] dark:text-white focus:outline-none focus:border-amber-400"
                             >
-                                <option value="all">All Users</option>
-                                <option value="active">Active Only</option>
-                                <option value="banned">Banned Only</option>
+                                <option value="all" className="dark:bg-[#1a1c23]">All Users</option>
+                                <option value="active" className="dark:bg-[#1a1c23]">Active Only</option>
+                                <option value="banned" className="dark:bg-[#1a1c23]">Banned Only</option>
                             </select>
                         </div>
 
@@ -198,9 +230,39 @@ const UserManagement = () => {
                                 onChange={(e) => setRoleFilter(e.target.value)}
                                 className="w-full bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl px-4 py-3 text-[#0d191b] dark:text-white focus:outline-none focus:border-amber-400"
                             >
-                                <option value="all">All Roles</option>
-                                <option value="admin">Admins Only</option>
-                                <option value="regular">Regular Users</option>
+                                <option value="all" className="dark:bg-[#1a1c23]">All Roles</option>
+                                <option value="admin" className="dark:bg-[#1a1c23]">Admins Only</option>
+                                <option value="regular" className="dark:bg-[#1a1c23]">Regular Users</option>
+                            </select>
+                        </div>
+
+                        {/* Date Joined Filter */}
+                        <div>
+                            <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">Date Joined</label>
+                            <select
+                                value={dateFilter}
+                                onChange={(e) => setDateFilter(e.target.value)}
+                                className="w-full bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl px-4 py-3 text-[#0d191b] dark:text-white focus:outline-none focus:border-amber-400"
+                            >
+                                <option value="all" className="dark:bg-[#1a1c23]">Any Time</option>
+                                <option value="week" className="dark:bg-[#1a1c23]">Last 7 Days</option>
+                                <option value="month" className="dark:bg-[#1a1c23]">Last 30 Days</option>
+                                <option value="year" className="dark:bg-[#1a1c23]">Last Year</option>
+                                <option value="older" className="dark:bg-[#1a1c23]">Over 1 Year Ago</option>
+                            </select>
+                        </div>
+
+                        {/* Activity Level Filter */}
+                        <div>
+                            <label className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2 block">Activity Level</label>
+                            <select
+                                value={activityFilter}
+                                onChange={(e) => setActivityFilter(e.target.value)}
+                                className="w-full bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl px-4 py-3 text-[#0d191b] dark:text-white focus:outline-none focus:border-amber-400"
+                            >
+                                <option value="all" className="dark:bg-[#1a1c23]">Any Activity</option>
+                                <option value="active30" className="dark:bg-[#1a1c23]">Active (last 30d)</option>
+                                <option value="inactive90" className="dark:bg-[#1a1c23]">Inactive (90d+)</option>
                             </select>
                         </div>
 
@@ -212,32 +274,69 @@ const UserManagement = () => {
                                 onChange={(e) => setSortBy(e.target.value)}
                                 className="w-full bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl px-4 py-3 text-[#0d191b] dark:text-white focus:outline-none focus:border-amber-400"
                             >
-                                <option value="name">Name (A-Z)</option>
-                                <option value="email">Email (A-Z)</option>
-                                <option value="date">Date Joined (Newest)</option>
+                                <option value="name" className="dark:bg-[#1a1c23]">Name (A-Z)</option>
+                                <option value="email" className="dark:bg-[#1a1c23]">Email (A-Z)</option>
+                                <option value="date" className="dark:bg-[#1a1c23]">Date Joined (Newest)</option>
                             </select>
                         </div>
                     </div>
+
+                    {/* Active Filter Pills */}
+                    {(statusFilter !== 'all' || roleFilter !== 'all' || dateFilter !== 'all' || activityFilter !== 'all' || searchTerm) && (
+                        <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200 dark:border-white/10">
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 self-center">Active filters:</span>
+                            {searchTerm && (
+                                <span className="px-3 py-1 bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-full text-xs font-semibold flex items-center gap-1">
+                                    Search: "{searchTerm}"
+                                    <button onClick={() => setSearchTerm('')} className="hover:text-amber-900 dark:hover:text-amber-200">×</button>
+                                </span>
+                            )}
+                            {statusFilter !== 'all' && (
+                                <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-full text-xs font-semibold flex items-center gap-1">
+                                    Status: {statusFilter}
+                                    <button onClick={() => setStatusFilter('all')} className="hover:text-blue-900 dark:hover:text-blue-200">×</button>
+                                </span>
+                            )}
+                            {roleFilter !== 'all' && (
+                                <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-full text-xs font-semibold flex items-center gap-1">
+                                    Role: {roleFilter}
+                                    <button onClick={() => setRoleFilter('all')} className="hover:text-purple-900 dark:hover:text-purple-200">×</button>
+                                </span>
+                            )}
+                            {dateFilter !== 'all' && (
+                                <span className="px-3 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-xs font-semibold flex items-center gap-1">
+                                    Joined: {dateFilter === 'week' ? 'Last 7d' : dateFilter === 'month' ? 'Last 30d' : dateFilter === 'year' ? 'Last year' : 'Over 1yr ago'}
+                                    <button onClick={() => setDateFilter('all')} className="hover:text-green-900 dark:hover:text-green-200">×</button>
+                                </span>
+                            )}
+                            {activityFilter !== 'all' && (
+                                <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 rounded-full text-xs font-semibold flex items-center gap-1">
+                                    Activity: {activityFilter === 'active30' ? 'Active 30d' : 'Inactive 90d+'}
+                                    <button onClick={() => setActivityFilter('all')} className="hover:text-orange-900 dark:hover:text-orange-200">×</button>
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6">
-                    <div className="text-3xl font-bold text-[#0d191b] dark:text-white mb-1">{users.length}</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Users</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6">
+                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-4 md:p-6">
+                    <div className="text-xl md:text-3xl font-bold text-[#0d191b] dark:text-white mb-1">{users.length}</div>
+                    <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">Total Users</div>
                 </div>
-                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6">
-                    <div className="text-3xl font-bold text-green-500 mb-1">{users.filter(u => !u.isBanned).length}</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Active Users</div>
+                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-4 md:p-6">
+                    <div className="text-xl md:text-3xl font-bold text-green-500 mb-1">{users.filter(u => !u.isBanned).length}</div>
+                    <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">Active Users</div>
                 </div>
-                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6">
-                    <div className="text-3xl font-bold text-red-500 mb-1">{users.filter(u => u.isBanned).length}</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Banned Users</div>
+                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-4 md:p-6">
+                    <div className="text-xl md:text-3xl font-bold text-red-500 mb-1">{users.filter(u => u.isBanned).length}</div>
+                    <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">Banned Users</div>
                 </div>
-                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-6">
-                    <div className="text-3xl font-bold text-blue-500 mb-1">{filteredUsers.length}</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Filtered Results</div>
+                <div className="bg-white dark:bg-[#1a1c23] border-2 border-gray-200 dark:border-white/10 rounded-2xl p-4 md:p-6">
+                    <div className="text-xl md:text-3xl font-bold text-blue-500 mb-1">{filteredUsers.length}</div>
+                    <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">Filtered Results</div>
                 </div>
             </div>
 

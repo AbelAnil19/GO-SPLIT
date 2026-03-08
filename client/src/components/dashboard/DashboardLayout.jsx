@@ -5,6 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import Sidebar from './Sidebar';
 import DashboardHeader from './DashboardHeader';
 import AIInsightsBubble from '../ai/AIInsightsBubble';
+import { useExpenseNotifications } from '../../hooks/useExpenseNotifications';
 import '../../styles/patterns.css';
 
 const DashboardLayout = () => {
@@ -13,6 +14,9 @@ const DashboardLayout = () => {
     const navigate = useNavigate();
     const hasShownToast = useRef(false); // Track if we've shown the verification toast
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
+    // Initialize background push notifications listener
+    useExpenseNotifications();
 
     useEffect(() => {
         const checkVerification = async () => {

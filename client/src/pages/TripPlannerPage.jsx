@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
 import { getUserGroups, getBudgetAnalytics, setBudget, saveTrip, getGroupTrips, updateTrip, deleteTrip } from '../firebase/firestore';
@@ -16,15 +17,17 @@ import LocationSearch from '../components/trip/LocationSearch';
 import { destinations as mockDestinations, filterOptions as initialFilters } from '../data/destinations';
 
 const TripPlannerPage = () => {
+    const { t } = useTranslation();
     const { currentUser } = useAuth();
     const { addToast } = useToast();
-    const { currency, currencySymbol, formatAmount } = useCurrency();
+    const { currencySymbol, formatAmount } = useCurrency();
 
     const [userGroups, setUserGroups] = useState([]);
     const [selectedGroup, setSelectedGroup] = useState(null);
     const [activeTab, setActiveTab] = useState('destinations');
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState(initialFilters);
+    const [timeFilter, setTimeFilter] = useState('upcoming'); // Add time filter state
     const [destinations, setDestinations] = useState([]); // Start with empty - only show user-created trips
     const [loading, setLoading] = useState(true);
     const [budgetData, setBudgetData] = useState(null);
@@ -47,7 +50,7 @@ const TripPlannerPage = () => {
                 }
             } catch (error) {
                 console.error('Error fetching groups:', error);
-                addToast('Failed to load groups', 'error');
+                addToast(t('tripPlanner.successLoad'), 'error');
             } finally {
                 setLoading(false);
             }
@@ -118,15 +121,15 @@ const TripPlannerPage = () => {
 
     // Handle delete destination
     const handleDelete = async (destinationId) => {
-        if (!window.confirm('Are you sure you want to delete this destination?')) return;
+        if (!window.confirm(t('tripPlanner.deleteConfirm'))) return;
         setDestinations(prev => prev.filter(d => d.id !== destinationId));
         if (selectedGroup) {
             try {
                 await deleteTrip(selectedGroup.id, destinationId);
-                addToast('Destination deleted!', 'success');
+                addToast(t('tripPlanner.deleteSuccess'), 'success');
             } catch (error) {
                 console.error('Error deleting trip:', error);
-                addToast('Failed to delete from cloud', 'error');
+                addToast(t('tripPlanner.deleteFail'), 'error');
             }
         }
     };
@@ -140,7 +143,7 @@ const TripPlannerPage = () => {
     // Handle plan trip (select for Transport/Hotels/Activities tabs)
     const handlePlanTrip = (destination) => {
         setActiveTripForPlanning(destination);
-        addToast(`Planning ${destination.title} — switch to Transport, Hotels, or Activities tab!`, 'success');
+        addToast(t('tripPlanner.planToast', { title: destination.title }), 'success');
     };
 
     // Handle filter toggle
@@ -172,18 +175,40 @@ const TripPlannerPage = () => {
             if (filterId === 'budget-friendly') return dest.tags.includes('Budget-Friendly');
             if (filterId === 'luxury') return dest.tags.includes('Premium');
             if (filterId === 'nature') return dest.category === 'Nature';
+            if (filterId === 'popular') return dest.tags.includes('Popular');
+            if (filterId === 'solo-friendly') return dest.tags.includes('Solo-Friendly');
             return true;
         });
 
-        return matchesSearch && matchesFilter;
+        // Time filter (Upcoming vs Past)
+        const today = new Date();
+        // Reset time to midnight for accurate day comparison
+        today.setHours(0, 0, 0, 0);
+
+        let matchesTime = true;
+        if (dest.endDate) {
+            const tripEndDate = new Date(dest.endDate);
+            const isPast = tripEndDate < today;
+
+            if (timeFilter === 'upcoming') {
+                matchesTime = !isPast;
+            } else if (timeFilter === 'past') {
+                matchesTime = isPast;
+            }
+        } else {
+            // If a trip has no end date, we consider it upcoming/ongoing
+            matchesTime = timeFilter === 'upcoming';
+        }
+
+        return matchesSearch && matchesFilter && matchesTime;
     });
 
     const tabs = [
-        { id: 'destinations', label: 'Destinations', icon: 'flight_takeoff' },
-        { id: 'transport', label: 'Transport', icon: 'directions_car' },
-        { id: 'hotels', label: 'Hotels', icon: 'hotel' },
-        { id: 'activities', label: 'Activities', icon: 'local_activity' },
-        { id: 'itinerary', label: 'Itinerary', icon: 'calendar_month' }
+        { id: 'destinations', label: t('tripPlanner.destinations'), icon: 'flight_takeoff' },
+        { id: 'transport', label: t('tripPlanner.transport'), icon: 'directions_car' },
+        { id: 'hotels', label: t('tripPlanner.hotels'), icon: 'hotel' },
+        { id: 'activities', label: t('tripPlanner.activities'), icon: 'local_activity' },
+        { id: 'itinerary', label: t('tripPlanner.itinerary'), icon: 'calendar_month' }
     ];
 
     if (loading) {
@@ -191,7 +216,7 @@ const TripPlannerPage = () => {
             <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-400 mx-auto mb-4"></div>
-                    <p className="text-gray-400">Loading travel budget...</p>
+                    <p className="text-gray-400">{t('tripPlanner.loading')}</p>
                 </div>
             </div>
         );
@@ -202,7 +227,7 @@ const TripPlannerPage = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                 <div className="flex-1">
-                    <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-2 leading-tight">Plan Your Travel Budget</h1>
+                    <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-2 leading-tight">{t('tripPlanner.pageTitle')}</h1>
                     {selectedGroup && (
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <span className="material-symbols-outlined text-sm">group</span>
@@ -213,7 +238,7 @@ const TripPlannerPage = () => {
                             >
                                 {userGroups.map(group => (
                                     <option key={group.id} value={group.id} className="dark:bg-slate-800">
-                                        GROUP: {group.name.toUpperCase()} 2024
+                                        {group.name.toUpperCase()}
                                     </option>
                                 ))}
                             </select>
@@ -223,14 +248,14 @@ const TripPlannerPage = () => {
 
                 <div className="text-left md:text-right bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] backdrop-blur-[2px] md:bg-none md:backdrop-filter-none border border-gray-200 dark:border-white/10 md:border-transparent p-4 rounded-2xl md:p-0 md:rounded-none mt-2 md:mt-0 shadow-sm md:shadow-none">
                     <div className="flex items-center justify-between md:justify-end gap-2 mb-1">
-                        <p className="text-gray-500 dark:text-gray-400 text-xs md:text-sm font-bold tracking-wider uppercase">Available Budget</p>
+                        <p className="text-gray-500 dark:text-gray-400 text-xs md:text-sm font-bold tracking-wider uppercase">{t('tripPlanner.availableBudget')}</p>
                         <button
                             onClick={() => setIsBudgetModalOpen(true)}
                             className="flex items-center gap-1 text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 transition-colors bg-amber-500/10 hover:bg-amber-500/20 md:bg-transparent md:hover:bg-transparent px-2 md:px-0 py-1 md:py-0 rounded-lg"
-                            title="Set Budget"
+                            title={t('tripPlanner.setBudget')}
                         >
                             <span className="material-symbols-outlined text-sm md:text-lg">edit</span>
-                            <span className="text-xs font-bold md:hidden">Edit</span>
+                            <span className="text-xs font-bold md:hidden">{t('tripPlanner.edit')}</span>
                         </button>
                     </div>
                     <p className="text-amber-500 dark:text-amber-400 font-black text-3xl md:text-4xl">
@@ -253,15 +278,15 @@ const TripPlannerPage = () => {
             ) : (
                 <div className="bg-gradient-to-br from-amber-500/10 via-amber-600/5 to-transparent border border-amber-500/20 rounded-2xl p-8 text-center">
                     <span className="material-symbols-outlined text-5xl text-amber-500/50 mb-4">trending_up</span>
-                    <h3 className="text-gray-900 dark:text-white font-bold text-xl mb-2">No Budget Set</h3>
+                    <h3 className="text-gray-900 dark:text-white font-bold text-xl mb-2">{t('tripPlanner.noBudgetTitle')}</h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-4">
-                        Set a budget to track your spending and get insights
+                        {t('tripPlanner.noBudgetDesc')}
                     </p>
                     <button
                         onClick={() => setIsBudgetModalOpen(true)}
                         className="px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-colors"
                     >
-                        Set Budget Now
+                        {t('tripPlanner.setBudgetNow')}
                     </button>
                 </div>
             )}
@@ -273,17 +298,17 @@ const TripPlannerPage = () => {
                         <span className="material-symbols-outlined text-amber-500">explore</span>
                         <div>
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                                Planning: {activeTripForPlanning.title}
+                                {t('tripPlanner.planning')} {activeTripForPlanning.title}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Transport, Hotels & Activities will show results for this destination
+                                {t('tripPlanner.planningDesc')}
                             </p>
                         </div>
                     </div>
                     <button
-                        onClick={() => { setActiveTripForPlanning(null); addToast('Trip deselected', 'info'); }}
+                        onClick={() => { setActiveTripForPlanning(null); addToast(t('tripPlanner.tripDeselected'), 'info'); }}
                         className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
-                        title="Clear selection"
+                        title={t('tripPlanner.clearSelection')}
                     >
                         <span className="material-symbols-outlined text-lg">close</span>
                     </button>
@@ -336,10 +361,38 @@ const TripPlannerPage = () => {
                                         : 'bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] backdrop-blur-[2px] text-gray-600 dark:text-gray-400 hover:border-amber-400/50 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-white/10 shadow-sm dark:shadow-none'
                                         }`}
                                 >
-                                    {filter.label}
+                                    {filter.id === 'my-trips' ? t('tripPlanner.filters.myTrips') :
+                                        filter.id === 'budget-friendly' ? t('tripPlanner.filters.budgetFriendly') :
+                                            filter.id === 'popular' ? t('tripPlanner.filters.popular') :
+                                                filter.id === 'nature' ? t('tripPlanner.filters.nature') :
+                                                    filter.id === 'solo-friendly' ? t('tripPlanner.filters.soloFriendly') :
+                                                        filter.id === 'luxury' ? t('tripPlanner.filters.luxury') :
+                                                            filter.label}
                                 </button>
                             ))}
                         </div>
+                    </div>
+
+                    {/* Time Filter Tabs (Upcoming / Past) */}
+                    <div className="flex bg-gray-100 dark:bg-black/30 w-fit rounded-lg p-1 border border-gray-200 dark:border-white/10">
+                        <button
+                            onClick={() => setTimeFilter('upcoming')}
+                            className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${timeFilter === 'upcoming' ? 'bg-white dark:bg-white/10 text-amber-500 shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[18px]">event_upcoming</span>
+                                Upcoming
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => setTimeFilter('past')}
+                            className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${timeFilter === 'past' ? 'bg-white dark:bg-white/10 text-amber-500 shadow-sm' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[18px]">history</span>
+                                Past
+                            </div>
+                        </button>
                     </div>
 
                     {/* Destinations Grid */}
@@ -356,40 +409,42 @@ const TripPlannerPage = () => {
                             />
                         ))}
 
-                        {/* Add Custom Destination Card */}
-                        <div
-                            onClick={() => {
-                                setNewTripData(null);
-                                setIsCreateModalOpen(true);
-                            }}
-                            className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] backdrop-blur-[2px] rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/10 hover:border-amber-400/50 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center p-8 min-h-[400px] cursor-pointer group shadow-md dark:shadow-none"
-                        >
-                            <div className="w-16 h-16 rounded-full bg-amber-400/10 flex items-center justify-center mb-4 group-hover:bg-amber-400/20 transition-colors">
-                                <span className="material-symbols-outlined text-4xl text-amber-500 dark:text-amber-400">add_location</span>
+                        {/* Add Custom Destination Card - Only show in Upcoming */}
+                        {timeFilter === 'upcoming' && (
+                            <div
+                                onClick={() => {
+                                    setNewTripData(null);
+                                    setIsCreateModalOpen(true);
+                                }}
+                                className="bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] backdrop-blur-[2px] rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/10 hover:border-amber-400/50 hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center p-8 min-h-[400px] cursor-pointer group shadow-md dark:shadow-none"
+                            >
+                                <div className="w-16 h-16 rounded-full bg-amber-400/10 flex items-center justify-center mb-4 group-hover:bg-amber-400/20 transition-colors">
+                                    <span className="material-symbols-outlined text-4xl text-amber-500 dark:text-amber-400">add_location</span>
+                                </div>
+                                <h3 className="text-gray-900 dark:text-white font-bold text-lg mb-2">{t('tripPlanner.addCustomDestination')}</h3>
+                                <p className="text-gray-600 dark:text-gray-400 text-sm text-center">
+                                    {t('tripPlanner.addCustomDesc')}
+                                </p>
                             </div>
-                            <h3 className="text-gray-900 dark:text-white font-bold text-lg mb-2">Add Custom Destination</h3>
-                            <p className="text-gray-600 dark:text-gray-400 text-sm text-center">
-                                Have somewhere specific in mind? Add it to your group wishlist.
-                            </p>
-                        </div>
+                        )}
                     </div>
 
                     {filteredDestinations.length === 0 && destinations.length === 0 && (
                         <div className="text-center py-20">
                             <span className="material-symbols-outlined text-6xl text-amber-400 mb-4">flight_takeoff</span>
-                            <p className="text-gray-700 dark:text-gray-300 text-lg font-semibold mb-2">No trips yet!</p>
-                            <p className="text-gray-500 text-sm mb-4">Search for a city above to plan your first trip</p>
+                            <p className="text-gray-700 dark:text-gray-300 text-lg font-semibold mb-2">{t('tripPlanner.noTripsTitle')}</p>
+                            <p className="text-gray-500 text-sm mb-4">{t('tripPlanner.noTripsDesc')}</p>
                             <div className="inline-flex items-center gap-2 text-amber-500 text-sm">
                                 <span className="material-symbols-outlined text-lg">arrow_upward</span>
-                                <span>Start by searching for a destination</span>
+                                <span>{t('tripPlanner.startSearching')}</span>
                             </div>
                         </div>
                     )}
                     {filteredDestinations.length === 0 && destinations.length > 0 && (
                         <div className="text-center py-20">
                             <span className="material-symbols-outlined text-6xl text-gray-400 dark:text-gray-600 mb-4">travel_explore</span>
-                            <p className="text-gray-700 dark:text-gray-400 text-lg">No trips match your filters</p>
-                            <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
+                            <p className="text-gray-700 dark:text-gray-400 text-lg">{t('tripPlanner.noFilterMatchTitle')}</p>
+                            <p className="text-gray-500 text-sm">{t('tripPlanner.noFilterMatchDesc')}</p>
                         </div>
                     )}
                 </>
@@ -443,9 +498,9 @@ const TripPlannerPage = () => {
                         {tabs.find(t => t.id === activeTab)?.icon}
                     </span>
                     <p className="text-gray-400 text-lg font-semibold">
-                        {tabs.find(t => t.id === activeTab)?.label} - Coming Soon!
+                        {tabs.find(t => t.id === activeTab)?.label} - {t('tripPlanner.comingSoon')}
                     </p>
-                    <p className="text-gray-500 text-sm mt-2">This feature is under development</p>
+                    <p className="text-gray-500 text-sm mt-2">{t('tripPlanner.underDevelopment')}</p>
                 </div>
             )}
 
@@ -482,7 +537,7 @@ const TripPlannerPage = () => {
                                         d.id === trip.id ? { ...d, ...trip } : d
                                     ));
                                     setActiveTripForPlanning(trip);
-                                    addToast('Trip updated!', 'success');
+                                    addToast(t('tripPlanner.tripUpdated'), 'success');
                                 } catch (updateError) {
                                     // Trip doesn't exist in Firestore (old local-only trip) — save as new
                                     console.warn('Trip not in Firestore, saving as new:', updateError.message);
@@ -497,7 +552,7 @@ const TripPlannerPage = () => {
                                         d.id === oldId ? savedTrip : d
                                     ));
                                     setActiveTripForPlanning(savedTrip);
-                                    addToast('Trip saved to cloud!', 'success');
+                                    addToast(t('tripPlanner.tripSaved'), 'success');
                                 }
                             } else {
                                 // CREATE mode - new trip
@@ -508,7 +563,7 @@ const TripPlannerPage = () => {
                                 });
                                 setDestinations(prev => [savedTrip, ...prev]);
                                 setActiveTripForPlanning(savedTrip);
-                                addToast('Trip created and saved!', 'success');
+                                addToast(t('tripPlanner.tripCreatedSaved'), 'success');
                             }
                         } catch (error) {
                             console.error('Error saving trip:', error);
@@ -516,12 +571,12 @@ const TripPlannerPage = () => {
                                 setDestinations(prev => [trip, ...prev]);
                             }
                             setActiveTripForPlanning(trip);
-                            addToast('Trip created (not saved to cloud)', 'warning');
+                            addToast(t('tripPlanner.tripCreatedWarn'), 'warning');
                         }
                     } else {
                         setDestinations(prev => [trip, ...prev]);
                         setActiveTripForPlanning(trip);
-                        addToast('Trip created! Select a group to save permanently.', 'info');
+                        addToast(t('tripPlanner.tripCreatedInfo'), 'info');
                     }
                 }}
             />
@@ -541,7 +596,7 @@ const TripPlannerPage = () => {
                                     setDestinations(prev => prev.map(d =>
                                         d.id === tripData.id ? { ...d, notes: tripData.notes } : d
                                     ));
-                                    addToast('Notes saved!', 'success');
+                                    addToast(t('tripPlanner.notesSaved'), 'success');
                                 })
                                 .catch(err => console.error('Error saving notes:', err));
                         }

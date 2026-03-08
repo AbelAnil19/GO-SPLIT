@@ -30,39 +30,37 @@ const ReceiptViewer = ({ receipt }) => {
             {/* Full-screen Modal */}
             {isModalOpen && (
                 <div
-                    className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+                    className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-8"
                     onClick={() => setIsModalOpen(false)}
                 >
-                    <div
-                        className="relative max-w-4xl max-h-[90vh] w-full"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Close button */}
-                        <button
-                            onClick={() => setIsModalOpen(false)}
-                            className="absolute -top-12 right-0 text-white hover:text-amber-400 transition flex items-center gap-2"
-                        >
-                            <span className="material-symbols-outlined text-3xl">close</span>
-                            <span className="font-semibold">Close</span>
-                        </button>
-
-                        {/* Image */}
-                        <img
-                            src={receipt.url}
-                            alt="Receipt full view"
-                            className="w-full h-full object-contain rounded-lg"
-                        />
-
-                        {/* Download button */}
+                    {/* Action Toolbar */}
+                    <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-3 sm:gap-4 z-10" onClick={(e) => e.stopPropagation()}>
                         <a
                             href={receipt.url}
                             download={receipt.name || 'receipt'}
-                            className="absolute -bottom-12 left-0 text-white hover:text-amber-400 transition flex items-center gap-2"
-                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-lg border border-white/10 transition-all font-semibold text-sm sm:text-base shadow-lg"
                         >
-                            <span className="material-symbols-outlined text-3xl">download</span>
-                            <span className="font-semibold">Download</span>
+                            <span className="material-symbols-outlined text-xl sm:text-2xl">download</span>
+                            <span className="hidden sm:inline">Download</span>
                         </a>
+                        <button
+                            onClick={() => setIsModalOpen(false)}
+                            className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-white/10 hover:bg-red-500/80 text-white hover:text-white rounded-full backdrop-blur-lg border border-white/10 transition-all shadow-lg"
+                        >
+                            <span className="material-symbols-outlined text-2xl">close</span>
+                        </button>
+                    </div>
+
+                    {/* Image Container */}
+                    <div
+                        className="relative max-w-5xl w-full h-full flex flex-col items-center justify-center pt-14 sm:pt-0"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <img
+                            src={receipt.url}
+                            alt="Receipt full view"
+                            className="max-w-full max-h-[85vh] sm:max-h-[90vh] object-contain rounded-2xl shadow-2xl"
+                        />
                     </div>
                 </div>
             )}

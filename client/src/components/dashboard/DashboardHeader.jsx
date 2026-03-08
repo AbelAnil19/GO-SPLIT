@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../firebase/authContext';
 import { useToast } from '../../context/ToastContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../context/ThemeContext';
 import { SunIcon } from '../icons/SunIcon';
 import { MoonIcon } from '../icons/MoonIcon';
@@ -18,6 +19,7 @@ const DashboardHeader = ({ onMenuClick }) => {
     const { addToast } = useToast();
     const navigate = useNavigate();
     const location = useLocation();
+    const { t } = useTranslation();
     const { theme, toggleTheme } = useTheme();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [userAvatar, setUserAvatar] = useState(null);
@@ -27,13 +29,13 @@ const DashboardHeader = ({ onMenuClick }) => {
     // Get page title based on current route
     const getPageTitle = () => {
         const path = location.pathname;
-        if (path === '/dashboard') return 'Dashboard';
-        if (path.startsWith('/dashboard/groups')) return 'Groups';
-        if (path.startsWith('/dashboard/expenses')) return 'Expenses';
-        if (path.startsWith('/dashboard/trip-planner')) return 'Travel Budget';
-        if (path.startsWith('/dashboard/history')) return 'History';
-        if (path.startsWith('/dashboard/settings')) return 'Settings';
-        return 'Dashboard';
+        if (path === '/dashboard') return t('sidebar.dashboard');
+        if (path.startsWith('/dashboard/groups')) return t('sidebar.groups');
+        if (path.startsWith('/dashboard/expenses')) return t('sidebar.expenses');
+        if (path.startsWith('/dashboard/trip-planner')) return t('sidebar.travelBudget');
+        if (path.startsWith('/dashboard/history')) return t('sidebar.history');
+        if (path.startsWith('/dashboard/settings')) return t('sidebar.settings');
+        return t('sidebar.dashboard');
     };
 
     // Listen to user avatar changes in real-time
@@ -61,9 +63,9 @@ const DashboardHeader = ({ onMenuClick }) => {
     // Get greeting based on time
     const getGreeting = () => {
         const hour = new Date().getHours();
-        if (hour < 12) return 'Good morning';
-        if (hour < 18) return 'Good afternoon';
-        return 'Good evening';
+        if (hour < 12) return t('dashboard.goodMorning');
+        if (hour < 18) return t('dashboard.goodAfternoon');
+        return t('dashboard.goodEvening');
     };
 
     const handleLogout = async () => {

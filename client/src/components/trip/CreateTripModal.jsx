@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../context/CurrencyContext';
 
 const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
+    const { t } = useTranslation();
     const { currencySymbol } = useCurrency();
     const [title, setTitle] = useState('');
     const [location, setLocation] = useState('');
@@ -110,7 +112,7 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
         }
 
         if (value && value.trim().length < 3) {
-            setErrors(prev => ({ ...prev, title: 'Trip name must be at least 3 characters' }));
+            setErrors(prev => ({ ...prev, title: t('createTripModal.tripNameError') }));
         } else {
             setErrors(prev => ({ ...prev, title: '' }));
         }
@@ -126,14 +128,14 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
             today.setHours(0, 0, 0, 0);
 
             if (selectedDate < today) {
-                setErrors(prev => ({ ...prev, startDate: 'Start date cannot be in the past' }));
+                setErrors(prev => ({ ...prev, startDate: t('createTripModal.errorPastStart') }));
             } else {
                 setErrors(prev => ({ ...prev, startDate: '' }));
             }
 
             // Also check end date if it exists
             if (endDate && new Date(endDate) < selectedDate) {
-                setErrors(prev => ({ ...prev, endDate: 'End date must be after start date' }));
+                setErrors(prev => ({ ...prev, endDate: t('createTripModal.errorEndBeforeStart') }));
             } else if (endDate) {
                 setErrors(prev => ({ ...prev, endDate: '' }));
             }
@@ -146,7 +148,7 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
 
         if (value && startDate) {
             if (new Date(value) < new Date(startDate)) {
-                setErrors(prev => ({ ...prev, endDate: 'End date must be after start date' }));
+                setErrors(prev => ({ ...prev, endDate: t('createTripModal.errorEndBeforeStart') }));
             } else {
                 setErrors(prev => ({ ...prev, endDate: '' }));
             }
@@ -166,9 +168,9 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
             if (value && parseFloat(value) > 0) {
                 setErrors(prev => ({ ...prev, budget: '' }));
             } else if (value && parseFloat(value) === 0) {
-                setErrors(prev => ({ ...prev, budget: 'Budget must be greater than 0' }));
+                setErrors(prev => ({ ...prev, budget: t('createTripModal.budgetError0') }));
             } else if (value.includes('.') && value.split('.')[1]?.length > 2) {
-                setErrors(prev => ({ ...prev, budget: 'Maximum 2 decimal places allowed' }));
+                setErrors(prev => ({ ...prev, budget: t('createTripModal.budgetErrorDecimals') }));
             } else {
                 setErrors(prev => ({ ...prev, budget: '' }));
             }
@@ -191,7 +193,7 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
                             {fetchingImage ? (
                                 <div className="flex flex-col items-center gap-2">
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                                    <span className="text-white/80 text-xs">Fetching preview...</span>
+                                    <span className="text-white/80 text-xs">{t('createTripModal.fetchingImage')}</span>
                                 </div>
                             ) : (
                                 <span className="material-symbols-outlined text-6xl text-white">flight</span>
@@ -200,13 +202,13 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
                         <h2 className="text-2xl font-bold text-white drop-shadow-lg">
-                            {isEditing ? 'Edit Trip' : 'Plan Your Trip'}
+                            {isEditing ? t('createTripModal.editTrip') : t('createTripModal.planTrip')}
                         </h2>
                     </div>
                     <button
                         onClick={onClose}
                         className="absolute top-3 right-3 w-9 h-9 flex items-center justify-center bg-white/90 hover:bg-white dark:bg-gray-900/90 dark:hover:bg-gray-900 rounded-full text-gray-700 dark:text-white transition-all shadow-lg hover:shadow-xl hover:scale-110 active:scale-95"
-                        title="Close"
+                        title={t('createTripModal.cancel')}
                     >
                         <span className="material-symbols-outlined text-lg">close</span>
                     </button>
@@ -216,13 +218,13 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
                 <div className="p-6 flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
                     {/* Trip Name */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Trip Name</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('createTripModal.tripName')}</label>
                         <input
                             type="text"
                             value={title}
                             onChange={handleTitleChange}
                             className={`w-full rounded-lg border ${errors.title ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/10'} p-3 bg-transparent text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all`}
-                            placeholder="e.g. Paris, Bali, Tokyo..."
+                            placeholder={t('createTripModal.tripNamePlaceholder')}
                         />
                         {errors.title && (
                             <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
@@ -233,14 +235,14 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
                         {!errors.title && title && title.trim().length >= 3 && (
                             <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
                                 <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
-                                Valid trip name
+                                {t('createTripModal.validTripName')}
                             </p>
                         )}
                     </div>
 
                     {/* Location (for custom destinations) */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('createTripModal.location')}</label>
                         <div className="relative">
                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">location_on</span>
                             <input
@@ -248,16 +250,16 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
                                 value={location}
                                 onChange={(e) => setLocation(e.target.value)}
                                 className="w-full rounded-lg border border-gray-300 dark:border-white/10 p-3 pl-10 bg-transparent text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
-                                placeholder="e.g. Paris, France"
+                                placeholder={t('createTripModal.locationPlaceholder')}
                             />
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">Where is this destination? (optional)</p>
+                        <p className="text-xs text-gray-400 mt-1">{t('createTripModal.locationHint')}</p>
                     </div>
 
                     {/* Dates Row */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('createTripModal.startDate')}</label>
                             <input
                                 type="date"
                                 value={startDate}
@@ -273,7 +275,7 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
                             )}
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('createTripModal.endDate')}</label>
                             <input
                                 type="date"
                                 value={endDate}
@@ -290,7 +292,7 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
                             {!errors.endDate && endDate && startDate && new Date(endDate) >= new Date(startDate) && (
                                 <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
                                     <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
-                                    Valid date range
+                                    {t('createTripModal.validDateRange')}
                                 </p>
                             )}
                         </div>
@@ -298,7 +300,7 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
 
                     {/* Expected Budget */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estimated Budget</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('createTripModal.estimatedBudget')}</label>
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{currencySymbol}</span>
                             <input
@@ -318,7 +320,7 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
                         {!errors.budget && budget && parseFloat(budget) > 0 && (
                             <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
                                 <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span>
-                                Valid budget
+                                {t('createTripModal.validBudget')}
                             </p>
                         )}
                     </div>
@@ -330,7 +332,7 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
                         onClick={onClose}
                         className="px-5 py-2.5 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 font-medium transition-colors"
                     >
-                        Cancel
+                        {t('createTripModal.cancel')}
                     </button>
                     <button
                         onClick={handleSave}
@@ -338,7 +340,7 @@ const CreateTripModal = ({ isOpen, onClose, onSave, initialData }) => {
                         className="px-6 py-2.5 rounded-xl bg-amber-400 text-black font-bold hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg transform active:scale-95 flex items-center gap-2"
                     >
                         <span className="material-symbols-outlined text-lg">{isEditing ? 'save' : 'add'}</span>
-                        {isEditing ? 'Save Changes' : 'Create Trip'}
+                        {isEditing ? t('createTripModal.saveChanges') : t('createTripModal.createTrip')}
                     </button>
                 </div>
             </div>

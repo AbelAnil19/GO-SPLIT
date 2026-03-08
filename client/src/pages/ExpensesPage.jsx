@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
-import { getUserExpenses, deleteExpense } from '../firebase/firestore';
+import { deleteExpense } from '../firebase/firestore';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
 import { calculateTotalBalance } from '../utils/expenseCalculator';
@@ -13,8 +13,10 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { useCurrency } from '../context/CurrencyContext';
 import ConvertedAmount from '../components/ConvertedAmount';
 import ReceiptViewer from '../components/ReceiptViewer';
+import { useTranslation } from 'react-i18next';
 
 const ExpensesPage = () => {
+    const { t } = useTranslation();
     const { currentUser } = useAuth();
     const { addToast } = useToast();
     const { currencySymbol } = useCurrency();
@@ -51,7 +53,7 @@ const ExpensesPage = () => {
             setLoading(false);
         }, (error) => {
             console.error('Error fetching expenses:', error);
-            addToast('Failed to load expenses', 'error');
+            addToast(t('expenses.failedLoad'), 'error');
             setLoading(false);
         });
 
@@ -101,9 +103,9 @@ const ExpensesPage = () => {
 
             let label;
             if (diffDays === 0) {
-                label = 'Today';
+                label = t('expenses.today');
             } else if (diffDays === 1) {
-                label = 'Yesterday';
+                label = t('expenses.yesterday');
             } else {
                 label = dateKey;
             }
@@ -155,10 +157,10 @@ const ExpensesPage = () => {
 
         try {
             await deleteExpense(deleteModal.expense.id, deleteModal.expense.groupId, deleteModal.expense.amount);
-            addToast('Expense deleted successfully', 'success');
+            addToast(t('expenses.deleteSuccess'), 'success');
         } catch (error) {
             console.error('Error deleting expense:', error);
-            addToast('Failed to delete expense', 'error');
+            addToast(t('expenses.deleteError'), 'error');
         }
     };
 
@@ -167,7 +169,7 @@ const ExpensesPage = () => {
             <div className="flex items-center justify-center h-96">
                 <div className="text-center">
                     <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent"></div>
-                    <p className="mt-4 text-gray-400">Loading expenses...</p>
+                    <p className="mt-4 text-gray-400">{t('expenses.loading')}</p>
                 </div>
             </div>
         );
@@ -179,9 +181,9 @@ const ExpensesPage = () => {
             <div className="bg-white dark:bg-white/5 p-6 rounded-xl shadow-sm border border-gray-300 dark:border-white/10 backdrop-blur-md">
                 <div className="flex flex-wrap justify-between items-end gap-4">
                     <div className="flex flex-col gap-2">
-                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">Expenses</h1>
+                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">{t('expenses.pageTitle')}</h1>
                         <div className="flex items-center gap-2">
-                            <p className="text-sm md:text-base text-[#5c6f73] dark:text-gray-400 font-normal">Total balance:</p>
+                            <p className="text-sm md:text-base text-[#5c6f73] dark:text-gray-400 font-normal">{t('expenses.totalBalance')}</p>
                             <span className={`font-bold text-lg px-2 py-0.5 rounded ${totalBalance >= 0
                                 ? 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-400/10'
                                 : 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-400/10'
@@ -189,7 +191,7 @@ const ExpensesPage = () => {
                                 {totalBalance >= 0 ? '+' : ''}{currencySymbol}{totalBalance.toFixed(2)}
                             </span>
                             <span className="text-gray-400 text-sm">
-                                {totalBalance >= 0 ? '(You are owed)' : '(You owe)'}
+                                {totalBalance >= 0 ? t('expenses.youAreOwed') : t('expenses.youOwe')}
                             </span>
                         </div>
                     </div>
@@ -197,17 +199,17 @@ const ExpensesPage = () => {
                         <button
                             onClick={() => setIsRecurringModalOpen(true)}
                             className="bg-purple-500 hover:bg-purple-600 text-white h-12 rounded-lg text-sm font-bold flex items-center gap-2 px-4 shadow-lg shadow-purple-900/20 transition-all"
-                            title="Set up recurring expenses"
+                            title={t('expenses.setupRecurring')}
                         >
                             <span className="material-symbols-outlined">event_repeat</span>
-                            Recurring
+                            {t('expenses.recurring')}
                         </button>
                         <button
                             onClick={() => setIsAddModalOpen(true)}
                             className="bg-amber-400 hover:bg-amber-300 text-black h-12 rounded-lg text-sm font-bold flex items-center gap-2 px-6 shadow-lg shadow-amber-900/20 transition-all"
                         >
                             <span className="material-symbols-outlined">add</span>
-                            Add Expense
+                            {t('expenses.addExpense')}
                         </button>
                     </div>
                 </div>
@@ -220,7 +222,7 @@ const ExpensesPage = () => {
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined">search</span>
                     <input
                         className="w-full h-12 pl-12 pr-4 bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all placeholder:text-gray-400 text-sm font-medium text-[#0d191b] dark:text-white backdrop-blur-md"
-                        placeholder="Search expenses..."
+                        placeholder={t('expenses.searchPlaceholder')}
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -235,7 +237,7 @@ const ExpensesPage = () => {
                             : 'bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 text-[#0d191b] dark:text-white hover:border-amber-400/50'
                             }`}
                     >
-                        <span className="text-sm font-medium">All Expenses</span>
+                        <span className="text-sm font-medium">{t('expenses.filterAll')}</span>
                     </button>
                     <button
                         onClick={() => setFilter('owe')}
@@ -244,7 +246,7 @@ const ExpensesPage = () => {
                             : 'bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 text-[#0d191b] dark:text-white hover:border-amber-400/50'
                             }`}
                     >
-                        <span className="text-sm font-medium">You Owe</span>
+                        <span className="text-sm font-medium">{t('expenses.filterOwe')}</span>
                     </button>
                     <button
                         onClick={() => setFilter('owed')}
@@ -253,7 +255,7 @@ const ExpensesPage = () => {
                             : 'bg-white dark:bg-white/5 border border-gray-300 dark:border-white/10 text-[#0d191b] dark:text-white hover:border-amber-400/50'
                             }`}
                     >
-                        <span className="text-sm font-medium">You're Owed</span>
+                        <span className="text-sm font-medium">{t('expenses.filterOwed')}</span>
                     </button>
                 </div>
             </div>
@@ -261,21 +263,21 @@ const ExpensesPage = () => {
             {/* Expense List */}
             {loading ? (
                 <div className="flex flex-col items-center justify-center min-h-[400px]">
-                    <LoaderIcon size={48} duration={0.8} />
-                    <p className="mt-4 text-[#5c6f73] dark:text-gray-400">Loading expenses...</p>
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent"></div>
+                    <p className="mt-4 text-[#5c6f73] dark:text-gray-400">{t('expenses.loading')}</p>
                 </div>
             ) : filteredExpenses.length === 0 ? (
                 <div className="text-center py-16">
                     <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600 mb-4">receipt_long</span>
                     <p className="text-gray-400 text-lg">
-                        {searchQuery ? 'No expenses match your search' : 'No expenses yet'}
+                        {searchQuery ? t('expenses.noMatch') : t('expenses.noExpenses')}
                     </p>
                     {!searchQuery && (
                         <button
                             onClick={() => setIsAddModalOpen(true)}
                             className="mt-4 text-amber-400 hover:text-amber-300 font-medium"
                         >
-                            Add your first expense
+                            {t('expenses.addFirst')}
                         </button>
                     )}
                 </div>
@@ -301,7 +303,7 @@ const ExpensesPage = () => {
                                             <div className="flex flex-col justify-center gap-0.5">
                                                 <p className="text-base font-bold text-[#0d191b] dark:text-white">{expense.description}</p>
                                                 <p className="text-sm text-gray-400">
-                                                    {expense.paidByName} paid <ConvertedAmount amount={expense.amount} originalCurrency={expense.originalCurrency || 'INR'} />
+                                                    {expense.paidByName} {t('expenses.paid')} <ConvertedAmount amount={expense.amount} originalCurrency={expense.originalCurrency || 'INR'} />
                                                 </p>
                                             </div>
                                         </div>
@@ -316,7 +318,7 @@ const ExpensesPage = () => {
                                         <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 pl-16 sm:pl-0">
                                             <span className={`text-xs font-semibold uppercase tracking-wider ${type === 'lent' ? 'text-green-400' : 'text-orange-400'
                                                 }`}>
-                                                {type === 'lent' ? 'You lent' : 'You borrowed'}
+                                                {type === 'lent' ? t('expenses.youLent') : t('expenses.youBorrowed')}
                                             </span>
                                             <span className={`text-base font-bold ${type === 'lent' ? 'text-green-400' : 'text-orange-400'
                                                 }`}>
@@ -330,7 +332,7 @@ const ExpensesPage = () => {
                                                         handleDeleteClick(expense);
                                                     }}
                                                     className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all absolute top-2 right-2 sm:static sm:opacity-0 sm:group-hover:opacity-100"
-                                                    title="Delete expense"
+                                                    title={t('expenses.deleteTooltip')}
                                                 >
                                                     <span className="material-symbols-outlined text-[20px]">delete</span>
                                                 </button>
@@ -346,7 +348,7 @@ const ExpensesPage = () => {
                     {filteredExpenses.length > 20 && (
                         <div className="flex justify-center pt-4">
                             <button className="text-gray-400 hover:text-amber-400 text-sm font-bold transition-colors">
-                                Show earlier expenses
+                                {t('expenses.showEarlier')}
                             </button>
                         </div>
                     )}
@@ -367,9 +369,9 @@ const ExpensesPage = () => {
                 isOpen={deleteModal.isOpen}
                 onClose={() => setDeleteModal({ isOpen: false, expense: null })}
                 onConfirm={confirmDeleteExpense}
-                title="Delete Expense"
-                message={`Are you sure you want to delete "${deleteModal.expense?.description}"? This action cannot be undone.`}
-                confirmText="Delete"
+                title={t('expenses.deleteTitle')}
+                message={t('expenses.deleteConfirm').replace('{description}', deleteModal.expense?.description)}
+                confirmText={t('common.delete')}
                 type="danger"
             />
 
@@ -380,11 +382,11 @@ const ExpensesPage = () => {
                 onSave={async (template) => {
                     try {
                         await createRecurringTemplate(template);
-                        addToast('Recurring expense created!', 'success');
+                        addToast(t('expenses.recurringSuccess'), 'success');
                         setIsRecurringModalOpen(false);
                     } catch (error) {
                         console.error('Error creating recurring expense:', error);
-                        addToast('Failed to create recurring expense', 'error');
+                        addToast(t('expenses.recurringError'), 'error');
                     }
                 }}
             />

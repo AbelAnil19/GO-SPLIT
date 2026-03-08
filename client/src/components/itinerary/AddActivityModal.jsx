@@ -3,10 +3,12 @@ import { useCurrency } from '../../context/CurrencyContext';
 import { useToast } from '../../context/ToastContext';
 import { ACTIVITY_TEMPLATES, getSuggestedActivities, validateActivity } from '../../utils/itineraryUtils';
 import { TIME_SLOT_LABELS } from '../../utils/itineraryUtils';
+import { useTranslation } from 'react-i18next';
 
 const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActivities = [] }) => {
     const { formatAmount, currencySymbol } = useCurrency();
     const { addToast } = useToast();
+    const { t } = useTranslation();
     const [mode, setMode] = useState('custom'); // 'custom' or 'template'
     const [formData, setFormData] = useState({
         title: '',
@@ -15,6 +17,7 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
         location: '',
         notes: ''
     });
+    const [errors, setErrors] = useState({ title: '', duration: '', cost: '' });
 
     const slotInfo = TIME_SLOT_LABELS[timeSlot];
     const suggestions = getSuggestedActivities(timeSlot, budgetRemaining);
@@ -22,21 +25,42 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+
+        // Live validation
+        if (name === 'title') {
+            setErrors(prev => ({ ...prev, title: value.trim() ? '' : 'Activity title is required' }));
+        }
+        if (name === 'duration') {
+            const num = parseFloat(value);
+            setErrors(prev => ({ ...prev, duration: value && num <= 0 ? 'Duration must be greater than 0' : '' }));
+        }
+        if (name === 'cost') {
+            const num = parseFloat(value);
+            setErrors(prev => ({ ...prev, cost: value && num < 0 ? 'Cost cannot be negative' : '' }));
+        }
     };
 
     const handleTemplateSelect = (template) => {
         setFormData({
-            title: template.title,
-            duration: template.duration.toString(),
-            cost: template.cost.toString(),
-            location: template.location || '',
-            notes: ''
+            title: template.name || template.title || '',
+            duration: (template.duration || 2).toString(),
+            cost: (template.estimatedCost || template.cost || 0).toString(),
+            location: template.formatted_address || template.address_line2 || template.location || '',
+            notes: template.description || ''
         });
         setMode('custom');
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
+
+        // Pre-check required fields with inline errors
+        const newErrors = { title: '', duration: '', cost: '' };
+        if (!formData.title.trim()) newErrors.title = 'Activity title is required';
+        if (formData.duration && parseFloat(formData.duration) <= 0) newErrors.duration = 'Duration must be greater than 0';
+        if (formData.cost && parseFloat(formData.cost) < 0) newErrors.cost = 'Cost cannot be negative';
+        setErrors(newErrors);
+        if (Object.values(newErrors).some(e => e)) return;
 
         const activity = {
             title: formData.title,
@@ -48,9 +72,8 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
         };
 
         const validation = validateActivity(activity);
-
         if (!validation.isValid) {
-            addToast(validation.errors.join('\n'), 'error');
+            addToast(validation.errors.join(' · '), 'error');
             return;
         }
 
@@ -67,10 +90,10 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                             <span className="text-3xl">{slotInfo.icon}</span>
                             <div>
                                 <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                                    Add {slotInfo.label} Activity
+                                    {t('itineraryBuilder.addActivityTitle', { slot: t(`itineraryBuilder.${timeSlot}Label`, slotInfo.label) })}
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Budget remaining: {formatAmount(budgetRemaining)}
+                                    {t('itineraryBuilder.budgetRemainingAmount', { amount: formatAmount(budgetRemaining) })}
                                 </p>
                             </div>
                         </div>
@@ -94,7 +117,7 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                                 }`}
                         >
-                            Custom Activity
+                            {t('itineraryBuilder.customActivity')}
                         </button>
                         <button
                             onClick={() => setMode('template')}
@@ -103,7 +126,7 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                                 }`}
                         >
-                            Quick Add
+                            {t('itineraryBuilder.quickAdd')}
                         </button>
                         <button
                             onClick={() => setMode('saved')}
@@ -112,7 +135,7 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                                 }`}
                         >
-                            Saved Places
+                            {t('itineraryBuilder.savedPlaces')}
                         </button>
                     </div>
 
@@ -120,7 +143,7 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                     {mode === 'template' && (
                         <div>
                             <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
-                                🤖 AI Suggested Activities
+                                {t('itineraryBuilder.aiSuggestedActivities')}
                             </h4>
                             {suggestions.length > 0 ? (
                                 <div className="grid grid-cols-1 gap-3">
@@ -146,7 +169,7 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-gray-400">
-                                    No suggestions available within your budget
+                                    {t('itineraryBuilder.noSuggestions')}
                                 </div>
                             )}
                         </div>
@@ -156,7 +179,7 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                     {mode === 'saved' && (
                         <div>
                             <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
-                                🔖 Your Saved Places
+                                {t('itineraryBuilder.yourSavedPlaces')}
                             </h4>
                             {savedActivities.length > 0 ? (
                                 <div className="grid grid-cols-1 gap-3">
@@ -169,13 +192,13 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <div className="font-semibold text-gray-900 dark:text-white">
-                                                        {place.title}
+                                                        {place.name || place.title || t('itineraryBuilder.unnamedActivity')}
                                                     </div>
                                                     <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                                        {place.duration}h · {formatAmount(place.cost)}
+                                                        {place.duration || 2}h · {formatAmount(place.estimatedCost || place.cost || 0)}
                                                     </div>
                                                     <div className="text-xs text-gray-500 mt-1">
-                                                        {place.location}
+                                                        {place.formatted_address || place.address_line2 || place.location || t('itineraryBuilder.unknownLocation')}
                                                     </div>
                                                 </div>
                                                 <span className="material-symbols-outlined text-amber-500">add_circle</span>
@@ -186,7 +209,7 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                             ) : (
                                 <div className="text-center py-8 text-gray-500">
                                     <span className="material-symbols-outlined text-4xl mb-2 text-gray-300 dark:text-gray-600 block">bookmark_border</span>
-                                    No saved places. Browse the Activities tab and save places for your trip.
+                                    {t('itineraryBuilder.noSavedPlaces')}
                                 </div>
                             )}
                         </div>
@@ -197,73 +220,99 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                    Activity Title *
+                                    {t('itineraryBuilder.activityTitle')}
                                 </label>
                                 <input
                                     type="text"
                                     name="title"
                                     value={formData.title}
                                     onChange={handleInputChange}
-                                    placeholder="e.g., Visit Eiffel Tower"
-                                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                                    placeholder={t('itineraryBuilder.activityTitlePlaceholder')}
+                                    className={`w-full px-4 py-3 rounded-xl border ${errors.title ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/20'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent`}
                                     required
                                 />
+                                {errors.title && (
+                                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                        {errors.title}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                        Duration (hours)
+                                        {t('itineraryBuilder.durationHours')}
                                     </label>
                                     <input
                                         type="number"
                                         name="duration"
                                         value={formData.duration}
                                         onChange={handleInputChange}
+                                        onKeyDown={(e) => {
+                                            if (e.key === '-' || e.key === 'e') e.preventDefault();
+                                        }}
                                         placeholder="2"
                                         step="0.5"
-                                        className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                                        min="0"
+                                        className={`w-full px-4 py-3 rounded-xl border ${errors.duration ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/20'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent`}
                                     />
+                                    {errors.duration && (
+                                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                            {errors.duration}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                        Cost ({currencySymbol})
+                                        {t('itineraryBuilder.cost', { currency: currencySymbol })}
                                     </label>
                                     <input
                                         type="number"
                                         name="cost"
                                         value={formData.cost}
                                         onChange={handleInputChange}
+                                        onKeyDown={(e) => {
+                                            if (e.key === '-' || e.key === 'e') e.preventDefault();
+                                        }}
                                         placeholder="1000"
-                                        className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                                        min="0"
+                                        className={`w-full px-4 py-3 rounded-xl border ${errors.cost ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/20'} bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent`}
                                     />
+                                    {errors.cost && (
+                                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                            {errors.cost}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                    Location
+                                    {t('itineraryBuilder.location')}
                                 </label>
                                 <input
                                     type="text"
                                     name="location"
                                     value={formData.location}
                                     onChange={handleInputChange}
-                                    placeholder="e.g., Champ de Mars, Paris"
+                                    placeholder={t('itineraryBuilder.locationPlaceholder')}
                                     className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent"
                                 />
                             </div>
 
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                    Notes
+                                    {t('itineraryBuilder.notes')}
                                 </label>
                                 <textarea
                                     name="notes"
                                     value={formData.notes}
                                     onChange={handleInputChange}
-                                    placeholder="Any additional details..."
+                                    placeholder={t('itineraryBuilder.notesPlaceholder')}
                                     rows={3}
                                     className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none"
                                 />
@@ -274,7 +323,7 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                                 <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-3 flex items-start gap-2">
                                     <span className="material-symbols-outlined text-red-500">warning</span>
                                     <div className="text-sm text-red-700 dark:text-red-400">
-                                        This activity exceeds your remaining budget by {formatAmount(parseFloat(formData.cost) - budgetRemaining)}
+                                        {t('itineraryBuilder.activityExceedsBudget', { amount: formatAmount(parseFloat(formData.cost) - budgetRemaining) })}
                                     </div>
                                 </div>
                             )}
@@ -285,13 +334,13 @@ const AddActivityModal = ({ timeSlot, budgetRemaining, onClose, onAdd, savedActi
                                     onClick={onClose}
                                     className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                                 >
-                                    Cancel
+                                    {t('itineraryBuilder.cancel')}
                                 </button>
                                 <button
                                     type="submit"
                                     className="flex-1 py-3 bg-amber-400 hover:bg-amber-500 text-black font-semibold rounded-xl transition-colors"
                                 >
-                                    Add Activity
+                                    {t('itineraryBuilder.addActivityBtn')}
                                 </button>
                             </div>
                         </form>

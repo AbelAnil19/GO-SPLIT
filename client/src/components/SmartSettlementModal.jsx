@@ -107,51 +107,45 @@ const SmartSettlementModal = ({ isOpen, onClose, expenses, members }) => {
                                 </div>
                             </div>
 
-                            <div className="space-y-3">
+                            <div className="grid gap-4">
                                 {optimized.map((tx, index) => (
-                                    <div
-                                        key={index}
-                                        className="bg-gradient-to-br from-white/80 to-white/60 dark:from-white/5 dark:to-white/[0.02] border border-gray-200 dark:border-white/10 rounded-xl p-5 hover:border-amber-400/50 transition-all shadow-sm"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-4 flex-1">
-                                                {/* From */}
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500/20 to-red-600/20 border-2 border-red-500/30 flex items-center justify-center">
-                                                        <span className="text-red-500 font-bold text-lg">{tx.fromName?.charAt(0) || 'U'}</span>
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900 dark:text-white">{tx.fromName}</p>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400">Pays</p>
-                                                    </div>
-                                                </div>
+                                    <div key={index} className="relative bg-white/60 dark:bg-[#1a1c23]/60 backdrop-blur-xl border border-gray-200/50 dark:border-white/5 rounded-2xl p-4 sm:p-5 hover:border-amber-500/30 dark:hover:border-amber-500/30 transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-amber-500/5 group flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
 
-                                                {/* Arrow */}
-                                                <div className="flex-1 flex items-center justify-center">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="h-px w-16 bg-gradient-to-r from-transparent via-amber-400 to-transparent"></div>
-                                                        <span className="material-symbols-outlined text-amber-400 text-2xl">arrow_forward</span>
-                                                        <div className="h-px w-16 bg-gradient-to-r from-transparent via-amber-400 to-transparent"></div>
-                                                    </div>
-                                                </div>
-
-                                                {/* To */}
-                                                <div className="flex items-center gap-3">
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900 dark:text-white text-right">{tx.toName}</p>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 text-right">Receives</p>
-                                                    </div>
-                                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500/20 to-green-600/20 border-2 border-green-500/30 flex items-center justify-center">
-                                                        <span className="text-green-500 font-bold text-lg">{tx.toName?.charAt(0) || 'U'}</span>
-                                                    </div>
-                                                </div>
+                                        {/* Payer */}
+                                        <div className="flex-1 flex items-center justify-end sm:justify-start gap-3 sm:gap-4 w-full sm:w-auto">
+                                            <div className="text-right sm:text-left flex-1">
+                                                <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5 sm:mb-1">Payer</p>
+                                                <p className="font-black text-base sm:text-lg text-gray-900 dark:text-white truncate">{tx.fromName}</p>
                                             </div>
-
-                                            <div className="ml-6 text-right">
-                                                <p className="text-3xl font-bold text-amber-500">{formatAmount(tx.amount)}</p>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">Amount</p>
+                                            <div className="w-10 h-10 sm:w-14 sm:h-14 shrink-0 rounded-2xl bg-gradient-to-br from-red-500/20 to-red-600/10 border-2 border-red-500/30 flex items-center justify-center text-red-500 font-black text-lg sm:text-xl shadow-inner relative mt-1 sm:mt-0">
+                                                {tx.fromName?.charAt(0) || 'U'}
+                                                <div className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-red-500 rounded-full border-2 border-white dark:border-[#1a1c23]"></div>
                                             </div>
                                         </div>
+
+                                        {/* Connection Graphics */}
+                                        <div className="flex-shrink-0 flex flex-col items-center justify-center w-full sm:w-auto py-2 sm:py-0">
+                                            <p className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-500 mb-1">
+                                                {formatAmount(tx.amount)}
+                                            </p>
+                                            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-32 justify-center opacity-70 group-hover:opacity-100 transition-opacity">
+                                                <div className="h-[2px] w-full bg-gradient-to-r from-red-500/20 via-amber-500 to-green-500/20 rounded-full"></div>
+                                                <span className="material-symbols-outlined text-amber-500 absolute bg-white dark:bg-[#1a1c23] rounded-full text-sm sm:text-base">chevron_right</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Payee */}
+                                        <div className="flex-1 flex items-center justify-start sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto flex-row-reverse sm:flex-row">
+                                            <div className="text-left sm:text-right flex-1">
+                                                <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mb-0.5 sm:mb-1">Receiver</p>
+                                                <p className="font-black text-base sm:text-lg text-gray-900 dark:text-white truncate">{tx.toName}</p>
+                                            </div>
+                                            <div className="w-10 h-10 sm:w-14 sm:h-14 shrink-0 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-600/10 border-2 border-green-500/30 flex items-center justify-center text-green-500 font-black text-lg sm:text-xl shadow-inner relative mb-1 sm:mb-0">
+                                                {tx.toName?.charAt(0) || 'U'}
+                                                <div className="absolute -bottom-1 -left-1 sm:-left-auto sm:-right-1 w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded-full border-2 border-white dark:border-[#1a1c23]"></div>
+                                            </div>
+                                        </div>
+
                                     </div>
                                 ))}
                             </div>

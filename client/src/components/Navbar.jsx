@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { doSignOut } from '../firebase/auth';
+import logo from '../assets/logo.png';
 
 const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -34,7 +35,7 @@ const Navbar = () => {
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center">
                         <Link to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex-shrink-0">
-                            <img className="h-10 w-auto" src="/src/assets/logo.png" alt="GoSplit" />
+                            <img className="h-10 w-auto" src={logo} alt="GoSplit" />
                         </Link>
                         <div className="hidden md:block">
                             <div className="ml-10 flex items-baseline space-x-4">

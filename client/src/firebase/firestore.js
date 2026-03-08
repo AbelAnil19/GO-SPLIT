@@ -150,7 +150,7 @@ export const checkUserCanDelete = async (userId) => {
         // 1. Check net balance
         const { netBalance } = await calculateUserNetBalance(userId);
         if (Math.abs(netBalance) > 0.01) { // Allow 1 paisa tolerance for floating point
-            blockers.push(`Unsettled balance: â‚¹${netBalance.toFixed(2)}`);
+            blockers.push(`Unsettled balance: ₹${netBalance.toFixed(2)}`);
         }
 
         // 2. Check if user is admin of any groups
@@ -369,6 +369,44 @@ export const softDeleteUserAccount = async (userId, options = {}) => {
 
     } catch (error) {
         console.error('âŒ Error in soft delete:', error);
+        throw error;
+    }
+};
+
+// ==================== 2FA FUNCTIONS ====================
+
+/**
+ * Enables 2FA for a user by saving their verified secret key.
+ */
+export const enableUser2FA = async (userId, secretKey) => {
+    try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+            is2FAEnabled: true,
+            twoFactorSecret: secretKey
+        });
+        console.log('✅ 2FA enabled successfully for user:', userId);
+        return true;
+    } catch (error) {
+        console.error('❌ Error enabling 2FA:', error);
+        throw error;
+    }
+};
+
+/**
+ * Disables 2FA for a user by clearing their secret key.
+ */
+export const disableUser2FA = async (userId) => {
+    try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+            is2FAEnabled: false,
+            twoFactorSecret: null
+        });
+        console.log('✅ 2FA disabled successfully for user:', userId);
+        return true;
+    } catch (error) {
+        console.error('❌ Error disabling 2FA:', error);
         throw error;
     }
 };
@@ -1023,7 +1061,7 @@ export const createExpense = async (expenseData) => {
                         memberId,
                         'expense',
                         'New Expense Added',
-                        `${expenseData.paidByName} added â‚¹${expenseData.amount} for "${expenseData.description}"`,
+                        `${expenseData.paidByName} added ${expenseData.amount} ${expenseData.currency || 'INR'} for "${expenseData.description}"`,
                         {
                             groupId: expenseData.groupId,
                             expenseId: expenseRef.id,
@@ -1112,7 +1150,7 @@ export const deleteAllUserExpenses = async (userId) => {
         const paidBySnapshot = await getDocs(paidByQuery);
         console.log(`   Found ${paidBySnapshot.size} expenses paid by user`);
         paidBySnapshot.docs.forEach(doc => {
-            console.log(`   - Expense: ${doc.id}, Amount: â‚¹${doc.data().amount}, Group: ${doc.data().groupId}`);
+            console.log(`   - Expense: ${doc.id}, Amount: ₹${doc.data().amount}, Group: ${doc.data().groupId}`);
             expensesToDelete.push(doc);
             if (doc.data().groupId) affectedGroups.add(doc.data().groupId);
         });
@@ -1139,7 +1177,7 @@ export const deleteAllUserExpenses = async (userId) => {
             groupExpensesSnapshot.docs.forEach(doc => {
                 // Add if not already in list (avoid duplicates)
                 if (!expensesToDelete.find(e => e.id === doc.id)) {
-                    console.log(`     + Adding expense: ${doc.id}, Amount: â‚¹${doc.data().amount}, Paid by: ${doc.data().paidBy}`);
+                    console.log(`     + Adding expense: ${doc.id}, Amount: ₹${doc.data().amount}, Paid by: ${doc.data().paidBy}`);
                     expensesToDelete.push(doc);
                 } else {
                     console.log(`     = Already in list: ${doc.id}`);
@@ -1172,7 +1210,7 @@ export const deleteAllUserExpenses = async (userId) => {
                 console.log(`   âœ… Reset totalExpenses for group: ${groupId}`);
             });
             await Promise.all(resetPromises);
-            console.log(`âœ… Reset ${affectedGroups.size} group totals to â‚¹0`);
+            console.log(`✅ Reset ${affectedGroups.size} group totals to ₹0`);
         }
 
         // Delete all user activities (using involvedUserIds to match Dashboard display)
@@ -1229,7 +1267,7 @@ export const getUserExpenses = async (userId) => {
             .map(doc => ({ id: doc.id, ...doc.data() }))
             .filter(expense =>
                 expense.paidBy === userId ||
-                expense.splitBetween.some(split => split.userId === userId)
+                expense.splitBetween?.some(split => split.userId === userId)
             );
 
         // Fetch group names for expenses
@@ -1335,7 +1373,7 @@ export const createSettlement = async (fromUserId, toUserId, amount, fromUserDat
             toUserId,
             'settlement',
             'Settlement Request',
-            `${fromUserData.displayName?.split(' ')[0]} wants to settle â‚¹${amount}`,
+            `${fromUserData.displayName?.split(' ')[0]} wants to settle ₹${amount}`,
             {
                 settlementId: docRef.id,
                 amount,
@@ -1396,7 +1434,7 @@ export const approveSettlement = async (settlementId) => {
                 try {
                     await sendMessage(
                         settlementData.groupId,
-                        `${settlementData.toUserName} verified a payment of â‚¹${settlementData.amount} from ${settlementData.fromUserName}`,
+                        `${settlementData.toUserName} verified a payment of ₹${settlementData.amount} from ${settlementData.fromUserName}`,
                         {
                             uid: 'SYSTEM',
                             displayName: 'System',
@@ -1413,7 +1451,7 @@ export const approveSettlement = async (settlementId) => {
                 settlementData.fromUserId,
                 'payment',
                 'Payment Approved',
-                `${settlementData.toUserName} verified your â‚¹${settlementData.amount} payment`,
+                `${settlementData.toUserName} verified your ₹${settlementData.amount} payment`,
                 {
                     settlementId,
                     amount: settlementData.amount,
@@ -1426,7 +1464,7 @@ export const approveSettlement = async (settlementId) => {
             await createActivity({
                 involvedUserIds: [settlementData.fromUserId, settlementData.toUserId],
                 type: 'payment_verified',
-                description: `${settlementData.toUserName} verified a payment of â‚¹${settlementData.amount}`,
+                description: `${settlementData.toUserName} verified a payment of ₹${settlementData.amount}`,
                 relatedId: settlementId,
                 groupId: settlementData.groupId || null // Link activity to group if possible
             });
@@ -2176,7 +2214,7 @@ export const getDashboardAnalytics = async () => {
 
         const groupStatus = [
             { name: 'Active', value: activeGroups, color: '#10b981' },
-            { name: 'Settled', value: settledGroups, color: '#6366f1' }
+            { name: 'Closed', value: settledGroups, color: '#6366f1' }
         ];
 
         return {

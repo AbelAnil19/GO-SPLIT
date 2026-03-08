@@ -20,6 +20,7 @@ const RecurringExpenseModal = ({ isOpen, onClose, onSave }) => {
     const [endDate, setEndDate] = useState('');
     const [paidBy, setPaidBy] = useState('');
     const [splitWith, setSplitWith] = useState([]);
+    const [errors, setErrors] = useState({});
 
     const categories = [
         { value: 'food', label: '🍔 Food & Dining' },
@@ -72,8 +73,18 @@ const RecurringExpenseModal = ({ isOpen, onClose, onSave }) => {
     };
 
     const handleSave = () => {
-        if (!description || !amount || !selectedGroup || !startDate) {
-            addToast('Please fill all required fields', 'error');
+        const newErrors = {};
+        if (!selectedGroup) newErrors.group = 'Please select a group';
+        if (!description.trim()) newErrors.description = 'Description is required';
+        if (!amount || parseFloat(amount) <= 0) newErrors.amount = 'Must be greater than 0';
+        if (!startDate) newErrors.startDate = 'Start date is required';
+        if (endDate && startDate && new Date(endDate) < new Date(startDate)) {
+            newErrors.endDate = 'End date cannot be before start date';
+        }
+
+        setErrors(newErrors);
+
+        if (Object.keys(newErrors).length > 0) {
             return;
         }
 
@@ -107,6 +118,7 @@ const RecurringExpenseModal = ({ isOpen, onClose, onSave }) => {
         setFrequency('monthly');
         setStartDate('');
         setEndDate('');
+        setErrors({});
     };
 
     if (!isOpen) return null;
@@ -144,8 +156,11 @@ const RecurringExpenseModal = ({ isOpen, onClose, onSave }) => {
                         </label>
                         <select
                             value={selectedGroup?.id || ''}
-                            onChange={(e) => handleGroupChange(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
+                            onChange={(e) => {
+                                handleGroupChange(e.target.value);
+                                if (errors.group) setErrors({ ...errors, group: null });
+                            }}
+                            className={`w-full px-4 py-3 rounded-xl border ${errors.group ? 'border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-[#1a1c23] text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all`}
                             required
                         >
                             {groups.map(group => (
@@ -154,6 +169,7 @@ const RecurringExpenseModal = ({ isOpen, onClose, onSave }) => {
                                 </option>
                             ))}
                         </select>
+                        {errors.group && <p className="text-red-500 text-xs mt-1">{errors.group}</p>}
                     </div>
 
                     {/* Description */}
@@ -164,11 +180,22 @@ const RecurringExpenseModal = ({ isOpen, onClose, onSave }) => {
                         <input
                             type="text"
                             value={description}
-                            onChange={(e) => setDescription(e.target.value)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setDescription(val);
+                                if (!val.trim()) {
+                                    setErrors({ ...errors, description: 'Description cannot be empty' });
+                                } else {
+                                    const newErrors = { ...errors };
+                                    delete newErrors.description;
+                                    setErrors(newErrors);
+                                }
+                            }}
                             placeholder="e.g., Netflix Subscription"
-                            className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
+                            className={`w-full px-4 py-3 rounded-xl border ${errors.description ? 'border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all`}
                             required
                         />
+                        {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
                     </div>
 
                     {/* Amount, Currency, Category Grid */}
@@ -182,11 +209,27 @@ const RecurringExpenseModal = ({ isOpen, onClose, onSave }) => {
                                 step="0.01"
                                 min="0.01"
                                 value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                        e.preventDefault();
+                                    }
+                                }}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setAmount(val);
+                                    if (!val || parseFloat(val) <= 0) {
+                                        setErrors({ ...errors, amount: 'Amount must be greater than 0' });
+                                    } else {
+                                        const newErrors = { ...errors };
+                                        delete newErrors.amount;
+                                        setErrors(newErrors);
+                                    }
+                                }}
                                 placeholder="0.00"
-                                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
+                                className={`w-full px-4 py-3 rounded-xl border ${errors.amount ? 'border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all`}
                                 required
                             />
+                            {errors.amount && <p className="text-red-500 text-xs mt-1 leading-tight">{errors.amount}</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -234,8 +277,8 @@ const RecurringExpenseModal = ({ isOpen, onClose, onSave }) => {
                                     type="button"
                                     onClick={() => setFrequency(freq.value)}
                                     className={`px-4 py-3 rounded-xl font-semibold transition-all ${frequency === freq.value
-                                            ? 'bg-amber-400 text-black'
-                                            : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'
+                                        ? 'bg-amber-400 text-black'
+                                        : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'
                                         }`}
                                 >
                                     {freq.label}
@@ -253,11 +296,31 @@ const RecurringExpenseModal = ({ isOpen, onClose, onSave }) => {
                             <input
                                 type="date"
                                 value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setStartDate(val);
+
+                                    const newErrors = { ...errors };
+                                    if (!val) {
+                                        newErrors.startDate = 'Start date is required';
+                                    } else {
+                                        delete newErrors.startDate;
+                                    }
+
+                                    // Also re-validate end date if it exists
+                                    if (endDate && val && new Date(endDate) < new Date(val)) {
+                                        newErrors.endDate = 'End date cannot be before start date';
+                                    } else if (endDate) {
+                                        delete newErrors.endDate;
+                                    }
+
+                                    setErrors(newErrors);
+                                }}
                                 min={new Date().toISOString().split('T')[0]}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
+                                className={`w-full px-4 py-3 rounded-xl border ${errors.startDate ? 'border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-white/5 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all`}
                                 required
                             />
+                            {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate}</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -266,10 +329,21 @@ const RecurringExpenseModal = ({ isOpen, onClose, onSave }) => {
                             <input
                                 type="date"
                                 value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEndDate(val);
+                                    if (val && startDate && new Date(val) < new Date(startDate)) {
+                                        setErrors({ ...errors, endDate: 'End date cannot be before start date' });
+                                    } else {
+                                        const newErrors = { ...errors };
+                                        delete newErrors.endDate;
+                                        setErrors(newErrors);
+                                    }
+                                }}
                                 min={startDate || new Date().toISOString().split('T')[0]}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all"
+                                className={`w-full px-4 py-3 rounded-xl border ${errors.endDate ? 'border-red-500' : 'border-gray-300 dark:border-white/10'} bg-white dark:bg-white/5 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none transition-all`}
                             />
+                            {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate}</p>}
                         </div>
                     </div>
 

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../context/CurrencyContext';
 
 const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) => {
+    const { t, i18n } = useTranslation();
     const { formatAmount } = useCurrency();
     const [notes, setNotes] = useState(trip?.notes || '');
     const [notesEditing, setNotesEditing] = useState(false);
@@ -41,7 +43,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                     <button
                         onClick={onClose}
                         className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-white/90 hover:bg-white dark:bg-gray-900/90 dark:hover:bg-gray-900 rounded-full text-gray-700 dark:text-white transition-all shadow-lg hover:shadow-xl hover:scale-110 active:scale-95"
-                        title="Close"
+                        title={t('tripDetailsModal.close')}
                     >
                         <span className="material-symbols-outlined">close</span>
                     </button>
@@ -67,7 +69,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                         <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/20 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-2">
                                 <span className="material-symbols-outlined text-amber-500 text-xl">calendar_month</span>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Duration</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('tripDetailsModal.duration')}</p>
                             </div>
                             <p className="text-2xl font-bold text-gray-900 dark:text-white">{trip.duration}</p>
                         </div>
@@ -75,7 +77,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                         <div className="bg-gradient-to-br from-green-500/10 to-green-600/5 border border-green-500/20 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-2">
                                 <span className="material-symbols-outlined text-green-500 text-xl">payments</span>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Budget</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('tripDetailsModal.budget')}</p>
                             </div>
                             <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatAmount(trip.estimatedCost || 0)}</p>
                         </div>
@@ -83,20 +85,20 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                         <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-2">
                                 <span className="material-symbols-outlined text-blue-500 text-xl">event</span>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Start Date</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('tripDetailsModal.startDate')}</p>
                             </div>
                             <p className="text-sm font-bold text-gray-900 dark:text-white">
-                                {trip.startDate ? new Date(trip.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set'}
+                                {trip.startDate ? new Date(trip.startDate).toLocaleDateString(i18n.language || undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : t('tripDetailsModal.notSet')}
                             </p>
                         </div>
 
                         <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-2">
                                 <span className="material-symbols-outlined text-purple-500 text-xl">event_available</span>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">End Date</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">{t('tripDetailsModal.endDate')}</p>
                             </div>
                             <p className="text-sm font-bold text-gray-900 dark:text-white">
-                                {trip.endDate ? new Date(trip.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set'}
+                                {trip.endDate ? new Date(trip.endDate).toLocaleDateString(i18n.language || undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : t('tripDetailsModal.notSet')}
                             </p>
                         </div>
                     </div>
@@ -107,7 +109,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                             <div className="p-4 bg-white dark:bg-white/5 border-b border-gray-200 dark:border-white/10">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                     <span className="material-symbols-outlined text-amber-500">map</span>
-                                    Location Map
+                                    {t('tripDetailsModal.locationMap')}
                                 </h3>
                             </div>
                             <div className="h-64 bg-gray-200 dark:bg-gray-800 relative">
@@ -124,11 +126,11 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                             </div>
                             <div className="p-4 bg-white dark:bg-white/5 space-y-2 text-sm">
                                 <div className="flex justify-between">
-                                    <span className="text-gray-600 dark:text-gray-400">Full Address:</span>
+                                    <span className="text-gray-600 dark:text-gray-400">{t('tripDetailsModal.fullAddress')}</span>
                                     <span className="text-gray-900 dark:text-white font-medium text-right max-w-[60%]">{trip.location}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-600 dark:text-gray-400">Coordinates:</span>
+                                    <span className="text-gray-600 dark:text-gray-400">{t('tripDetailsModal.coordinates')}</span>
                                     <span className="text-gray-900 dark:text-white font-mono text-xs">{trip.lat}, {trip.lon}</span>
                                 </div>
                                 <div className="pt-2 border-t border-gray-200 dark:border-white/10">
@@ -139,7 +141,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                                         className="inline-flex items-center gap-1 text-amber-500 hover:text-amber-600 transition-colors text-sm"
                                     >
                                         <span className="material-symbols-outlined text-base">open_in_new</span>
-                                        Open in Google Maps
+                                        {t('tripDetailsModal.openGoogleMaps')}
                                     </a>
                                     <span className="mx-2 text-gray-400">•</span>
                                     <a
@@ -149,7 +151,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                                         className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600 transition-colors text-sm"
                                     >
                                         <span className="material-symbols-outlined text-base">open_in_new</span>
-                                        Open in OpenStreetMap
+                                        {t('tripDetailsModal.openOpenStreetMap')}
                                     </a>
                                 </div>
                             </div>
@@ -160,10 +162,10 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                     <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-5 border border-gray-200 dark:border-white/10">
                         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                             <span className="material-symbols-outlined text-amber-500">description</span>
-                            Trip Overview
+                            {t('tripDetailsModal.tripOverview')}
                         </h3>
                         <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                            {trip.description || `Your exciting trip to ${trip.title}! This is your personalized travel plan.`}
+                            {trip.description || t('tripDetailsModal.defaultDescription', { title: trip.title })}
                         </p>
                     </div>
 
@@ -179,21 +181,21 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                         >
                             <div className="flex items-center gap-2 mb-3">
                                 <span className="material-symbols-outlined text-blue-500">event_note</span>
-                                <h3 className="text-sm font-bold text-blue-600 dark:text-blue-400">Day-by-Day Itinerary</h3>
+                                <h3 className="text-sm font-bold text-blue-600 dark:text-blue-400">{t('tripDetailsModal.dayByDayItinerary')}</h3>
                                 <span className="material-symbols-outlined text-blue-400 text-sm ml-auto opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
                             </div>
-                            <p className="text-xs text-gray-600 dark:text-gray-400">Plan your daily activities, set budgets per day, and organize your trip schedule.</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">{t('tripDetailsModal.itineraryDesc')}</p>
                         </button>
 
                         {/* Trip Notes - Expandable */}
                         <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 rounded-xl p-5 border border-purple-500/20">
                             <div className="flex items-center gap-2 mb-3">
                                 <span className="material-symbols-outlined text-purple-500">sticky_note_2</span>
-                                <h3 className="text-sm font-bold text-purple-600 dark:text-purple-400">Trip Notes</h3>
+                                <h3 className="text-sm font-bold text-purple-600 dark:text-purple-400">{t('tripDetailsModal.tripNotes')}</h3>
                                 {notesSaved && (
                                     <span className="text-xs text-green-500 ml-auto flex items-center gap-1">
                                         <span className="material-symbols-outlined text-sm">check_circle</span>
-                                        Saved!
+                                        {t('tripDetailsModal.saved')}
                                     </span>
                                 )}
                             </div>
@@ -202,7 +204,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                                     <textarea
                                         value={notes}
                                         onChange={(e) => setNotes(e.target.value)}
-                                        placeholder="Add packing list, reminders, booking references..."
+                                        placeholder={t('tripDetailsModal.addNotesPlaceholder')}
                                         className="w-full h-24 bg-white/50 dark:bg-white/5 border border-purple-300 dark:border-purple-500/30 rounded-lg p-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"
                                         autoFocus
                                     />
@@ -211,7 +213,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                                             onClick={handleSaveNotes}
                                             className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-semibold hover:bg-purple-600 transition-colors"
                                         >
-                                            Save Notes
+                                            {t('tripDetailsModal.saveNotes')}
                                         </button>
                                         <button
                                             onClick={() => {
@@ -220,7 +222,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                                             }}
                                             className="px-3 py-1.5 bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium hover:bg-gray-300 dark:hover:bg-white/20 transition-colors"
                                         >
-                                            Cancel
+                                            {t('tripDetailsModal.cancel')}
                                         </button>
                                     </div>
                                 </div>
@@ -232,11 +234,11 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                                     {notes ? (
                                         <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap line-clamp-3">{notes}</p>
                                     ) : (
-                                        <p className="text-xs text-gray-500 dark:text-gray-500 italic">Click to add notes, packing lists, or reminders...</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-500 italic">{t('tripDetailsModal.clickToAddNotes')}</p>
                                     )}
                                     <span className="text-xs text-purple-500 mt-2 inline-flex items-center gap-1">
                                         <span className="material-symbols-outlined text-sm">edit</span>
-                                        {notes ? 'Edit notes' : 'Add notes'}
+                                        {notes ? t('tripDetailsModal.editNotes') : t('tripDetailsModal.addNotes')}
                                     </span>
                                 </button>
                             )}
@@ -250,7 +252,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                         onClick={onClose}
                         className="flex-1 px-6 py-3 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 font-semibold hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
                     >
-                        Close
+                        {t('tripDetailsModal.close')}
                     </button>
                     <button
                         onClick={() => {
@@ -260,7 +262,7 @@ const TripDetailsModal = ({ isOpen, onClose, trip, onEdit, onViewItinerary }) =>
                         className="flex-1 px-6 py-3 rounded-xl bg-amber-400 text-black font-bold hover:bg-amber-500 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                     >
                         <span className="material-symbols-outlined">edit</span>
-                        Edit Trip
+                        {t('tripDetailsModal.editTrip')}
                     </button>
                 </div>
             </div>

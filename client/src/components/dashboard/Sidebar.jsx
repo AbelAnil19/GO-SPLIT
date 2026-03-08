@@ -37,7 +37,7 @@ const Sidebar = ({ onClose }) => {
         { icon: 'dashboard', label: t('sidebar.dashboard'), path: '/dashboard' },
         { icon: 'groups', label: t('sidebar.groups'), path: '/dashboard/groups' },
         { icon: 'receipt_long', label: t('sidebar.expenses'), path: '/dashboard/expenses' },
-        { icon: 'analytics', label: 'Analytics', path: '/dashboard/analytics' },
+        { icon: 'analytics', label: t('sidebar.analytics'), path: '/dashboard/analytics' },
         { icon: 'flight_takeoff', label: t('sidebar.travelBudget'), path: '/dashboard/trip-planner' },
         { icon: 'history', label: t('sidebar.history'), path: '/dashboard/history' },
         { icon: 'settings', label: t('sidebar.settings'), path: '/dashboard/settings' }
@@ -134,7 +134,7 @@ const Sidebar = ({ onClose }) => {
                         className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-black hover:shadow-lg hover:shadow-amber-500/30 transition-all duration-300 w-full group"
                     >
                         <span className="material-symbols-outlined text-xl">shield</span>
-                        <span className="font-bold text-sm">Admin Panel</span>
+                        <span className="font-bold text-sm">{t('sidebar.adminPanel')}</span>
                     </Link>
                 </div>
             )}

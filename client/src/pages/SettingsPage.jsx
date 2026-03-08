@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../firebase/authContext';
 import { useToast } from '../context/ToastContext';
@@ -10,6 +11,7 @@ import BalanceCheckModal from '../components/BalanceCheckModal';
 import AvatarPickerModal from '../components/AvatarPickerModal';
 import MinimalToast from '../components/ui/MinimalToast';
 import { useCurrency } from '../context/CurrencyContext';
+import TwoFactorSettings from '../components/settings/TwoFactorSettings';
 
 const SettingsPage = () => {
     const { currentUser } = useAuth();
@@ -27,8 +29,6 @@ const SettingsPage = () => {
     const [currency, setCurrency] = useState('INR');
     const [language, setLanguage] = useState('en');
     const [notifExpense, setNotifExpense] = useState(true);
-    const [notifSettlement, setNotifSettlement] = useState(true);
-    const [notifMarketing, setNotifMarketing] = useState(false);
     const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
     const [userAvatar, setUserAvatar] = useState(currentUser?.photoURL || '');
     const [dangerModal, setDangerModal] = useState({ isOpen: false, type: null });
@@ -91,10 +91,11 @@ const SettingsPage = () => {
                             setLanguage(userData.language);
                             i18n.changeLanguage(userData.language);
                         } else if (i18n.language) {
-                            // If no DB preference, sync state with current i18n language
                             setLanguage(i18n.language.split('-')[0]);
                         }
                         if (userData.photoURL) setUserAvatar(userData.photoURL);
+
+                        if (userData.notifExpense !== undefined) setNotifExpense(userData.notifExpense);
                     }
                 } catch (error) {
                     console.error("Error fetching user settings:", error);
@@ -108,7 +109,6 @@ const SettingsPage = () => {
     const handleLanguageChange = (e) => {
         const newLang = e.target.value;
         setLanguage(newLang);
-        i18n.changeLanguage(newLang);
     };
 
     // Live validation handlers
@@ -198,7 +198,7 @@ const SettingsPage = () => {
         }
 
         try {
-            const fullName = `${firstName.trim()} ${lastName.trim()}`;
+            const fullName = `${firstName.trim()} ${lastName.trim()} `;
             const defaultCurrency = currency || 'INR';
             const defaultLanguage = language || 'en';
 
@@ -207,8 +207,14 @@ const SettingsPage = () => {
                 phone,
                 upiId,
                 currency: defaultCurrency,
-                language: defaultLanguage
+                language: defaultLanguage,
+                notifExpense,
             });
+
+            // If expense notifications were just turned on, ask browser for permission
+            if (notifExpense && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
 
             // Update global currency context
             updateGlobalCurrency(defaultCurrency);
@@ -317,6 +323,9 @@ const SettingsPage = () => {
                         </div>
                     </div>
                 </section>
+
+                {/* TWO FACTOR AUTHENTICATION SECTION */}
+                <TwoFactorSettings />
 
                 {/* Personal Information */}
                 <section className="bg-white dark:bg-white/5 rounded-2xl shadow-sm border border-gray-300 dark:border-white/10 overflow-hidden backdrop-blur-md">
@@ -501,41 +510,8 @@ const SettingsPage = () => {
                             </label>
                         </div>
 
-                        {/* Toggle 2 */}
-                        <div className="flex items-center justify-between">
-                            <div className="flex flex-col gap-0.5">
-                                <p className="text-sm font-bold text-[#0d191b] dark:text-white">{t('settings.notifSettlement')}</p>
-                                <p className="text-sm text-gray-400">{t('settings.notifSettlementDesc')}</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    className="sr-only peer"
-                                    checked={notifSettlement}
-                                    onChange={(e) => setNotifSettlement(e.target.checked)}
-                                />
-                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-400"></div>
-                            </label>
-                        </div>
-
-                        {/* Toggle 3 */}
-                        <div className="flex items-center justify-between">
-                            <div className="flex flex-col gap-0.5">
-                                <p className="text-sm font-bold text-white">{t('settings.notifMarketing')}</p>
-                                <p className="text-sm text-gray-400">{t('settings.notifMarketingDesc')}</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    className="sr-only peer"
-                                    checked={notifMarketing}
-                                    onChange={(e) => setNotifMarketing(e.target.checked)}
-                                />
-                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-400"></div>
-                            </label>
-                        </div>
                     </div>
-                </section >
+                </section>
 
                 {/* Danger Zone */}
                 <section className="border border-red-500/20 bg-red-500/5 dark:bg-red-500/5 rounded-2xl overflow-hidden mt-4 backdrop-blur-md">
