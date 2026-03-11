@@ -1,0 +1,387 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../firebase/authContext';
+import { useToast } from '../context/ToastContext';
+import { useCurrency } from '../context/CurrencyContext';
+import ConvertedAmount from '../components/ConvertedAmount';
+import { listenToUserGroups, createGroup, deleteGroup, getUserDocument } from '../firebase/firestore';
+import AddMemberModal from '../components/AddMemberModal';
+import ConfirmationModal from '../components/ConfirmationModal';
+import GroupInvitations from '../components/GroupInvitations';
+import { useTranslation } from 'react-i18next';
+
+const GroupsPage = () => {
+    const { currentUser } = useAuth();
+    const { t } = useTranslation();
+    const { addToast } = useToast();
+    const { currencySymbol } = useCurrency();
+    const navigate = useNavigate();
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [newGroupName, setNewGroupName] = useState('');
+    const [newGroupNameError, setNewGroupNameError] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [groups, setGroups] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedGroup, setSelectedGroup] = useState(null);
+    const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, group: null });
+    const [memberAvatars, setMemberAvatars] = useState({}); // Map userId to fresh photoURL
+
+    // Fetch user's groups with real-time listener
+    useEffect(() => {
+        if (!currentUser) return;
+
+        setLoading(true);
+        const unsubscribe = listenToUserGroups(currentUser.uid, (groupsData) => {
+            setGroups(groupsData);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    // Fetch fresh avatars for visible members
+    useEffect(() => {
+        const fetchAvatars = async () => {
+            if (groups.length === 0) return;
+
+            // Collect all unique user IDs from top 3 members of each group
+            const userIds = new Set();
+            groups.forEach(group => {
+                group.members?.slice(0, 3).forEach(member => {
+                    userIds.add(member.userId);
+                });
+            });
+
+            // Filter out IDs we already have
+            const idsToFetch = [...userIds].filter(id => !memberAvatars[id]);
+
+            if (idsToFetch.length === 0) return;
+
+            // Fetch in parallel
+            try {
+                const userDocsPromises = idsToFetch.map(uid => getUserDocument(uid));
+                const userDocs = await Promise.all(userDocsPromises);
+
+                setMemberAvatars(prev => {
+                    const newMap = { ...prev };
+                    userDocs.forEach((doc, index) => {
+                        const uid = idsToFetch[index];
+                        if (doc) {
+                            newMap[uid] = doc.photoURL;
+                        }
+                    });
+                    return newMap;
+                });
+            } catch (error) {
+                console.error("Error fetching group member avatars:", error);
+            }
+        };
+
+        fetchAvatars();
+    }, [groups]);
+
+    const handleCreateGroup = async () => {
+        const trimmedName = newGroupName.trim();
+        if (!trimmedName) {
+            setNewGroupNameError(t('groups.enterGroupNameError'));
+            return;
+        }
+        if (trimmedName.length < 2) {
+            setNewGroupNameError('Group name must be at least 2 characters.');
+            return;
+        }
+
+        try {
+            await createGroup(trimmedName, currentUser.uid, {
+                displayName: currentUser.displayName,
+                photoURL: currentUser.photoURL
+            });
+            addToast(`${t('groups.groupCreated')} "${trimmedName}"`, 'success');
+            setIsCreateModalOpen(false);
+            setNewGroupName('');
+            setNewGroupNameError('');
+        } catch (error) {
+            console.error('Error creating group:', error);
+            addToast(t('groups.failedLoadGroup'), 'error');
+        }
+    };
+
+    // Filter groups based on search
+    const filteredGroups = groups.filter(group =>
+        group.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    return (
+        <div className="flex flex-col gap-4 md:gap-6 lg:gap-8 pb-20 md:pb-24">
+            {/* Page Heading & Actions */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                    <h2 className="text-3xl md:text-4xl font-extrabold text-[#0d191b] dark:text-white tracking-tight">{t('dashboard.yourGroups')}</h2>
+                    <p className="text-[#5c6f73] dark:text-gray-400">{t('groups.subtitle')}</p>
+                </div>
+                <button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="bg-amber-400 text-black px-4 md:px-6 py-2 md:py-3 rounded-xl text-sm md:text-base font-bold hover:bg-amber-300 transition-all flex items-center gap-2 shadow-lg shadow-amber-900/20 transition-all transform active:scale-95"
+                >
+                    <span className="material-symbols-outlined text-lg md:text-xl">add</span>
+                    <span className="hidden sm:inline">{t('groups.createNewGroup')}</span>
+                    <span className="sm:hidden">{t('common.add')}</span>
+                </button>
+            </div>
+
+            {/* Pending Invitations */}
+            <GroupInvitations />
+
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2 rounded-2xl p-6 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[#5c6f73] dark:text-gray-400 font-medium">{t('groups.totalGroups')}</p>
+                        <span className="material-symbols-outlined text-amber-400 bg-amber-400/10 p-1.5 rounded-lg">groups</span>
+                    </div>
+                    <p className="text-[#0d191b] dark:text-white text-3xl font-bold tracking-tight">{groups.length}</p>
+                    <p className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium mt-1">{t('groups.activeGroups')}</p>
+                </div>
+                <div className="flex flex-col gap-2 rounded-2xl p-6 bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] border-2 border-gray-200 dark:border-white/10 shadow-md dark:shadow-none backdrop-blur-[2px]">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[#5c6f73] dark:text-gray-400 font-medium">{t('groups.totalMembers')}</p>
+                        <span className="material-symbols-outlined text-blue-400 bg-blue-400/10 p-1.5 rounded-lg">people</span>
+                    </div>
+                    <p className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight text-[#0d191b] dark:text-white">
+                        {groups.reduce((sum, g) => sum + (g.members?.length || 0), 0)}
+                    </p>
+                    <p className="text-[#5c6f73] dark:text-gray-400 text-sm font-medium mt-1">{t('groups.acrossAllGroups')}</p>
+                </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1 relative">
+                    <input
+                        className="w-full h-12 pl-11 pr-4 rounded-xl border border-gray-300 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all backdrop-blur-md"
+                        placeholder={t('groups.searchGroups')}
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <span className="material-symbols-outlined absolute left-3.5 top-3 text-gray-500 dark:text-gray-400">search</span>
+                </div>
+            </div>
+
+            {/* Groups Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Loading State */}
+                {loading && (
+                    <div className="col-span-full flex flex-col items-center justify-center gap-4 py-12">
+                        <span className="material-symbols-outlined text-6xl text-amber-400 animate-spin">refresh</span>
+                        <p className="text-white/60">{t('groups.loadingGroups')}</p>
+                    </div>
+                )}
+
+                {/* No Groups State */}
+                {!loading && filteredGroups.length === 0 && !searchQuery && (
+                    <div className="col-span-full flex flex-col items-center justify-center gap-4 py-12">
+                        <span className="material-symbols-outlined text-6xl text-white/20">group_off</span>
+                        <p className="text-white/60">{t('groups.noGroups')}</p>
+                    </div>
+                )}
+
+                {/* No Search Results */}
+                {!loading && filteredGroups.length === 0 && searchQuery && (
+                    <div className="col-span-full flex flex-col items-center justify-center gap-4 py-12">
+                        <span className="material-symbols-outlined text-6xl text-white/20">search_off</span>
+                        <p className="text-white/60">{t('groups.noSearchResults')} "{searchQuery}"</p>
+                    </div>
+                )}
+
+                {/* Real Group Cards */}
+                {!loading && filteredGroups.map((group) => {
+                    // Customization logic
+                    const icon = group.customization?.icon || 'groups';
+                    const color = group.customization?.color || '#F59E0B'; // Default Amber
+
+                    return (
+                        <div
+                            key={group.id}
+                            onClick={() => navigate(`/dashboard/groups/${group.id}`)}
+                            className="group flex flex-col justify-between bg-gradient-to-br from-white/20 to-white/15 dark:from-white/[0.04] dark:to-white/[0.02] p-5 rounded-2xl border-2 border-gray-200 dark:border-white/10 hover:border-amber-400/50 hover:shadow-xl transition-all duration-300 shadow-md dark:shadow-none backdrop-blur-[2px] cursor-pointer"
+                        >
+                            <div>
+                                <div className="flex justify-between items-start mb-4">
+                                    <div
+                                        className="size-12 rounded-xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform duration-300"
+                                        style={{
+                                            background: `linear-gradient(135deg, ${color}33, ${color}11)`,
+                                            color: color,
+                                            boxShadow: `0 4px 12px ${color}22`
+                                        }}
+                                    >
+                                        <span className="text-2xl" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}>
+                                            {icon}
+                                        </span>
+                                    </div>
+                                </div>
+                                <h3 className="text-lg font-bold text-[#0d191b] dark:text-white mb-1">{group.name}</h3>
+                                <p className="text-sm text-[#5c6f73] dark:text-gray-400 mb-4 line-clamp-2">
+                                    {group.customization?.description || `${group.members?.length || 0} ${t('dashboard.members')}`}
+                                </p>
+                                <div className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{t('groups.totalExpenses')}</p>
+                                    <p className="text-xl font-bold text-[#0d191b] dark:text-white"><ConvertedAmount amount={group.totalExpenses || 0} originalCurrency="INR" /></p>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200 dark:border-white/5">
+                                <div className="flex items-center -space-x-2">
+                                    {group.members?.slice(0, 3).map((member, idx) => {
+                                        // Use fresh avatar if available, otherwise fallback to group data
+                                        const photoURL = memberAvatars[member.userId] || member.photoURL;
+
+                                        return photoURL ? (
+                                            <img
+                                                key={idx}
+                                                src={photoURL}
+                                                alt={member.name}
+                                                className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] object-cover"
+                                                title={member.name}
+                                            />
+                                        ) : (
+                                            <div
+                                                key={idx}
+                                                className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-bold text-black"
+                                                title={member.name}
+                                            >
+                                                {member.name?.charAt(0)}
+                                            </div>
+                                        );
+                                    })}
+                                    {(group.members?.length || 0) > 3 && (
+                                        <div className="size-8 rounded-full border-2 border-white dark:border-[#0f172a] bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-[#5c6f73] dark:text-gray-400">
+                                            +{(group.members?.length || 0) - 3}
+                                        </div>
+                                    )}
+                                </div>
+                                {/* Only show delete button if current user is the creator */}
+                                {group.createdBy === currentUser.uid && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeleteConfirmation({ isOpen: true, group });
+                                        }}
+                                        className="text-xs font-semibold text-red-500 hover:text-red-400 transition-colors flex items-center gap-1"
+                                        title={t('groups.deleteConfirmTitle')}
+                                    >
+                                        <span className="material-symbols-outlined text-sm">delete</span>
+                                        {t('common.delete')}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {/* Create New Group Card */}
+                {!loading && (
+                    <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="group flex flex-col items-center justify-center gap-4 bg-transparent p-5 rounded-2xl border-2 border-dashed border-gray-300 dark:border-white/10 hover:border-amber-400/50 hover:bg-amber-400/5 transition-all duration-300 min-h-[250px] cursor-pointer backdrop-blur-md"
+                    >
+                        <div className="size-16 rounded-full bg-gray-100 dark:bg-white/10 group-hover:bg-amber-100 dark:group-hover:bg-white/20 flex items-center justify-center shadow-sm transition-colors">
+                            <span className="material-symbols-outlined text-amber-400 text-3xl">add</span>
+                        </div>
+                        <div className="text-center">
+                            <h3 className="text-lg font-bold text-[#0d191b] dark:text-white group-hover:text-amber-400 transition-colors">{t('groups.createNewGroup')}</h3>
+                            <p className="text-sm text-[#5c6f73] dark:text-gray-400 mt-1">{t('groups.startSharing')}</p>
+                        </div>
+                    </button>
+                )}
+            </div>
+
+            {/* Create Group Modal */}
+            {
+                isCreateModalOpen && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl border-2 border-gray-300 dark:border-white/10">
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">{t('groups.createNewGroup')}</h3>
+                            <input
+                                type="text"
+                                value={newGroupName}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setNewGroupName(val);
+                                    if (!val.trim()) {
+                                        setNewGroupNameError(t('groups.enterGroupNameError'));
+                                    } else if (val.trim().length < 2) {
+                                        setNewGroupNameError('Group name must be at least 2 characters.');
+                                    } else {
+                                        setNewGroupNameError('');
+                                    }
+                                }}
+                                placeholder={t('groups.enterGroupName')}
+                                className={`w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border ${newGroupNameError ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-white/10'} rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-amber-400 focus:border-transparent mb-1`}
+                                onKeyPress={(e) => e.key === 'Enter' && handleCreateGroup()}
+                                autoFocus
+                            />
+                            {newGroupNameError && (
+                                <p className="text-xs text-red-500 mb-5 flex items-center gap-1">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span>
+                                    {newGroupNameError}
+                                </p>
+                            )}
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setIsCreateModalOpen(false);
+                                        setNewGroupName('');
+                                        setNewGroupNameError('');
+                                    }}
+                                    className="flex-1 px-4 py-3 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-900 dark:text-white rounded-xl font-semibold transition-colors"
+                                >
+                                    {t('common.cancel')}
+                                </button>
+                                <button
+                                    onClick={handleCreateGroup}
+                                    className="flex-1 px-4 py-3 bg-amber-400 hover:bg-amber-300 text-black rounded-xl font-semibold transition-colors"
+                                >
+                                    {t('groups.createNewGroup')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Add Member Modal */}
+            <AddMemberModal
+                isOpen={selectedGroup !== null}
+                onClose={() => setSelectedGroup(null)}
+                groupId={selectedGroup?.id}
+                groupName={selectedGroup?.name}
+                currentMembers={selectedGroup?.members || []}
+            />
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteConfirmation.isOpen}
+                onClose={() => setDeleteConfirmation({ isOpen: false, group: null })}
+                onConfirm={async () => {
+                    try {
+                        await deleteGroup(deleteConfirmation.group?.id, currentUser.uid);
+                        addToast(`"${deleteConfirmation.group?.name}" ${t('groups.groupDeleted')}`, 'success');
+                        setDeleteConfirmation({ isOpen: false, group: null });
+                    } catch (error) {
+                        addToast(error.message || t('groups.failedDeleteGroup'), 'error');
+                        setDeleteConfirmation({ isOpen: false, group: null });
+                    }
+                }}
+                title={t('groups.deleteConfirmTitle')}
+                message={`${t('groups.deleteConfirmMsg')} "${deleteConfirmation.group?.name}"${t('groups.deleteConfirmMsgEnd')}`}
+                confirmText={t('common.delete')}
+                cancelText={t('common.cancel')}
+                type="danger"
+            />
+
+        </div>
+    );
+};
+
+export default GroupsPage;

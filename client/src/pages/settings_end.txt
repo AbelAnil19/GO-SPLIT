@@ -1,0 +1,17 @@
+                `</button>
+                </div>
+            </div>
+
+            {/* Avatar Picker Modal */}
+            <AvatarPickerModal
+                isOpen={isAvatarPickerOpen}
+                currentPhotoURL={userAvatar || currentUser?.photoURL}
+                userId={currentUser?.uid}
+                onClose={() => setIsAvatarPickerOpen(false)}
+                onSave={handleAvatarSave}
+            />
+        </div>
+    );
+};
+
+export default SettingsPage;

@@ -2,25 +2,46 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../firebase/authContext';
 import { doSignOut } from '../firebase/auth';
+import logo from '../assets/logo.png';
 
 const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false);
     const { userLoggedIn, currentUser } = useAuth();
     const navigate = useNavigate();
 
+    const scrollToSection = (id) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+        } else {
+            // If we are not on the landing page (e.g., /home), navigate to / first
+            if (window.location.pathname !== '/') {
+                navigate('/');
+                // Small timeout to allow navigation to happen
+                setTimeout(() => {
+                    const el = document.getElementById(id);
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+        setIsOpen(false);
+    };
+
     return (
         <nav className="sticky top-0 z-50 bg-white/10 backdrop-blur-md border-b border-white/20">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center">
-                        <Link to="/" className="flex-shrink-0">
-                            <img className="h-10 w-auto" src="/src/assets/logo.png" alt="GoSplit" />
+                        <Link to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex-shrink-0">
+                            <img className="h-10 w-auto" src={logo} alt="GoSplit" />
                         </Link>
                         <div className="hidden md:block">
                             <div className="ml-10 flex items-baseline space-x-4">
-                                <Link to="/" className="text-white hover:bg-white/20 px-3 py-2 rounded-md text-sm font-medium">Home</Link>
-                                <Link to="/" className="text-gray-300 hover:bg-white/20 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Features</Link>
-                                <Link to="/" className="text-gray-300 hover:bg-white/20 hover:text-white px-3 py-2 rounded-md text-sm font-medium">About</Link>
+                                <button onClick={() => scrollToSection('hero')} className="text-white hover:bg-white/20 px-3 py-2 rounded-md text-sm font-medium transition-colors">Home</button>
+                                <button onClick={() => scrollToSection('features')} className="text-gray-300 hover:bg-white/20 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors">Features</button>
+                                <button onClick={() => scrollToSection('about')} className="text-gray-300 hover:bg-white/20 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors">About</button>
                             </div>
                         </div>
                     </div>
@@ -28,7 +49,7 @@ const Navbar = () => {
                         <div className="ml-4 flex items-center md:ml-6">
                             {userLoggedIn ? (
                                 <div className="flex items-center gap-4">
-                                    <Link to="/home" className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors">
+                                    <Link to="/dashboard" className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors">
                                         {currentUser?.photoURL ? (
                                             <img src={currentUser.photoURL} alt="User" className="w-8 h-8 rounded-full border border-white/30" />
                                         ) : (
@@ -70,13 +91,14 @@ const Navbar = () => {
             {isOpen && (
                 <div className="md:hidden">
                     <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-                        <Link to="/" className="text-white block px-3 py-2 rounded-md text-base font-medium">Home</Link>
-                        {userLoggedIn ? (
-                            <Link to="/home" className="text-white block px-3 py-2 rounded-md text-base font-medium">Profile</Link>
-                        ) : (
+                        <button onClick={() => scrollToSection('hero')} className="text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left">Home</button>
+                        <button onClick={() => scrollToSection('features')} className="text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left">Features</button>
+                        <button onClick={() => scrollToSection('about')} className="text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left">About</button>
+
+                        {!userLoggedIn && (
                             <>
-                                <Link to="/login" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Log In</Link>
-                                <Link to="/register" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Sign Up</Link>
+                                <Link to="/login" onClick={() => setIsOpen(false)} className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Log In</Link>
+                                <Link to="/register" onClick={() => setIsOpen(false)} className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Sign Up</Link>
                             </>
                         )}
                     </div>

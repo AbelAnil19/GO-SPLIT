@@ -1,13 +1,39 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { doSignInWithEmailAndPassword, doSignInWithGoogle } from '../firebase/auth';
+import { useToast } from '../context/ToastContext';
+import { createUserDocument } from '../firebase/firestore';
+import { EyeIcon } from '../components/icons/EyeOpenIcon';
+import { EyeOffIcon } from '../components/icons/EyeCloseIcon';
+import { LoaderIcon } from '../components/Loader';
+import MinimalToast from '../components/ui/MinimalToast';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [isSigningIn, setIsSigningIn] = useState(false);
+    const { addToast } = useToast();
     const navigate = useNavigate();
+
+    // MinimalToast state for validation
+    const [validationToast, setValidationToast] = useState({
+        open: false,
+        message: '',
+        type: 'error'
+    });
+
+    const showValidationError = (message) => {
+        setValidationToast({
+            open: true,
+            message,
+            type: 'error'
+        });
+        setTimeout(() => {
+            setValidationToast(prev => ({ ...prev, open: false }));
+        }, 3000);
+    };
 
     const handleGoogleSignIn = async (e) => {
         e.preventDefault();
@@ -15,25 +41,80 @@ const LoginPage = () => {
             setIsSigningIn(true);
             setError('');
             try {
-                await doSignInWithGoogle();
-                navigate('/home');
+                const result = await doSignInWithGoogle();
+                const user = result.user;
+
+                // Create or update user document in Firestore
+                await createUserDocument(user.uid, {
+                    displayName: user.displayName,
+                    email: user.email,
+                    photoURL: user.photoURL
+                });
+
+                addToast('Successfully signed in with Google!', 'success');
+                navigate('/dashboard');
             } catch (err) {
-                setError(err.message);
+                // Handle account exists with different credential
+                if (err.code === 'auth/account-exists-with-different-credential') {
+                    setError(`This email is already registered with email/password. Please login with your password instead, then you can link your Google account in Settings.`);
+                    addToast('Account exists. Please use email/password login.', 'error');
+                } else {
+                    setError(err.message);
+                    addToast(err.message, 'error');
+                }
                 setIsSigningIn(false);
             }
         }
     };
 
+    const validateEmail = (email) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
     const handleEmailSignIn = async (e) => {
         e.preventDefault();
         if (!isSigningIn) {
-            setIsSigningIn(true);
             setError('');
+
+            // Validation
+            if (!email || !password) {
+                showValidationError('Please fill in all fields');
+                return;
+            }
+
+            if (!validateEmail(email)) {
+                showValidationError('Please enter a valid email address');
+                return;
+            }
+
+            if (password.length < 6) {
+                showValidationError('Password must be at least 6 characters');
+                return;
+            }
+
+            setIsSigningIn(true);
             try {
                 await doSignInWithEmailAndPassword(email, password);
-                navigate('/home');
+                addToast('Welcome back!', 'success');
+                navigate('/dashboard');
             } catch (err) {
-                setError(err.message);
+                let errorMessage = 'Failed to sign in. Please try again.';
+
+                // Handle specific Firebase error codes with user-friendly messages
+                if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+                    errorMessage = 'Invalid email or password';
+                } else if (err.code === 'auth/user-not-found') {
+                    errorMessage = 'No account found with this email';
+                } else if (err.code === 'auth/user-disabled') {
+                    errorMessage = 'This account has been disabled';
+                } else if (err.code === 'auth/too-many-requests') {
+                    errorMessage = 'Too many failed attempts. Please try again later';
+                } else if (err.code === 'auth/network-request-failed') {
+                    errorMessage = 'Network error. Please check your connection';
+                }
+
+                showValidationError(errorMessage);
                 setIsSigningIn(false);
             }
         }
@@ -51,8 +132,6 @@ const LoginPage = () => {
                 <p className="text-center text-gray-500 mb-8">
                     Don't have an account? <Link to="/register" className="text-gray-700 underline hover:text-gray-900">Sign up</Link>
                 </p>
-
-                {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
 
                 <button
                     onClick={handleGoogleSignIn}
@@ -84,13 +163,26 @@ const LoginPage = () => {
                         <div className="flex justify-between items-center mb-1">
                             <label className="block text-sm font-medium text-gray-600">Password</label>
                         </div>
-                        <input
-                            type="password"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
-                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                {showPassword ? (
+                                    <EyeIcon size={20} duration={0.5} />
+                                ) : (
+                                    <EyeOffIcon size={20} duration={0.5} />
+                                )}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex items-center justify-between mt-2">
@@ -104,12 +196,21 @@ const LoginPage = () => {
                     <button
                         type="submit"
                         disabled={isSigningIn}
-                        className="w-full bg-[#34627B] hover:bg-[#2c5369] text-white font-bold py-3 rounded-full shadow-lg transition-transform transform active:scale-95 mt-6 disabled:opacity-50"
+                        className="w-full bg-[#34627B] hover:bg-[#2c5369] text-white font-bold py-3 rounded-full shadow-lg transition-transform transform active:scale-95 mt-6 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
+                        {isSigningIn && <LoaderIcon size={20} duration={0.8} isAnimated={false} />}
                         {isSigningIn ? 'Logging In...' : 'Log in'}
                     </button>
                 </form>
             </div>
+
+            {/* Validation Toast */}
+            <MinimalToast
+                open={validationToast.open}
+                onClose={() => setValidationToast(prev => ({ ...prev, open: false }))}
+                message={validationToast.message}
+                type={validationToast.type}
+            />
         </div>
     );
 };

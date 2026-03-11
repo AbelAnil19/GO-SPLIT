@@ -1,0 +1,27 @@
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import ItineraryBuilder from '../itinerary/ItineraryBuilder';
+
+const ItineraryTab = ({ groupId, groupData, savedTrips, activeTrip }) => {
+    const { t } = useTranslation();
+    if (!groupId) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20">
+                <span className="material-symbols-outlined text-6xl text-gray-400 mb-4">event_note</span>
+                <p className="text-gray-600 dark:text-gray-400 text-lg font-semibold">{t('itineraryTab.noGroupTitle')}</p>
+                <p className="text-gray-500 text-sm">{t('itineraryTab.noGroupDesc')}</p>
+            </div>
+        );
+    }
+
+    return (
+        <ItineraryBuilder
+            groupId={groupId}
+            groupData={groupData}
+            savedTrips={savedTrips || []}
+            activeTrip={activeTrip}
+        />
+    );
+};
+
+export default ItineraryTab;

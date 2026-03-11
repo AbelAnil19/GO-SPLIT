@@ -1,6 +1,7 @@
 import React, { useContext, useState, useEffect } from "react";
 import { auth } from "./firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
+import { doSignOut } from "./auth";
 
 const AuthContext = React.createContext();
 
@@ -20,7 +21,7 @@ export function AuthProvider({ children }) {
 
     async function initializeUser(user) {
         if (user) {
-            setCurrentUser({ ...user });
+            setCurrentUser(user);
             setUserLoggedIn(true);
         } else {
             setCurrentUser(null);
@@ -32,7 +33,8 @@ export function AuthProvider({ children }) {
     const value = {
         currentUser,
         userLoggedIn,
-        loading
+        loading,
+        doSignOut
     };
 
     return (

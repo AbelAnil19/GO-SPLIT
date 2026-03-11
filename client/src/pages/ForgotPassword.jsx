@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { doPasswordReset } from '../firebase/auth';
+import { useToast } from '../context/ToastContext';
 
 const ForgotPassword = () => {
     const [email, setEmail] = useState('');
@@ -8,21 +9,53 @@ const ForgotPassword = () => {
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
 
+    const { addToast } = useToast();
+
+    const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
     const handleReset = async (e) => {
         e.preventDefault();
         setIsSending(true);
         setError('');
         setMessage('');
 
+        // Client-side validation before hitting Firebase
+        if (!email.trim()) {
+            setError('Please enter your email address.');
+            setIsSending(false);
+            return;
+        }
+
+        if (!validateEmail(email)) {
+            setError('Please enter a valid email address (e.g. name@example.com).');
+            setIsSending(false);
+            return;
+        }
+
         try {
             await doPasswordReset(email);
-            setMessage('Password reset email sent! Check your inbox.');
+            const msg = 'Password reset email sent! Check your inbox.';
+            setMessage(msg);
+            addToast(msg, 'success');
             setIsSending(false);
         } catch (err) {
-            setError(err.message);
+            // Map Firebase error codes to friendly messages
+            let friendlyMessage = 'Something went wrong. Please try again.';
+            if (err.code === 'auth/user-not-found') {
+                friendlyMessage = 'No account found with this email address.';
+            } else if (err.code === 'auth/too-many-requests') {
+                friendlyMessage = 'Too many attempts. Please wait a moment and try again.';
+            } else if (err.code === 'auth/network-request-failed') {
+                friendlyMessage = 'Network error. Please check your connection.';
+            } else if (err.code === 'auth/invalid-email') {
+                friendlyMessage = 'The email address is invalid.';
+            }
+            setError(friendlyMessage);
+            addToast(friendlyMessage, 'error');
             setIsSending(false);
         }
     };
+
 
     return (
         <div className="flex items-center justify-center min-h-[calc(100vh-100px)]">

@@ -1,0 +1,72 @@
+/* Custom Topography Pattern from User */
+/* Uses /public/topography.svg */
+
+.noise-pattern {
+    position: relative;
+}
+
+.noise-pattern::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.15;
+    /* Visibility for light mode */
+    background-image: url('/topography.svg');
+    background-size: 600px 600px;
+    /* Match SVG native size */
+    background-repeat: repeat;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Dark theme adjustments */
+.dark .noise-pattern::before {
+    opacity: 0.1;
+    /* Visibility for dark mode */
+    filter: invert(1);
+    /* Turns black SVG lines to white */
+}
+
+/* Keep other utility classes just in case */
+.mesh-pattern {
+    position: relative;
+}
+
+.mesh-pattern::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.4;
+    background-image: url('/topography.svg');
+    background-size: 600px 600px;
+    pointer-events: none;
+}
+
+.dark .mesh-pattern::before {
+    opacity: 0.1;
+    filter: invert(1);
+}
+
+/* Sidebar Pattern using yyy.svg */
+.sidebar-pattern {
+    position: relative;
+    overflow: hidden;
+    /* Ensure pattern doesn't spill out */
+}
+
+.sidebar-pattern::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.18;
+    background-image: url('/yyy.svg');
+    background-size: 60px 96px;
+    background-repeat: repeat;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.dark .sidebar-pattern::before {
+    opacity: 0.10;
+    /* No filter needed — yyy.svg fill is now white, matching dashboard topography line color */
+}
